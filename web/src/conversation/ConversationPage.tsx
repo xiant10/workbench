@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Archive, CircleAlert, MessageSquareOff, PanelRight, Phone, PhoneOff } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CallBar } from "../call/CallBar.tsx";
 import { useCall } from "../call/useCall.ts";
@@ -42,6 +42,17 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const inCall = call.phase !== "off" && call.phase !== "failed" && call.phase !== "no-microphone";
 	const voice = { inCall, speaking: call.phase === "thinking" || call.phase === "speaking" };
 	const { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard } = useConversation(agent, sessionId, archived, voice);
+	// The room's reply stands in until the message itself is read, which is when an assistant line appears beyond these.
+	const assistants = state.lines.filter((line) => line.role === "assistant").length;
+	const replyBase = useRef({ id: 0, assistants });
+	if (replyBase.current.id !== call.reply.id) replyBase.current = { id: call.reply.id, assistants };
+	// Likewise for each thing the caller said: it stands in until a user line beyond these has been read.
+	const users = state.lines.filter((line) => line.role === "user").length;
+	const heardBase = useRef(new Map<number, number>());
+	for (const item of call.heard) if (!heardBase.current.has(item.id)) heardBase.current.set(item.id, users);
+	if (call.heard.length === 0) heardBase.current.clear();
+	const heard = call.heard.filter((item) => users <= (heardBase.current.get(item.id) ?? users)).map((item) => item.text);
+	const spoken = assistants > replyBase.current.assistants ? "" : call.reply.text;
 	const [now, setNow] = useState(Date.now);
 	const [resultsChoice, setResultsOpen] = useState<boolean>();
 	const [tab, setTab] = useState<ResultsTab>("outputs");
@@ -100,7 +111,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						{resultCount > 0 && <span className="badge">{resultCount}</span>}
 					</button>
 				</header>
-				{call.phase !== "off" && <CallBar phase={call.phase} caption={call.caption} muted={call.muted} onToggleMute={call.toggleMute} onEnd={call.end} />}
+				{call.phase !== "off" && <CallBar phase={call.phase} muted={call.muted} onToggleMute={call.toggleMute} onEnd={call.end} />}
 				{(info.data?.parked ?? 0) > 0 && (
 					<div className="banner">
 						<CircleAlert size={15} aria-hidden="true" />
@@ -112,6 +123,9 @@ function Conversation({ sessionId }: { sessionId: string }) {
 				)}
 				<Transcript
 					state={state}
+					spoken={spoken}
+					heard={heard}
+					interim={call.interim}
 					onOpenOutput={(output) => {
 						setSelected(output);
 						setTab("outputs");

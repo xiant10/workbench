@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import { CopyButton, Logo } from "../lib/ui.tsx";
 import { type Output, outputsOf } from "../results/outputs.ts";
+import { useTypewriter } from "../call/useTypewriter.ts";
 import { Markdown } from "./Markdown.tsx";
 import type { ConversationState, Line, Pending } from "./reducer.ts";
 
@@ -14,7 +15,27 @@ type Props = {
 	onRetry(pending: Pending): void;
 	onDiscard(requestId: string): void;
 	onLoadEarlier(): void;
+	/** In a call, the reply being spoken, typed out as it arrives. It gives way to the message once that is read. */
+	spoken?: string;
+	/** In a call, what the caller said, shown at once and replaced by the user's message once that is read. */
+	heard?: string[];
+	/** In a call, the caller's words so far, while they are still speaking. */
+	interim?: string;
 };
+
+function SpokenView({ text }: { text: string }) {
+	const typed = useTypewriter(text, true);
+	return (
+		<div className="line assistant live">
+			<span className="agent-mark">
+				<Logo size={24} />
+			</span>
+			<div className="line-body">
+				<Markdown text={typed} />
+			</div>
+		</div>
+	);
+}
 
 function LineView({ line, onOpenOutput, resultAction }: { line: Line } & Pick<Props, "onOpenOutput" | "resultAction">) {
 	const { t } = useI18n();
@@ -95,7 +116,7 @@ function LineView({ line, onOpenOutput, resultAction }: { line: Line } & Pick<Pr
 	}
 }
 
-export function Transcript({ state, onOpenOutput, resultAction, onRetry, onDiscard, onLoadEarlier }: Props) {
+export function Transcript({ state, onOpenOutput, resultAction, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
 	const { t } = useI18n();
 	const scroller = useRef<HTMLDivElement>(null);
 	const pinned = useRef(true);
@@ -183,7 +204,18 @@ export function Transcript({ state, onOpenOutput, resultAction, onRetry, onDisca
 							</div>
 						</div>
 					)}
-					{state.busy && quiet && (
+					{heard.map((text, at) => (
+						<div key={`heard${at}`} className="line user">
+							<div className="bubble">{text}</div>
+						</div>
+					))}
+					{interim !== "" && (
+						<div className="line user interim">
+							<div className="bubble">{interim}</div>
+						</div>
+					)}
+					{spoken !== "" && <SpokenView text={spoken} />}
+					{state.busy && quiet && spoken === "" && (
 						<div className="working" role="status" aria-label={t("Working…")}>
 							<span className="agent-mark">
 								<Logo size={24} />

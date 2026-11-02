@@ -1,4 +1,4 @@
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { CircleAlert, LoaderCircle, Mic, MicOff, PhoneOff, Volume2 } from "lucide-react";
 import { useI18n } from "../lib/i18n.tsx";
 import type { CallPhase } from "./useCall.ts";
 
@@ -14,16 +14,33 @@ const LABELS: Partial<Record<CallPhase, string>> = {
 	"no-microphone": "Allow the microphone to start a call.",
 };
 
-type Props = { phase: CallPhase; caption: string; muted: boolean; onToggleMute(): void; onEnd(): void };
+type Props = { phase: CallPhase; muted: boolean; onToggleMute(): void; onEnd(): void };
 
-export function CallBar({ phase, caption, muted, onToggleMute, onEnd }: Props) {
+function PhaseIcon({ phase }: { phase: CallPhase }) {
+	switch (phase) {
+		case "joining":
+		case "thinking":
+			return <LoaderCircle size={16} className="spin" />;
+		case "speaking":
+			return <Volume2 size={16} />;
+		case "no-agent":
+		case "failed":
+		case "no-microphone":
+			return <CircleAlert size={16} />;
+		default:
+			return <Mic size={16} />;
+	}
+}
+
+export function CallBar({ phase, muted, onToggleMute, onEnd }: Props) {
 	const { t } = useI18n();
 	const stopped = phase === "failed" || phase === "no-microphone";
 	return (
 		<div className={`call-bar ${phase}`} role="status">
-			<span className="call-dot" aria-hidden="true" />
+			<span className="call-icon" aria-hidden="true">
+				<PhaseIcon phase={phase} />
+			</span>
 			<span className="call-state">{t(LABELS[phase] ?? "")}</span>
-			<span className="call-caption">{caption}</span>
 			<span className="spacer" />
 			{!stopped && (
 				<button type="button" className="ghost small" onClick={onToggleMute} aria-pressed={muted}>

@@ -13,7 +13,7 @@ export type CallPhase = "off" | "joining" | "listening" | "thinking" | "speaking
 
 type Admission = { room_token: string; server_url: string };
 
-/** One update per JSONL line. Each replaces the caption before it. */
+/** One update per JSONL line. Each replaces the one before it. */
 function lastSnapshot(text: string): string | undefined {
 	const lines = text.trim().split("\n");
 	try {
@@ -25,12 +25,19 @@ function lastSnapshot(text: string): string | undefined {
 
 export function useCall(room: string) {
 	const [phase, setPhase] = useState<CallPhase>("off");
-	const [caption, setCaption] = useState("");
+	/** The caller's words so far in the utterance being spoken, which the agent revises until it is final. */
+	const [interim, setInterim] = useState("");
+	/** The agent's reply as the room delivers it, in step with the audio. `id` moves on at each new reply. */
+	/** What the agent heard the caller say, one entry per utterance, as soon as it was final. */
+	const [heard, setHeard] = useState<{ id: number; text: string }[]>([]);
+	const [reply, setReply] = useState({ id: 0, text: "" });
 	const [muted, setMuted] = useState(false);
 	const current = useRef<Room | undefined>(undefined);
 	const audio = useRef<HTMLElement[]>([]);
 	/** Moves on at each start and each end, so a start still running can tell it no longer counts. */
 	const attempt = useRef(0);
+	const replies = useRef(0);
+	const heards = useRef(0);
 
 	const end = useCallback(() => {
 		attempt.current++;
@@ -39,7 +46,9 @@ export function useCall(room: string) {
 		void active?.disconnect();
 		for (const element of audio.current.splice(0)) element.remove();
 		setPhase("off");
-		setCaption("");
+		setInterim("");
+		setReply({ id: replies.current, text: "" });
+		setHeard([]);
 		setMuted(false);
 	}, []);
 
@@ -58,8 +67,8 @@ export function useCall(room: string) {
 			const showPhase = (next: CallPhase) => {
 				if (current.current === lk) setPhase(next);
 			};
-			const showCaption = (text: string) => {
-				if (current.current === lk) setCaption(text);
+			const showInterim = (text: string) => {
+				if (current.current === lk) setInterim(text);
 			};
 			const setAgentState = (state: string | undefined) => {
 				if (state === "listening" || state === "thinking" || state === "speaking" || state === "idle") showPhase(state);
@@ -87,11 +96,27 @@ export function useCall(room: string) {
 			lk.registerTextStreamHandler(TOPIC.interim, (reader) =>
 				readAll(reader, (text) => {
 					const snapshot = lastSnapshot(text);
-					if (snapshot !== undefined) showCaption(snapshot);
+					if (snapshot !== undefined) showInterim(snapshot);
 				}),
 			);
-			lk.registerTextStreamHandler(TOPIC.transcript, (reader) => readAll(reader, showCaption));
-			lk.registerTextStreamHandler(TOPIC.chat, (reader) => readAll(reader, showCaption));
+			lk.registerTextStreamHandler(TOPIC.transcript, (reader) => {
+				void (async () => {
+					let text = "";
+					for await (const chunk of reader) {
+						text += chunk.current;
+					}
+					const final = text.trim();
+					showInterim("");
+					if (final !== "" && current.current === lk) setHeard((held) => [...held, { id: ++heards.current, text: final }]);
+				})();
+			});
+			lk.registerTextStreamHandler(TOPIC.chat, (reader) => {
+				const id = ++replies.current;
+				if (current.current === lk) setReply({ id, text: "" });
+				readAll(reader, (text) => {
+					if (current.current === lk) setReply({ id, text });
+				});
+			});
 			lk.registerTextStreamHandler(TOPIC.state, (reader) =>
 				readAll(reader, (text) => {
 					const state = text.trim();
@@ -153,5 +178,5 @@ export function useCall(room: string) {
 		void current.current?.localParticipant.setMicrophoneEnabled(!next);
 	}, [muted]);
 
-	return { phase, caption, muted, start, end, toggleMute, active: current.current !== undefined };
+	return { phase, interim, reply, heard, muted, start, end, toggleMute, active: current.current !== undefined };
 }

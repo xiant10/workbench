@@ -390,11 +390,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .call-bar { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 1rem; background: var(--accent-soft); border-bottom: 1px solid var(--line); font-size: 0.9rem; }
 .call-state { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.call-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--ok); }
-.call-bar.speaking .call-dot, .call-bar.thinking .call-dot, .call-bar.joining .call-dot { animation: pulse 1s infinite; }
+.call-icon { display: inline-flex; flex: none; color: var(--ok); }
+.call-bar.listening .call-icon, .call-bar.speaking .call-icon { animation: pulse 1.4s infinite; }
 .call-bar.no-agent, .call-bar.failed, .call-bar.no-microphone { background: var(--warn-soft); }
-.call-bar.no-agent .call-dot, .call-bar.failed .call-dot, .call-bar.no-microphone .call-dot { background: var(--danger); }
-.call-caption { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.call-bar.no-agent .call-icon, .call-bar.failed .call-icon, .call-bar.no-microphone .call-icon { color: var(--danger); }
+.line.user.interim .bubble { opacity: 0.65; }
 
 .results { width: 400px; flex: none; border-left: 1px solid var(--line); display: flex; flex-direction: column; background: var(--surface); }
 .sheet-backdrop { display: none; }
