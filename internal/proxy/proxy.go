@@ -93,7 +93,9 @@ func (p *Proxy) Module(w http.ResponseWriter, r *http.Request, id, path, token s
 		WriteError(w, http.StatusNotFound, "unknown_module", "that module isn't available here")
 		return
 	}
-	p.forward(w, r, p.modules[i].URL.JoinPath("v1", path), pick(r.Header), token)
+	headers := pick(r.Header)
+	telemetry.Inject(r.Context(), headers)
+	p.forward(w, r, p.modules[i].URL.JoinPath("v1", path), headers, token)
 }
 
 // Manifest is what a module says about itself to this person.
@@ -129,6 +131,7 @@ func (p *Proxy) manifest(ctx context.Context, module config.Agent, token string)
 		return nil
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	telemetry.Inject(ctx, req.Header)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		slog.Warn("module unavailable", "module", module.Name, "error", err)

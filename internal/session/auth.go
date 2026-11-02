@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"t10-workbench/internal/telemetry"
 )
 
 // Errors the auth service answers with. Each ends a different way for the user.
@@ -94,6 +96,7 @@ func (a *AuthClient) Call(ctx context.Context, method, path, bearer string, body
 		return 0, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
+	telemetry.Inject(ctx, req.Header)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -166,6 +169,7 @@ func (a *AuthClient) postForm(ctx context.Context, path string, form url.Values)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	telemetry.Inject(ctx, req.Header)
 	resp, err := a.HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)

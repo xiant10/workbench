@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
@@ -22,6 +23,7 @@ const serviceName = "t10-workbench"
 
 // Setup starts the exporter and returns a shutdown that flushes it.
 func Setup(ctx context.Context, endpoint string) (func(context.Context) error, error) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 	if endpoint == "" {
 		return func(context.Context) error { return nil }, nil
 	}
@@ -59,4 +61,10 @@ func StartTurn(ctx context.Context, turnID string) (context.Context, string, fun
 	ctx, span := otel.Tracer(serviceName).Start(trace.ContextWithRemoteSpanContext(ctx, parent), "workbench.send")
 	sc := span.SpanContext()
 	return ctx, fmt.Sprintf("00-%s-%s-01", sc.TraceID(), sc.SpanID()), func() { span.End() }
+}
+
+// Inject puts the trace on ctx into an outgoing request's headers as a W3C
+// traceparent, so a downstream service continues it. It adds nothing outside a span.
+func Inject(ctx context.Context, h http.Header) {
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(h))
 }
