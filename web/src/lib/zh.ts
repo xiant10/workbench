@@ -89,6 +89,8 @@ export const ZH: Record<string, string> = {
 	// Composer and transcript
 	"Ask your agent": "询问你的智能体",
 	"Add to this run…": "补充到本次运行…",
+	"Wait for this run to finish": "请等待本次运行结束",
+	Agent: "智能体",
 	Send: "发送",
 	Stop: "停止",
 	"Stop and send this instead": "停止并改发此内容",

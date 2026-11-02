@@ -138,8 +138,9 @@ function Row({ session, onDone }: { session: SessionInfo; onDone(): void }) {
 
 function Account() {
 	const { t } = useI18n();
-	const { me, tenant, config, path } = useWorkspace();
+	const { me, tenant, config, path, agent, agents, setAgent } = useWorkspace();
 	const client = useQueryClient();
+	const navigate = useNavigate();
 	const theme = useTheme();
 	const name = displayName(me);
 	const tenantName = me.tenants.find((option) => option.id === tenant)?.name;
@@ -173,6 +174,25 @@ function Account() {
 								{me.tenants.map((option) => (
 									<option key={option.id} value={option.id}>
 										{option.name}
+									</option>
+								))}
+							</select>
+						</label>
+					)}
+					{agents.length > 1 && (
+						<label>
+							{t("Agent")}
+							<select
+								value={agent}
+								onChange={(event) => {
+									setAgent(event.target.value);
+									navigate(path());
+									close();
+								}}
+							>
+								{agents.map((option) => (
+									<option key={option.name} value={option.name}>
+										{option.title ?? option.name}
 									</option>
 								))}
 							</select>

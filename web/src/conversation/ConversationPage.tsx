@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CallBar } from "../call/CallBar.tsx";
 import { useCall } from "../call/useCall.ts";
+import { type PromptInput, supports } from "../lib/agent.ts";
 import { rpc } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
@@ -99,7 +100,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					<h1>{title}</h1>
 					{session !== undefined && modules.map(({ id, SessionChip }) => SessionChip !== undefined && <SessionChip key={id} session={session} />)}
 					<span className="spacer" />
-					{config.voice && !archived && (
+					{config.voice && !archived && (inCall || supports(session, "voice")) && (
 						<button type="button" className="ghost" aria-label={t(call.phase === "off" ? "Call" : "End call")} onClick={() => (call.phase === "off" ? void call.start() : call.end())}>
 							{call.phase === "off" ? <Phone size={15} aria-hidden="true" /> : <PhoneOff size={15} aria-hidden="true" />}
 							<span className="label">{t(call.phase === "off" ? "Call" : "End call")}</span>
@@ -153,12 +154,13 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						draftKey={sessionId}
 						mode={mode}
 						inCall={inCall}
-						placeholder={state.busy ? t("Add to this run…") : t("Ask your agent")}
+						canAddToRun={supports(session, "steer")}
+						placeholder={!state.busy ? t("Ask your agent") : supports(session, "steer") ? t("Add to this run…") : t("Wait for this run to finish")}
 						queued={queued}
 						autoFocus
 						onSend={(input, text, images) => void send(input, text, images, state.busy).then(refresh)}
 						onStop={() => void stop()}
-						onStopAndSend={(input, text, images) => void stopAndSend(input, text, images)}
+						{...(supports(session, "interrupt") ? { onStopAndSend: (input: PromptInput, text: string, images: number) => void stopAndSend(input, text, images) } : {})}
 						{...(stalled === undefined ? {} : { onRetry: () => void retry(stalled) })}
 						onEndCall={call.end}
 						onSignIn={() => window.location.assign(`/auth/login?next=${encodeURIComponent(path(`c/${sessionId}`))}`)}

@@ -21,6 +21,8 @@ import (
 
 const (
 	sessionHeader = "Agent-Session-Id"
+	// agentHeader names the agent for a call with no session.
+	agentHeader = "Agent-Name"
 	methodHeader  = "Agent-Method"
 	turnHeader    = "X-Turn-ID"
 	traceHeader   = "traceparent"
@@ -62,10 +64,9 @@ func New(agents, modules []config.Agent) *Proxy {
 }
 
 // Agent passes one call to an agent's /agent endpoint, which is ai-gateway-agent
-// once more than one agent-pi replica runs. Session IDs are
-// <agent>.<replica>.<n>: everything before the last dot picks the replica, which
-// is the sticky routing agent-pi asks for. An ID no entry names goes to the
-// agent's own entry, so a single gateway entry serves every replica.
+// once more than one replica runs. Session IDs are <pool>.<replica>.<n>: the ID
+// picks the entry for that replica or pool. An ID no entry names goes to the
+// agent's own entry, and a lone entry is a gateway that serves every agent.
 func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token string) {
 	target, ok := p.route(agent, r.Header.Get(sessionHeader))
 	if !ok {
@@ -73,6 +74,11 @@ func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token strin
 		return
 	}
 	headers := pick(r.Header)
+	// A session names its own home. The agent picked in the browser may be another
+	// one by now, and a harness refuses a name it doesn't serve.
+	if r.Header.Get(sessionHeader) == "" {
+		headers.Set(agentHeader, agent)
+	}
 	ctx := r.Context()
 	if r.Method == http.MethodPost {
 		turnCtx, traceparent, end := telemetry.StartTurn(ctx, r.Header.Get(turnHeader))
@@ -151,9 +157,20 @@ func (p *Proxy) route(agent, sessionID string) (*url.URL, bool) {
 		if target, ok := p.agents[sessionID[:at]]; ok {
 			return target, true
 		}
+		pool, _, _ := strings.Cut(sessionID, ".")
+		if target, ok := p.agents[pool]; ok {
+			return target, true
+		}
 	}
-	target, ok := p.agents[agent]
-	return target, ok
+	if target, ok := p.agents[agent]; ok {
+		return target, true
+	}
+	if len(p.agents) == 1 {
+		for _, target := range p.agents {
+			return target, true
+		}
+	}
+	return nil, false
 }
 
 func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, target *url.URL, headers http.Header, token string) {

@@ -3,6 +3,7 @@ import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
+import { listAgents } from "../lib/agent.ts";
 import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
@@ -139,20 +140,35 @@ function Shell() {
 		if (me.error instanceof ApiError && me.error.status === 401) login(location.pathname + location.search);
 	}, [me.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
+	const agentList = useQuery({
+		queryKey: ["agents", tenant],
+		queryFn: () => listAgents(config.data?.agents ?? []),
+		enabled: config.data !== undefined && active === tenant,
+		retry: false,
+	});
+	const [picked, setPicked] = useState(() => load(`agent:${tenant}`));
+
 	const workspace = useMemo<Workspace | undefined>(() => {
 		if (me.data === undefined || config.data === undefined || active !== tenant) return undefined;
-		const agent = config.data.agents[0] ?? "";
+		if (agentList.isPending) return undefined;
+		const agents = agentList.data?.agents ?? [];
+		const agent = agents.some((option) => option.name === picked) ? (picked as string) : (agentList.data?.defaultAgent ?? agents[0]?.name ?? config.data.agents[0] ?? "");
 		return {
 			me: me.data,
 			config: config.data,
 			tenant,
 			agent,
+			agents,
+			setAgent: (next) => {
+				save(`agent:${tenant}`, next);
+				setPicked(next);
+			},
 			profile: config.data.profiles[0] ?? "chat",
 			isAdmin: me.data.tenants.find((item) => item.id === tenant)?.role === "admin",
 			signedOut,
 			path: (rest = "") => `/t/${tenant}/${rest}`,
 		};
-	}, [me.data, config.data, active, tenant, signedOut]);
+	}, [me.data, config.data, active, tenant, signedOut, agentList.isPending, agentList.data, picked]);
 
 	if (denied) {
 		return (

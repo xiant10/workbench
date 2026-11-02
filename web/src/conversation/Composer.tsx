@@ -13,6 +13,8 @@ export type ComposerProps = {
 	/** Where the draft is kept, so it survives a reload or a sign-in. */
 	draftKey: string;
 	mode: ComposerMode;
+	/** Whether a message can join a run under way. Without it, sending waits until the run ends. */
+	canAddToRun?: boolean;
 	inCall?: boolean;
 	placeholder: string;
 	queued?: Pending[];
@@ -37,7 +39,7 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, inCall, placeholder, queued = [], autoFocus, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
@@ -64,7 +66,7 @@ export function Composer({ draftKey, mode, inCall, placeholder, queued = [], aut
 		setImages([]);
 		setProblem("");
 	};
-	const canSend = (text.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out";
+	const canSend = (text.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out" && (canAddToRun || (mode !== "running" && mode !== "stalled"));
 	const submit = () => {
 		if (!canSend) return;
 		const { input, text: typed, images: count } = payload();

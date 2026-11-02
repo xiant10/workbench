@@ -69,6 +69,7 @@ export LIVEKIT_URL=ws://localhost:18890 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRE
 AUTHCTL_PASSWORD=e2e-admin-password "$stack/bin/authctl" bootstrap --if-empty --username=admin@e2e.example --tenant-id=ten_e2e --tenant-name=E2E >/dev/null
 AUTHCTL_SERVICE_SECRET=e2e-only-voice-agent-service-secret-value "$stack/bin/authctl" service-add --if-missing --name=t10-livekit-agent >/dev/null
 AUTHCTL_SERVICE_SECRET=$agent_secret "$stack/bin/authctl" service-add --if-missing --name=agent-pi >/dev/null
+AUTHCTL_SERVICE_SECRET=e2e-only-agent-sales-service-secret-value "$stack/bin/authctl" service-add --if-missing --name=agent-sales >/dev/null
 AUTHCTL_SERVICE_SECRET=$collab_secret "$stack/bin/authctl" service-add --if-missing --name=t10-collab >/dev/null
 "$stack/bin/authctl" samples-add >/dev/null
 "$stack/bin/auth-server" >"$stack/auth.log" 2>&1 &

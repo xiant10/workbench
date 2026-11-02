@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import { rpc } from "../lib/api.ts";
-import type { SessionInfo } from "../lib/agent.ts";
+import type { AgentEntry, SessionInfo } from "../lib/agent.ts";
 
 export type Me = {
 	user_id: string;
@@ -17,8 +17,10 @@ export type Workspace = {
 	me: Me;
 	config: AppConfig;
 	tenant: string;
-	/** One assistant at launch, with no picker. */
+	/** The agent new conversations go to, and whose conversations the sidebar lists. */
 	agent: string;
+	agents: AgentEntry[];
+	setAgent(agent: string): void;
 	profile: string;
 	isAdmin: boolean;
 	signedOut: boolean;
@@ -42,7 +44,7 @@ const IDLE_POLL_MS = 60_000;
 export function useSessions(archived = false) {
 	const { agent, tenant } = useWorkspace();
 	return useQuery({
-		queryKey: ["sessions", tenant, archived],
+		queryKey: ["sessions", tenant, agent, archived],
 		queryFn: async () => {
 			const sessions: SessionInfo[] = [];
 			let cursor: string | undefined;

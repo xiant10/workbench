@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -196,5 +197,37 @@ func TestEventStreamFlushesEachEvent(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("the event stayed buffered")
+	}
+}
+
+func TestLoneEntryIsAGatewayThatServesEveryAgent(t *testing.T) {
+	var gotAgent atomic.Value
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAgent.Store(r.Header.Get("Agent-Name"))
+	}))
+	defer gateway.Close()
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, gateway.URL)}}, nil)
+	p.Agent(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")), "sales", "tok")
+	if gotAgent.Load() != "sales" {
+		t.Fatalf("the gateway was told agent %v", gotAgent.Load())
+	}
+}
+
+func TestSessionRoutesByPoolAndSendsNoAgentName(t *testing.T) {
+	var gotAgent atomic.Value
+	sales := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAgent.Store(r.Header.Get("Agent-Name"))
+	}))
+	defer sales.Close()
+	assistant := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("the session's own harness wasn't used")
+	}))
+	defer assistant.Close()
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, assistant.URL)}, {Name: "sales", URL: mustURL(t, sales.URL)}}, nil)
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
+	r.Header.Set("Agent-Session-Id", "sales.agent-1.7")
+	p.Agent(httptest.NewRecorder(), r, "assistant", "tok")
+	if gotAgent.Load() != "" {
+		t.Fatalf("a call with a session named agent %v", gotAgent.Load())
 	}
 }
