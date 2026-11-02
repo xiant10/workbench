@@ -1,0 +1,6 @@
+.env
+.git
+.stack
+docs
+web/node_modules
+web/dist

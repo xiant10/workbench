@@ -1,0 +1,108 @@
+import { postJSON, request } from "../../lib/api.ts";
+
+export type Status = "todo" | "doing" | "done" | "cancelled";
+export type Priority = "low" | "normal" | "high";
+
+export type Item = {
+	id: string;
+	title: string;
+	description: string;
+	status: Status;
+	priority: Priority;
+	due_at: string | null;
+	creator_id: string;
+	list_id?: string;
+	version: number;
+	owners: string[];
+	collaborators: string[];
+	created_at: string;
+	updated_at: string;
+};
+
+/**
+ * A due date is a day, kept as midnight UTC. Collab answers in its own time zone, so the string's first ten characters
+ * can be the day before, and this reads the instant instead.
+ */
+export function dueDay(dueAt: string): string {
+	return new Date(dueAt).toISOString().slice(0, 10);
+}
+
+/** Today where the person is, in the same form. */
+export function today(): string {
+	return new Date().toLocaleDateString("en-CA");
+}
+
+export type Offer = {
+	id: string;
+	item_id: string;
+	item_title: string;
+	from_user_id: string;
+	to_user_id: string;
+	mode: "transfer" | "share";
+	note: string;
+	state: "pending" | "assigned" | "accepted" | "declined" | "withdrawn" | "voided";
+	response_note: string;
+	created_at: string;
+};
+
+export type Comment = { id: string; author_id: string; body: string; created_at: string };
+export type ItemEvent = { id: string; item_id: string; actor_user_id: string; kind: string; detail: Record<string, unknown>; at: string };
+export type Person = { user_id: string; display_name: string; org_unit_id: string };
+export type Unit = { id: string; name: string };
+export type TaskList = {
+	id: string;
+	name: string;
+	org_unit_id?: string;
+	members?: { user_id: string; role: "owner" | "member"; source: "manual" | "org" }[];
+};
+export type Visibility = "none" | "direct_reports" | "all_reports";
+
+const base = "/api/modules/collab";
+const send = <T>(method: string, path: string, body?: unknown) =>
+	request<T>(`${base}${path}`, { method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
+
+export const listItems = async (query: string) => (await request<{ items: Item[] }>(`${base}/work-items?${query}&limit=100`)).items;
+export const getItem = (id: string) => request<Item>(`${base}/work-items/${id}`);
+export const createItem = (body: Record<string, unknown>) => postJSON<Item>(`${base}/work-items`, body);
+export const updateItem = (id: string, body: Record<string, unknown>) => send<Item>("PATCH", `/work-items/${id}`, body);
+export const deleteItem = (id: string) => send<void>("DELETE", `/work-items/${id}`);
+export const claimItem = (id: string) => postJSON<Item>(`${base}/work-items/${id}/claim`, {});
+export const stopOwning = (id: string) => send<void>("DELETE", `/work-items/${id}/owners/me`);
+export const addCollaborator = (id: string, user: string) => send<void>("PUT", `/work-items/${id}/collaborators/${user}`);
+export const removeCollaborator = (id: string, user: string) => send<void>("DELETE", `/work-items/${id}/collaborators/${user}`);
+export const listEvents = async (id: string) => (await request<{ events: ItemEvent[] }>(`${base}/work-items/${id}/events?limit=200`)).events;
+export const listComments = async (id: string) => (await request<{ comments: Comment[] }>(`${base}/work-items/${id}/comments?limit=200`)).comments;
+export const addComment = (id: string, body: string) => postJSON<Comment>(`${base}/work-items/${id}/comments`, { body });
+export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
+
+export const listOffers = async (box: "inbox" | "sent") => (await request<{ offers: Offer[] }>(`${base}/offers?box=${box}&limit=100`)).offers;
+export const acceptOffer = (id: string) => postJSON<Offer>(`${base}/offers/${id}/accept`, {});
+export const declineOffer = (id: string, note: string) => postJSON<Offer>(`${base}/offers/${id}/decline`, { note });
+export const withdrawOffer = (id: string) => postJSON<Offer>(`${base}/offers/${id}/withdraw`, {});
+
+export const findPeople = async (q: string) => (await request<{ people: Person[] }>(`${base}/people?q=${encodeURIComponent(q)}&limit=200`)).people;
+export const listUnits = async () => (await request<{ units: Unit[] }>(`${base}/units`)).units;
+
+export const listLists = async () => (await request<{ lists: TaskList[] }>(`${base}/lists?limit=100`)).lists;
+export const getList = (id: string) => request<TaskList>(`${base}/lists/${id}`);
+export const createList = (name: string) => postJSON<TaskList>(`${base}/lists`, { name });
+export const putListMember = (id: string, user: string) => send<void>("PUT", `/lists/${id}/members/${user}`, { role: "member" });
+export const removeListMember = (id: string, user: string) => send<void>("DELETE", `/lists/${id}/members/${user}`);
+
+export const getSettings = () => request<{ manager_visibility: Visibility }>(`${base}/settings`);
+export const putSettings = (manager_visibility: Visibility) => send<{ manager_visibility: Visibility }>("PUT", "/admin/settings", { manager_visibility });
+
+
+const REF_PREFIX = "collab:work_item:";
+
+/** The reference to a work item, as other modules and agent sessions hold it. */
+export const workItemRef = (id: string) => `${REF_PREFIX}${id}`;
+
+/** The work item a reference names, if it names one. */
+export const workItemOf = (ref: string | undefined) => (ref?.startsWith(REF_PREFIX) ? ref.slice(REF_PREFIX.length) : undefined);
+
+/** Text from a teammate becomes data for the agent, and a closing tag in it can't end that. */
+export function workItemPrompt(item: Pick<Item, "id" | "title" | "description">): string {
+	const escape = (text: string) => text.replaceAll("</module_record", "<\\/module_record");
+	return `<module_record ref="${workItemRef(item.id)}">\nTitle: ${escape(item.title)}\n\n${escape(item.description)}\n</module_record>`;
+}

@@ -1,0 +1,49 @@
+# Local development. Needs auth-server's and agent-pi's stacks running on the host.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: t10-workbench-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: workbench
+      POSTGRES_PASSWORD: "${WORKBENCH_DB_PASSWORD:-workbench-dev-password}"
+      POSTGRES_DB: workbench
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workbench -d workbench"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  workbench:
+    build: .
+    container_name: t10-workbench
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgres://workbench:${WORKBENCH_DB_PASSWORD:-workbench-dev-password}@postgres:5432/workbench?sslmode=disable"
+      # The browser reaches auth on localhost, and the container through the host.
+      AUTH_PUBLIC_URL: http://localhost:8081
+      AUTH_URL: http://host.docker.internal:8081
+      AUTH_CLIENT_SECRET: "${AUTH_T10_WORKBENCH_SECRET:-dev-only-t10-workbench-client-secret-change-me}"
+      WORKBENCH_PUBLIC_URL: http://127.0.0.1:8083
+      WORKBENCH_SESSION_KEY: "${WORKBENCH_SESSION_KEY:?run openssl rand -base64 32}"
+      AGENT_URLS: "${AGENT_URLS:-assistant=http://host.docker.internal:9800}"
+      MODULE_URLS: "${MODULE_URLS:-collab=http://host.docker.internal:8082}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-ws://localhost:8890}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8083/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

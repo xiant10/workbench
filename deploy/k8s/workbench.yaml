@@ -1,0 +1,70 @@
+# Two stateless replicas in the t10 namespace. Migrations take an advisory lock,
+# so both can start at once. The secret holds DATABASE_URL, AUTH_CLIENT_SECRET and
+# WORKBENCH_SESSION_KEY.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workbench
+  namespace: t10
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workbench
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workbench
+        # Lets these pods through auth-server's network policy.
+        t10.dev/auth-client: "true"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: workbench
+          image: t10-workbench:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          env:
+            - name: WORKBENCH_PUBLIC_URL
+              value: https://workbench.example.com
+            - name: AUTH_PUBLIC_URL
+              value: https://auth.example.com
+            - name: AUTH_URL
+              value: http://auth-server.t10.svc.cluster.local:8081
+            # ai-gateway-agent, which finds each session's replica.
+            - name: AGENT_URLS
+              value: assistant=http://ai-gateway-agent.t10.svc.cluster.local:7201
+            - name: MODULE_URLS
+              value: collab=http://t10-collab.t10.svc.cluster.local:8082
+          envFrom:
+            - secretRef:
+                name: workbench
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8083
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workbench
+  namespace: t10
+spec:
+  selector:
+    app.kubernetes.io/name: workbench
+  ports:
+    - port: 8083
