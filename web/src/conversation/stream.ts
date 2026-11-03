@@ -1,8 +1,11 @@
 import { announceSignedOut } from "../lib/api.ts";
 import type { BackgroundTask } from "../lib/agent.ts";
 
+export type ProgressEvent = { type: "progress"; submissionIds: number[]; phase: "working" | "waiting" | "retrying" | "finished"; text: string };
+
 export type AgentEvent =
-	| { type: "snapshot"; busy: boolean; inbox: { id: number; mode: string }[]; tasks: BackgroundTask[]; partial?: { turnId?: string; messageId: string; text: string } }
+	| ProgressEvent
+	| { type: "snapshot"; busy: boolean; inbox: { id: number; mode: string }[]; tasks: BackgroundTask[]; progress?: ProgressEvent; partial?: { turnId?: string; messageId: string; text: string } }
 	| { type: "run.started" | "run.finished"; submissionIds: number[] }
 	| { type: "text.delta"; text: string; offset?: number; messageId?: string; turnId?: string }
 	| { type: "thinking.delta"; text: string }

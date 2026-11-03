@@ -215,7 +215,13 @@ export function Transcript({ state, onOpenOutput, resultAction, onRetry, onDisca
 						</div>
 					)}
 					{spoken !== "" && <SpokenView text={spoken} />}
-					{state.busy && quiet && spoken === "" && (
+					{Object.values(state.progress).some(Boolean) && spoken === "" && (
+						<div className="working" role="status" aria-live="polite" aria-atomic="true" data-temporary="true">
+							<span className="agent-mark"><Logo size={24} /></span>
+							<span>{[...new Set(Object.values(state.progress).filter(Boolean))].join(" ")}</span>
+						</div>
+					)}
+					{state.busy && !Object.values(state.progress).some(Boolean) && quiet && spoken === "" && (
 						<div className="working" role="status" aria-label={t("Working…")}>
 							<span className="agent-mark">
 								<Logo size={24} />

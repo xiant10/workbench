@@ -170,3 +170,23 @@ describe("SseParser", () => {
 		expect(parser.push('age\ndata: {"x":1}\n\nid: a-2\ndata: 2\n\n')).toEqual([{ id: "a-1", data: '{"x":1}' }, { id: "a-2", data: "2" }]);
 	});
 });
+
+describe("temporary progress", () => {
+	const ack = { type: "progress", submissionIds: [1, 2], phase: "working", text: "Working on it." };
+	it("replaces and deduplicates status without adding chat history", () => {
+		const state = run([event(ack), event(ack), event({ ...ack, phase: "waiting", text: "Still working." })]);
+		expect(state.progress).toEqual({ 1: "Still working.", 2: "Still working." });
+		expect(state.lines).toEqual([]);
+		expect(state.live).toBe("");
+		const done = run([event({ type: "submission", submissionId: 1, status: "done" })], state);
+		expect(done.progress).toEqual({ 2: "Still working." });
+		expect(run([event({ type: "progress", submissionIds: [2], phase: "finished", text: "" })], done).progress).toEqual({});
+	});
+	it("restores snapshots and clears on idle, cancellation, and run completion", () => {
+		const state = run([event({ type: "snapshot", busy: true, inbox: [], tasks: [], progress: ack })]);
+		expect(state.progress).toEqual({ 1: "Working on it.", 2: "Working on it." });
+		expect(run([event({ type: "snapshot", busy: false, inbox: [], tasks: [] })], state).progress).toEqual({});
+		expect(run([event({ type: "run.finished", submissionIds: [1, 2] })], state).progress).toEqual({});
+		expect(run([event({ type: "submission", submissionId: 1, status: "unanswered", reason: "aborted" })], state).progress).toEqual({ 2: "Working on it." });
+	});
+});

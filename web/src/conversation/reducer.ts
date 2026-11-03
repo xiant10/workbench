@@ -25,6 +25,8 @@ export type Pending = {
 
 export type ConversationState = {
 	lines: Line[];
+	/** Ephemeral status only; never part of transcript lines or results. */
+	progress: Record<number, string>;
 	pending: Pending[];
 	/** Reply text as it streams. */
 	live: string;
@@ -55,6 +57,7 @@ export type ConversationState = {
 
 export const initialState: ConversationState = {
 	lines: [],
+	progress: {},
 	pending: [],
 	live: "",
 	inCall: false,
@@ -182,6 +185,7 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 			return {
 				...rest,
 				busy: event.busy,
+				progress: event.busy && event.progress?.phase !== "finished" && event.progress ? Object.fromEntries(event.progress.submissionIds.map(id => [id, event.progress!.text])) : {},
 				inbox: event.inbox.map((item) => item.id),
 				tasks: event.tasks,
 				live: partial?.text ?? "",
@@ -192,10 +196,18 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 				reload: state.reload + 1,
 			};
 		}
+		case "progress": {
+			const progress = { ...state.progress };
+			for (const id of event.submissionIds) {
+				if (event.phase === "finished") delete progress[id];
+				else progress[id] = event.text;
+			}
+			return { ...next, progress };
+		}
 		case "run.started":
 			return { ...next, busy: true };
 		case "run.finished":
-			return { ...next, busy: false, live: "", thinking: "", retry: undefined, reload: state.reload + 1, settled: state.settled + 1 };
+			return { ...next, busy: false, progress: {}, live: "", thinking: "", retry: undefined, reload: state.reload + 1, settled: state.settled + 1 };
 		case "text.delta":
 			return { ...next, ...withDelta(state, event), retry: undefined };
 		case "thinking.delta":
@@ -226,6 +238,10 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 			};
 		}
 		case "submission": {
+			if (event.status === "done" || event.status === "unanswered") {
+				next.progress = { ...state.progress };
+				delete next.progress[event.submissionId];
+			}
 			if (event.status !== "unanswered" || event.reason === "aborted") return next;
 			return {
 				...next,
