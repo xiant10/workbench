@@ -274,7 +274,7 @@ Each person gets one private message on working days in the chat tool their tena
 
 | Question | Decision | Why |
 | --- | --- | --- |
-| Who sends it | A small `t10-notify` service, reading each module's attention counts | A tenant connects its chat tool once, however many business modules it uses. The workbench holds no task data. See "Business modules" in `../ARCHITECTURE.md` |
+| Who sends it | A small `t10-notify` service, reading each module's attention counts | A tenant connects its chat tool once, however many business modules it uses. The workbench holds no task data. See "Digest" in `../../contracts/module/README.md` |
 | How it reaches one person | A chat app installed by the tenant, sending a private message | WeCom and Feishu group webhooks post only to a group, which would show one person's work to everyone in it |
 | How a person is matched | They prove it once, by signing in to the chat tool | The auth design bans using sign-in names to contact anyone. Feishu's own docs warn that its email and phone fields aren't verified by the user |
 | What it contains | Counts and a link, with no titles or names | Task text stays inside t10, and the message is still enough to bring someone back |
