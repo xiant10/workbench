@@ -9,7 +9,7 @@ import { rpc } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
 import { Empty } from "../lib/ui.tsx";
-import { useModules, useResultAction } from "../modules/index.ts";
+import { useModules, useResultAction } from "../modules/index.tsx";
 import { type Output, outputsOf } from "../results/outputs.ts";
 import { ResultsPanel, type ResultsTab } from "../results/ResultsPanel.tsx";
 import { useRefreshSessions, useSessions, useWorkspace } from "../shell/workspace.ts";

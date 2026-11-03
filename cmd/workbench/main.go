@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -74,9 +75,13 @@ func run() error {
 	}
 	go prune(ctx, sessions)
 
+	authURL, err := url.Parse(cfg.AuthURL)
+	if err != nil {
+		return err
+	}
 	api := server.New(server.Deps{
 		Config: cfg, Pool: pool, Sessions: sessions, Auth: auth,
-		Proxy: proxy.New(cfg.Agents, cfg.Modules), Web: web.Dist(),
+		Proxy: proxy.New(cfg.Agents, cfg.Modules, authURL), Web: web.Dist(),
 	})
 	// No write timeout: the event stream stays open for as long as a tab does.
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}

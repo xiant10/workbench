@@ -1,5 +1,5 @@
-// Package proxy passes browser calls to agent-pi and business modules with the
-// user's token. It adds no business rules: those services verify every token and own
+// Package proxy passes browser calls to agent-pi, business modules and the auth
+// service's tenant routes with the user's token. It adds no business rules: those services verify every token and own
 // every access check.
 package proxy
 
@@ -22,10 +22,10 @@ import (
 const (
 	sessionHeader = "Agent-Session-Id"
 	// agentHeader names the agent for a call with no session.
-	agentHeader = "Agent-Name"
-	methodHeader  = "Agent-Method"
-	turnHeader    = "X-Turn-ID"
-	traceHeader   = "traceparent"
+	agentHeader  = "Agent-Name"
+	methodHeader = "Agent-Method"
+	turnHeader   = "X-Turn-ID"
+	traceHeader  = "traceparent"
 	// maxBody matches the agent's maxBodyBytes, because images travel as base64.
 	maxBody = 16 << 20
 	// manifestTimeout keeps a slow module from holding up the app's first load.
@@ -36,17 +36,23 @@ const (
 // agent-pi refuses a browser Origin, and the cookie is this service's own.
 var forwarded = []string{"Accept", "Content-Type", "Last-Event-ID", sessionHeader, methodHeader, turnHeader}
 
+// orgRoutes are the auth service's tenant routes that the admin pages use. Any
+// other path stays here, though the auth service would refuse it anyway.
+var orgRoutes = []string{"", "members", "invitations", "units", "grants", "audit"}
+
 // Proxy forwards to one kind of upstream.
 type Proxy struct {
 	agents  map[string]*url.URL
 	modules []config.Agent
+	auth    *url.URL
 	rp      *httputil.ReverseProxy
 	client  *http.Client
 }
 
-// New builds a Proxy for these agents and business modules.
-func New(agents, modules []config.Agent) *Proxy {
-	p := &Proxy{agents: map[string]*url.URL{}, modules: modules, client: &http.Client{Timeout: manifestTimeout}}
+// New builds a Proxy for these agents and business modules, and the auth
+// service at auth.
+func New(agents, modules []config.Agent, auth *url.URL) *Proxy {
+	p := &Proxy{agents: map[string]*url.URL{}, modules: modules, auth: auth, client: &http.Client{Timeout: manifestTimeout}}
 	for _, agent := range agents {
 		p.agents[agent.Name] = agent.URL
 	}
@@ -102,6 +108,24 @@ func (p *Proxy) Module(w http.ResponseWriter, r *http.Request, id, path, token s
 	headers := pick(r.Header)
 	telemetry.Inject(r.Context(), headers)
 	p.forward(w, r, p.modules[i].URL.JoinPath("v1", path), headers, token)
+}
+
+// Org passes one call from the admin pages to the auth service, mapping
+// /api/org/<tenant>/x to /v1/tenants/<tenant>/x. The auth service checks that the
+// token's tenant is the one named, and that its holder administers it.
+func (p *Proxy) Org(w http.ResponseWriter, r *http.Request, tenant, path, token string) {
+	first, _, _ := strings.Cut(path, "/")
+	if p.auth == nil || tenant == "" || !slices.Contains(orgRoutes, first) || slices.Contains(strings.Split(path, "/"), "..") {
+		WriteError(w, http.StatusNotFound, "not_found", "no such route")
+		return
+	}
+	headers := pick(r.Header)
+	telemetry.Inject(r.Context(), headers)
+	target := p.auth.JoinPath("v1", "tenants", tenant)
+	if path != "" {
+		target = target.JoinPath(path)
+	}
+	p.forward(w, r, target, headers, token)
 }
 
 // Manifest is what a module says about itself to this person.

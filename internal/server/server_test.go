@@ -54,7 +54,7 @@ func newServer(t *testing.T, sessions *fakeSessions, upstream string) http.Handl
 		agents = []config.Agent{{Name: "assistant", URL: parsed}}
 	}
 	return New(Deps{
-		Config: cfg, Sessions: sessions, Proxy: proxy.New(agents, nil),
+		Config: cfg, Sessions: sessions, Proxy: proxy.New(agents, nil, nil),
 		Web: fstest.MapFS{
 			"index.html":    {Data: []byte("<html>app</html>")},
 			"assets/app.js": {Data: []byte("console.log(1)")},

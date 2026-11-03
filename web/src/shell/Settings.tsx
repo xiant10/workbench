@@ -1,20 +1,20 @@
-import { ExternalLink } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { LanguageSwitch, Segmented, Setting } from "../lib/ui.tsx";
-import { useModules } from "../modules/index.ts";
+import { useModules } from "../modules/index.tsx";
 import { SHORTCUT } from "./Sidebar.tsx";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
 import { useWorkspace } from "./workspace.ts";
 
 export function Settings() {
 	const { t } = useI18n();
-	const { config, isAdmin } = useWorkspace();
+	const { config, isAdmin, path } = useWorkspace();
 	const modules = useModules();
 	const theme = useTheme();
 	const [notify, setNotify] = useState(load("notify") === "on");
-	const admin = modules.filter((module) => module.AdminSettings !== undefined);
 	const blocked = "Notification" in window && window.Notification.permission === "denied";
 	return (
 		<div className="page settings">
@@ -62,10 +62,25 @@ export function Settings() {
 					</Setting>
 				</section>
 			)}
-			{isAdmin && admin.length > 0 && (
+			{(isAdmin || config.console_url !== undefined) && (
 				<section className="card">
 					<h2>{t("Administration")}</h2>
-					{admin.map(({ id, AdminSettings }) => AdminSettings !== undefined && <AdminSettings key={id} />)}
+					{isAdmin && (
+						<Setting title={t("This tenant")} hint={t("People, organization, agents and policies.")}>
+							<Link className="button ghost" to={path("admin")}>
+								{t("Open")}
+								<ChevronRight size={14} aria-hidden="true" />
+							</Link>
+						</Setting>
+					)}
+					{config.console_url !== undefined && (
+						<Setting title={t("Platform console")} hint={t("Every tenant, the agent fleet and model usage. For platform admins.")}>
+							<a className="button ghost" href={config.console_url} target="_blank" rel="noopener noreferrer">
+								{t("Open")}
+								<ExternalLink size={14} aria-hidden="true" />
+							</a>
+						</Setting>
+					)}
 				</section>
 			)}
 			<section className="card">

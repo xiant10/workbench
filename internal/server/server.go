@@ -83,6 +83,11 @@ func (s *Server) Handler() http.Handler {
 	handle("/api/modules/{module}/{path...}", s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
 		s.Proxy.Module(w, r, r.PathValue("module"), r.PathValue("path"), id.Access)
 	})))
+	org := s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
+		s.Proxy.Org(w, r, r.PathValue("tenant"), r.PathValue("path"), id.Access)
+	}))
+	handle("/api/org/{tenant}", org)
+	handle("/api/org/{tenant}/{path...}", org)
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		proxy.WriteError(w, http.StatusNotFound, "not_found", "no such route")
@@ -178,13 +183,30 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request, id session
 			agents = append(agents, agent.Name)
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"agents":      agents,
 		"profiles":    s.Config.Profiles,
 		"modules":     s.Proxy.Manifests(r.Context(), id.Access),
 		"voice":       s.Config.LiveKitURL != "",
 		"account_url": s.Config.AuthPublicURL + "/v1/account",
-	})
+	}
+	if s.Config.ConsoleURL != "" && s.isPlatformAdmin(r, id) {
+		body["console_url"] = s.Config.ConsoleURL
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// isPlatformAdmin decides only whether to show a link: the console asks the auth
+// service again itself. Any failure leaves the link out.
+func (s *Server) isPlatformAdmin(r *http.Request, id session.Identity) bool {
+	status, body, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me/access", id.Access, nil)
+	if err != nil || status != http.StatusOK {
+		return false
+	}
+	var access struct {
+		PlatformAdmin bool `json:"platform_admin"`
+	}
+	return json.Unmarshal(body, &access) == nil && access.PlatformAdmin
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, id session.Identity) {

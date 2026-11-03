@@ -23,9 +23,18 @@ export type ResultAction = {
 	Dialog: ComponentType<{ text: string; onClose(): void }>;
 };
 
+/** Administration's own tabs that a module's settings can join. Activity is the auth service's log, so nothing joins it. */
+export type AdminTab = "people" | "organization" | "agents" | "security";
+
+/**
+ * A module's settings in Administration, for tenant admins. `Settings` renders whole cards. A module with one or two
+ * switches joins the built-in tab they belong with; one with more takes a tab of its own, after the built-in ones.
+ */
+export type ModuleAdmin = { Settings: ComponentType } & ({ joins: AdminTab } | { label: string; icon: LucideIcon });
+
 /**
  * Everything the shell knows about a business module. Only this object and the module's own folder know its routes,
- * so a new module adds a folder and one line in `index.ts`.
+ * so a new module adds a folder and one line in `index.tsx`.
  */
 export type WorkbenchModule = {
 	/** The ID in its manifest, and in `MODULE_URLS`. */
@@ -40,8 +49,7 @@ export type WorkbenchModule = {
 	onNotifications?(client: QueryClient): void;
 	/** Rows for Home's "Needs you" list. */
 	HomeRows?: ComponentType;
-	/** A section in Settings, for tenant admins. */
-	AdminSettings?: ComponentType;
+	admin?: ModuleAdmin;
 	resultAction?: ResultAction;
 	/** A chip in a conversation's header, when the conversation came from this module. */
 	SessionChip?: ComponentType<{ session: SessionInfo }>;

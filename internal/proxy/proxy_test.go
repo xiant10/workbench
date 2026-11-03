@@ -31,7 +31,7 @@ func TestAgentAddsTokenAndDropsBrowserHeaders(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer upstream.Close()
-	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil)
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
 
 	r := httptest.NewRequest("POST", "/api/agents/assistant/agent", strings.NewReader("{}"))
 	r.Header.Set("Cookie", "wb_session=secret")
@@ -77,7 +77,7 @@ func TestAgentRoutesOnSessionReplica(t *testing.T) {
 	p := New([]config.Agent{
 		{Name: "assistant", URL: mustURL(t, first.URL)},
 		{Name: "assistant.r2", URL: mustURL(t, second.URL)},
-	}, nil)
+	}, nil, nil)
 
 	for session, want := range map[string]string{"assistant.r2.7": "second", "assistant.r1.7": "first", "": "first"} {
 		r := httptest.NewRequest("GET", "/api/agents/assistant/agent", nil)
@@ -90,7 +90,7 @@ func TestAgentRoutesOnSessionReplica(t *testing.T) {
 }
 
 func TestUnknownAgent(t *testing.T) {
-	p := New(nil, nil)
+	p := New(nil, nil, nil)
 	w := httptest.NewRecorder()
 	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "ghost", "token")
 	if w.Code != http.StatusNotFound {
@@ -107,7 +107,7 @@ func TestModuleMapsPathAndKeepsQuery(t *testing.T) {
 	var got string
 	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.URL.RequestURI() }))
 	defer upstream.Close()
-	p := New(nil, module(t, "collab", upstream.URL))
+	p := New(nil, module(t, "collab", upstream.URL), nil)
 	p.Module(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/modules/collab/offers?box=inbox", nil), "collab", "offers", "token")
 	if got != "/v1/offers?box=inbox" {
 		t.Errorf("upstream got %q", got)
@@ -116,7 +116,7 @@ func TestModuleMapsPathAndKeepsQuery(t *testing.T) {
 
 func TestUnknownModule(t *testing.T) {
 	w := httptest.NewRecorder()
-	New(nil, nil).Module(w, httptest.NewRequest("GET", "/api/modules/collab/offers", nil), "collab", "offers", "token")
+	New(nil, nil, nil).Module(w, httptest.NewRequest("GET", "/api/modules/collab/offers", nil), "collab", "offers", "token")
 	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "unknown_module") {
 		t.Errorf("got %d %s", w.Code, w.Body)
 	}
@@ -140,7 +140,7 @@ func TestManifestsKeepOnlyModulesThatAnswerAndAreOn(t *testing.T) {
 		{Name: "down", URL: mustURL(t, serve("down", ``, 503).URL)},
 		{Name: "wrong", URL: mustURL(t, serve("wrong", `{"id":"other","api_version":1,"enabled":true}`, 200).URL)},
 	}
-	got := New(nil, modules).Manifests(context.Background(), "token")
+	got := New(nil, modules, nil).Manifests(context.Background(), "token")
 	if len(got) != 1 || got[0].ID != "collab" || got[0].APIVersion != 1 {
 		t.Errorf("manifests = %+v", got)
 	}
@@ -150,7 +150,7 @@ func TestUpstreamDownAnswersJSON(t *testing.T) {
 	upstream := httptest.NewServer(http.NotFoundHandler())
 	address := upstream.URL
 	upstream.Close()
-	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, address)}}, nil)
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, address)}}, nil, nil)
 	w := httptest.NewRecorder()
 	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "assistant", "token")
 	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "upstream_unavailable") {
@@ -172,7 +172,7 @@ func TestEventStreamFlushesEachEvent(t *testing.T) {
 	}))
 	defer upstream.Close()
 	defer close(release)
-	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil)
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
 	front := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p.Agent(w, r, "assistant", "token")
 	}))
@@ -206,7 +206,7 @@ func TestLoneEntryIsAGatewayThatServesEveryAgent(t *testing.T) {
 		gotAgent.Store(r.Header.Get("Agent-Name"))
 	}))
 	defer gateway.Close()
-	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, gateway.URL)}}, nil)
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, gateway.URL)}}, nil, nil)
 	p.Agent(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")), "sales", "tok")
 	if gotAgent.Load() != "sales" {
 		t.Fatalf("the gateway was told agent %v", gotAgent.Load())
@@ -223,11 +223,40 @@ func TestSessionRoutesByPoolAndSendsNoAgentName(t *testing.T) {
 		t.Error("the session's own harness wasn't used")
 	}))
 	defer assistant.Close()
-	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, assistant.URL)}, {Name: "sales", URL: mustURL(t, sales.URL)}}, nil)
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, assistant.URL)}, {Name: "sales", URL: mustURL(t, sales.URL)}}, nil, nil)
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
 	r.Header.Set("Agent-Session-Id", "sales.agent-1.7")
 	p.Agent(httptest.NewRecorder(), r, "assistant", "tok")
 	if gotAgent.Load() != "" {
 		t.Fatalf("a call with a session named agent %v", gotAgent.Load())
+	}
+}
+
+func TestOrgReachesOnlyTheTenantRoutes(t *testing.T) {
+	var got []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+	p := New(nil, nil, mustURL(t, upstream.URL))
+	for path, want := range map[string]int{
+		"": http.StatusOK, "members": http.StatusOK, "members/usr_1/placement": http.StatusOK, "units/u1": http.StatusOK,
+		"grants/grt_1/revoke": http.StatusOK, "audit": http.StatusOK, "invitations": http.StatusOK,
+		"suspend": http.StatusNotFound, "members/../suspend": http.StatusNotFound, "../../v1/users": http.StatusNotFound,
+	} {
+		w := httptest.NewRecorder()
+		p.Org(w, httptest.NewRequest("GET", "/api/org/ten_1/"+path, nil), "ten_1", path, "user-token")
+		if w.Code != want {
+			t.Errorf("%q: %d, want %d", path, w.Code, want)
+		}
+	}
+	if len(got) != 7 || !strings.Contains(strings.Join(got, "\n"), "GET /v1/tenants/ten_1/members/usr_1/placement Bearer user-token") {
+		t.Errorf("reached: %v", got)
+	}
+	w := httptest.NewRecorder()
+	New(nil, nil, nil).Org(w, httptest.NewRequest("GET", "/api/org/ten_1/members", nil), "ten_1", "members", "user-token")
+	if w.Code != http.StatusNotFound {
+		t.Errorf("no auth service: %d", w.Code)
 	}
 }

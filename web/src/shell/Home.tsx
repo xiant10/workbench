@@ -7,7 +7,7 @@ import { rpc } from "../lib/api.ts";
 import { type SessionInfo, startConversation, titleOf } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
-import { useModules, useResultAction } from "../modules/index.ts";
+import { useModules, useResultAction } from "../modules/index.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
 
 const FINISHED_WINDOW_MS = 7 * 86_400_000;

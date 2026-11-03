@@ -55,7 +55,7 @@ The first release gives a signed-in person one place to work with their agent an
 **Non-goals for the first release**
 
 - A new agent runtime, model routing or tool execution in the client. `agent-pi` owns those.
-- Admin screens for tenants and users, which stay at the auth service's `/admin`.
+- Platform admin screens. Those are in the platform console, `t10-console`. A tenant's own administration is here, under Administration, and calls the auth service's tenant routes with the admin's token.
 - Native mobile. The mobile app remains the authenticator.
 - Third-party plugins, a skill marketplace or an app store.
 - Sharing a conversation between people. A teammate gets a result as a task instead, because sessions belong to one user in `agent-pi`.
@@ -134,7 +134,24 @@ The composer is the emphasis because it carries the state of the work. Send beco
 | Live call | A call bar over the same conversation, with state, live caption, mute and end |
 | Search | Conversation titles first. Full-text search needs a transcript index, so it comes later |
 | Tasks and inbox | Offers, then owned, sent and collaborating tasks, shared lists and a team view, from milestone 4 |
-| Settings | Language, theme, tenant, browser notifications. Module admins also get the departure queue and manager visibility. Account security links to the auth service's `/v1/account` |
+| Settings | Language, theme, tenant, browser notifications. Account security links to the auth service's `/v1/account`. Admins get links to Administration, and platform admins to the platform console |
+| Administration | Tenant admins only. See "Administration" below |
+| No tenant | An account in no tenant, such as a platform admin's, can't open anything here. It gets a page saying to ask for an invitation, a link to the console for a platform admin, and Sign out |
+
+### Administration
+
+Everything a tenant admin runs is on one page, `/t/<tenant>/admin`. The auth service's `/admin` sends tenant admins to `/admin` here, which opens their active tenant's page. The sidebar shows the entry to admins only, and every call is still decided by the auth service or the module.
+
+| Tab | Contents | From |
+| --- | --- | --- |
+| People | Members with their names, role, status, manager and unit. Invitation links, and one-time reset links | Auth service, through `/api/org/<tenant>/` |
+| Organization | Departments and teams. `collab`'s "Who can see tasks" sits above them | Auth service, and `t10-collab` |
+| Agents | Which of the platform's agents this tenant uses, and its default. Agents working for someone now, each with Stop | `t10-agent-control` as module `agents`, and the auth service's grants |
+| Security and policies | Require a second factor. You can't turn it on without one yourself | Auth service |
+| A module's own tab | A module with many settings, between the built-in tabs and Activity | That module |
+| Activity | The tenant's audit log | Auth service |
+
+A module places its settings with `admin` in its `WorkbenchModule`: `joins` puts its cards on a built-in tab, and `label` with `icon` gives it a tab of its own. The page names no module. `ARCHITECTURE.md` explains the choice under "Administering a module".
 
 ### Composer states
 
@@ -358,7 +375,7 @@ The workbench is one Go binary that serves the built React app and a same-origin
 | Database | Postgres, `workbench` schema, one table: `web_sessions` |
 | Port | `8083`. The auth service uses `8081`, and the collab design takes `8082` |
 | Runtime | Two stateless replicas on Kubernetes, one on Compose |
-| Languages | English and Simplified Chinese from the start, matching the auth admin UI |
+| Languages | English and Simplified Chinese from the start, matching the auth service's hosted pages |
 | Telemetry | OpenTelemetry, to the collector the sibling repos use |
 
 ```text
@@ -371,7 +388,9 @@ web/src/conversation/  stream client, reducer, transcript, composer
 web/src/results/       results panel
 web/src/call/          LiveKit room, call controls
 web/src/modules/       the module list, and one folder per business module
+web/src/admin/         Administration, for tenant admins
 web/src/modules/collab/  people's work, from t10-collab
+web/src/modules/agents/  a tenant's agent settings, from t10-agent-control
 ```
 
 ### Backend routes
@@ -384,6 +403,8 @@ web/src/modules/collab/  people's work, from t10-collab
 | `GET`, `POST`, `DELETE /api/agents/{agent}/agent` | Passes through to that agent's `/agent`, adding the bearer token and trace headers |
 | `POST /api/voice/admission` | Calls room admission and returns only the room fields |
 | `/api/modules/{id}/*` | Passes through to the business module named in `MODULE_URLS`, mapping to its `/v1/*` routes |
+| `/api/org/{tenant}`, `/api/org/{tenant}/*` | Passes through to the auth service's `/v1/tenants/{tenant}/*`, for Administration. Only `members`, `invitations`, `units`, `grants` and `audit` |
+| `GET /api/config` | Agents, modules, voice, and the account address. `console_url` too, for a platform admin |
 
 `/api/config` lists the modules that answer `GET /v1/module` for this person's tenant, so the shell names none of them. The proxy adds no business rules. `agent-pi` and `t10-collab` still verify every token and own every access check.
 

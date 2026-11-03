@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
@@ -7,7 +7,7 @@ import type { SessionInfo } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
 import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
-import { useModules } from "../modules/index.ts";
+import { useModules } from "../modules/index.tsx";
 import type { WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
@@ -23,7 +23,7 @@ const WEEK_DAYS = 7;
 
 export const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
 
-async function signOut(accountUrl: string): Promise<void> {
+export async function signOut(accountUrl: string): Promise<void> {
 	await postJSON("/auth/logout", {});
 	// Kept here rather than in the URL, so a crafted link can't put its own address on the page.
 	save("account_url", accountUrl);
@@ -224,6 +224,12 @@ function Account() {
 						<ShieldCheck size={15} aria-hidden="true" />
 						{t("Account security")}
 					</a>
+					{config.console_url !== undefined && (
+						<a href={config.console_url} target="_blank" rel="noopener noreferrer" onClick={close}>
+							<MonitorCog size={15} aria-hidden="true" />
+							{t("Platform console")}
+						</a>
+					)}
 					<button type="button" onClick={() => void signOut(config.account_url)}>
 						<LogOut size={15} aria-hidden="true" />
 						{t("Sign out")}
@@ -238,7 +244,7 @@ type Props = { open: boolean; onClose(): void; onCollapse(): void; onSearch(): v
 
 export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 	const { t } = useI18n();
-	const { path } = useWorkspace();
+	const { path, isAdmin } = useWorkspace();
 	const [showArchived, setShowArchived] = useState(false);
 	const sessions = useSessions();
 	const archived = useSessions(true);
@@ -296,6 +302,12 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 							{entry.unread === true && <UnreadBadge module={module} />}
 						</NavLink>
 					)),
+				)}
+				{isAdmin && (
+					<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
+						<UsersRound size={16} aria-hidden="true" />
+						{t("Administration")}
+					</NavLink>
 				)}
 			</div>
 			<div className="session-scroll">

@@ -42,7 +42,7 @@ docker compose up -d --build      # the app is on http://127.0.0.1:8083
 
 Compose has working defaults, and `.env.example` is for running the binary on the host: its `localhost` addresses would point the container at itself.
 
-Set `MODULE_URLS`, as `id=url,id=url`, to show business modules such as tasks, and `LIVEKIT_URL` to show calls. Use `127.0.0.1`, not `localhost`: the redirect in `clients.yaml` matches exactly.
+Set `MODULE_URLS`, as `id=url,id=url`, to show business modules such as tasks (`collab`) and agent settings (`agents`, served by `t10-agent-control`), and `LIVEKIT_URL` to show calls. `WORKBENCH_CONSOLE_URL` offers platform admins a link to the platform console. Use `127.0.0.1`, not `localhost`: the redirect in `clients.yaml` matches exactly.
 
 For the frontend alone, run the backend and then `npm run dev` in `web/`.
 
@@ -78,5 +78,7 @@ A new interface string needs its Chinese in `web/src/lib/zh.ts`, or `npm test` f
 | `web/src/call` | LiveKit room and call bar. `useCall.ts` holds a third copy of the room contract's names |
 | `web/src/tasks` | People's work |
 | `web/src/shell` | Sidebar, routing, Home, settings |
+| `web/src/admin` | Administration, for tenant admins: people, organization, running agents, security and activity, from the auth service's tenant routes through `/api/org/<tenant>/`. Modules add their settings with `admin` in their `WorkbenchModule`, on a built-in tab or one of their own. The auth service and each module check every call |
+| `web/src/modules/agents` | Which of the platform's agents this tenant uses, and its default, from `t10-agent-control` |
 
 `web/web.go` embeds `web/dist`, because Go can't embed a parent directory from `cmd/workbench`.

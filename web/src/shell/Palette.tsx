@@ -2,7 +2,7 @@ import { Home as HomeIcon, Languages, type LucideIcon, MessageSquare, MessageSqu
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
-import { useModules } from "../modules/index.ts";
+import { useModules } from "../modules/index.tsx";
 import { setTheme, useTheme } from "./theme.ts";
 import { useSessions, useWorkspace } from "./workspace.ts";
 

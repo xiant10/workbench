@@ -11,7 +11,15 @@ export type Me = {
 	tenants: { id: string; name: string; role: "member" | "admin" }[];
 };
 
-export type AppConfig = { agents: string[]; profiles: string[]; modules: { id: string; api_version: number; features: string[] | null }[]; voice: boolean; account_url: string };
+export type AppConfig = {
+	agents: string[];
+	profiles: string[];
+	modules: { id: string; api_version: number; features: string[] | null }[];
+	voice: boolean;
+	account_url: string;
+	/** The platform console, sent only to a platform admin. */
+	console_url?: string;
+};
 
 export type Workspace = {
 	me: Me;

@@ -11,19 +11,21 @@ export function ManagerVisibility() {
 	const update = useMutation({ mutationFn: putSettings, onSuccess: () => void client.invalidateQueries({ queryKey: ["settings"] }), onError: (error) => toast(describe(error)) });
 	if (settings.data === undefined) return null;
 	return (
-		<Setting title={t("Who can see tasks")} hint={t("Applies to everyone in this tenant.")}>
-			<select
-				aria-label={t("Who can see tasks")}
-				value={settings.data.manager_visibility}
-				onChange={async (event) => {
-					const next = event.target.value as Visibility;
-					if (next === "none" || (await confirm({ title: t("Change who can see tasks?"), body: t("Existing tasks become visible at once."), action: t("Change") }))) update.mutate(next);
-				}}
-			>
-				<option value="none">{t("Nobody above a person")}</option>
-				<option value="direct_reports">{t("Direct manager")}</option>
-				<option value="all_reports">{t("Everyone they report to")}</option>
-			</select>
-		</Setting>
+		<div className="card">
+			<Setting title={t("Who can see tasks")} hint={t("Applies to everyone in this tenant.")}>
+				<select
+					aria-label={t("Who can see tasks")}
+					value={settings.data.manager_visibility}
+					onChange={async (event) => {
+						const next = event.target.value as Visibility;
+						if (next === "none" || (await confirm({ title: t("Change who can see tasks?"), body: t("Existing tasks become visible at once."), action: t("Change") }))) update.mutate(next);
+					}}
+				>
+					<option value="none">{t("Nobody above a person")}</option>
+					<option value="direct_reports">{t("Direct manager")}</option>
+					<option value="all_reports">{t("Everyone they report to")}</option>
+				</select>
+			</Setting>
+		</div>
 	);
 }

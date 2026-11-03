@@ -2,17 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
 import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
-import { moduleRoutes } from "../modules/index.ts";
+import { moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
 import { Settings } from "./Settings.tsx";
-import { Sidebar } from "./Sidebar.tsx";
+import { Sidebar, signOut } from "./Sidebar.tsx";
 import { type AppConfig, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
 
 const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me"), retry: false });
@@ -46,14 +47,36 @@ function CenterCard({ children }: { children: ReactNode }) {
 	);
 }
 
-function Root() {
+function Root({ page = "" }: { page?: string }) {
 	const me = useMe();
 	const location = useLocation();
 	useEffect(() => {
 		if (me.error instanceof ApiError && me.error.status === 401) login(location.pathname);
 	}, [me.error, location.pathname]);
-	if (me.data !== undefined) return <Navigate to={`/t/${me.data.active_tenant}/`} replace />;
+	if (me.data?.active_tenant === "") return <NoTenantPage />;
+	if (me.data !== undefined) return <Navigate to={`/t/${me.data.active_tenant}/${page}`} replace />;
 	return <Splash />;
+}
+
+/** Everything here happens in a tenant, and an account can belong to none, such as a platform admin's. */
+function NoTenantPage() {
+	const { t } = useI18n();
+	const config = useQuery({ queryKey: ["config"], queryFn: () => request<AppConfig>("/api/config"), retry: false, staleTime: Infinity });
+	return (
+		<CenterCard>
+			<p>{t("Your account isn't in any tenant yet. Ask a tenant admin for an invitation link.")}</p>
+			{config.data?.console_url !== undefined && (
+				<a className="button primary wide" href={config.data.console_url}>
+					{t("Open the platform console")}
+				</a>
+			)}
+			{config.data !== undefined && (
+				<button type="button" className="ghost wide" onClick={() => void signOut(config.data.account_url)}>
+					{t("Sign out")}
+				</button>
+			)}
+		</CenterCard>
+	);
 }
 
 function SignedOutPage() {
@@ -244,7 +267,10 @@ export function App() {
 					<Route key={path} path={path} element={element} />
 				))}
 				<Route path="settings" element={<Settings />} />
+				<Route path="admin" element={<AdminPage />} />
 			</Route>
+			{/* The auth service's /admin sends tenant admins here, before it knows the tenant. */}
+			<Route path="/admin" element={<Root page="admin" />} />
 			<Route path="*" element={<Navigate to="/" replace />} />
 		</Routes>
 	);

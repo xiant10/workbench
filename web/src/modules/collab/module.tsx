@@ -27,7 +27,8 @@ export const collab: WorkbenchModule = {
 	eventLabel,
 	onNotifications: (client: QueryClient) => void client.invalidateQueries({ queryKey: ["offers"] }),
 	HomeRows,
-	AdminSettings: ManagerVisibility,
+	// Who a manager sees follows the org tree, so it sits beside it.
+	admin: { joins: "organization", Settings: ManagerVisibility },
 	resultAction: { label: "Send as task", icon: Inbox, Dialog: SendDialog },
 	SessionChip: SessionTaskChip,
 };

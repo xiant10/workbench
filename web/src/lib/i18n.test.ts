@@ -44,7 +44,7 @@ function literals(code: string): string[] {
 
 /** Tables read through a variable, which a scan of `t(` can't see. */
 function tables(code: string): string[] {
-	return [...code.matchAll(/^const (?:LABELS|VISIBILITY|EVENTS|STARTERS|TASK_STATUS)\b[\s\S]*?[\]}];$/gm)].flatMap((match) => literals(match[0]));
+	return [...code.matchAll(/^const (?:LABELS|VISIBILITY|EVENTS|STARTERS|TASK_STATUS|TABS|REASONS)\b[\s\S]*?[\]}];$/gm)].flatMap((match) => literals(match[0]));
 }
 
 const sources = files(SOURCE).map((path) => readFileSync(path, "utf8"));

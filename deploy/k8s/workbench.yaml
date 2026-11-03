@@ -40,7 +40,10 @@ spec:
             - name: AGENT_URLS
               value: assistant=http://ai-gateway-agent.t10.svc.cluster.local:7201
             - name: MODULE_URLS
-              value: collab=http://t10-collab.t10.svc.cluster.local:8082
+              value: collab=http://t10-collab.t10.svc.cluster.local:8082,agents=http://t10-agent-control.t10.svc.cluster.local:8085
+            # Offered to platform admins only. Leave it out with no console.
+            - name: WORKBENCH_CONSOLE_URL
+              value: https://console.internal.example.com
           envFrom:
             - secretRef:
                 name: workbench
