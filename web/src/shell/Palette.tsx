@@ -1,6 +1,7 @@
 import { Home as HomeIcon, Languages, type LucideIcon, MessageSquare, MessageSquarePlus, Moon, Search, Settings as SettingsIcon, Sun } from "lucide-react";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Dialog } from "../lib/ui.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useModules } from "../modules/index.tsx";
 import { setTheme, useTheme } from "./theme.ts";
@@ -54,7 +55,6 @@ export function Palette({ onClose }: { onClose(): void }) {
 		entry.run();
 	};
 	const onKeyDown = (event: KeyboardEvent) => {
-		if (event.key === "Escape") onClose();
 		if (entries.length === 0) return;
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
@@ -66,17 +66,10 @@ export function Palette({ onClose }: { onClose(): void }) {
 	};
 
 	return (
-		<div
-			className="palette-backdrop"
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) onClose();
-			}}
-		>
-			<div className="palette" role="dialog" aria-modal="true" aria-label={t("Search")}>
+		<Dialog label={t("Search")} onClose={onClose} className="palette" backdropClassName="palette-backdrop">
 				<div className="palette-input">
 					<Search size={17} aria-hidden="true" />
 					<input
-						autoFocus
 						role="combobox"
 						aria-expanded="true"
 						aria-controls="palette-list"
@@ -89,6 +82,7 @@ export function Palette({ onClose }: { onClose(): void }) {
 					/>
 					<kbd>Esc</kbd>
 				</div>
+				<p className="quiet search-scope">{t("Searches open conversation titles and actions.")}</p>
 				<ul id="palette-list" ref={list} role="listbox" aria-label={t("Results")}>
 					{entries.map((entry, index) => (
 						<li key={entry.key} id={`palette-${index}`} role="option" aria-selected={index === at} className={index === at ? "active" : ""} onMouseMove={() => setAt(index)} onClick={() => choose(entry)}>
@@ -99,7 +93,6 @@ export function Palette({ onClose }: { onClose(): void }) {
 					))}
 					{entries.length === 0 && <li className="palette-none">{t("Nothing found.")}</li>}
 				</ul>
-			</div>
-		</div>
+		</Dialog>
 	);
 }

@@ -1,4 +1,5 @@
-import { Check, Download, FileText, Inbox, LoaderCircle, Moon, Square, Wrench, X } from "lucide-react";
+import { Download, FileText, type LucideIcon, Moon, Square, Wrench, X } from "lucide-react";
+import { ToolActivity } from "./ToolActivity.tsx";
 import { Markdown } from "../conversation/Markdown.tsx";
 import type { ConversationState } from "../conversation/reducer.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -17,7 +18,7 @@ type Props = {
 	onTab(tab: ResultsTab): void;
 	onSelect(output: Output): void;
 	onClose(): void;
-	onSendAsTask?: (text: string) => void;
+	resultAction?: { label: string; icon: LucideIcon; run(text: string): void };
 	onStopTasks(): void;
 };
 
@@ -42,18 +43,7 @@ function totalTokens(details: SessionDetails | undefined): number | undefined {
 /** Agent-pi's words for a background task. One it adds later shows as sent. */
 const TASK_STATUS: Record<string, string> = { working: "Running", done: "Done", completed: "Done", failed: "Failed", stopped: "Stopped" };
 
-function ToolState({ state }: { state: "running" | "done" | "failed" }) {
-	const { t } = useI18n();
-	const Icon = state === "running" ? LoaderCircle : state === "failed" ? X : Check;
-	return (
-		<span className={`state ${state}`}>
-			<Icon size={13} className={state === "running" ? "spin" : ""} aria-hidden="true" />
-			{t(state === "running" ? "Running" : state === "failed" ? "Failed" : "Done")}
-		</span>
-	);
-}
-
-export function ResultsPanel({ state, outputs, selected, tab, details, onTab, onSelect, onClose, onSendAsTask, onStopTasks }: Props) {
+export function ResultsPanel({ state, outputs, selected, tab, details, onTab, onSelect, onClose, resultAction, onStopTasks }: Props) {
 	const { t, language } = useI18n();
 	const active = selected ?? outputs.at(-1);
 	const tools = state.lines.filter((line) => line.role === "tool");
@@ -100,10 +90,10 @@ export function ResultsPanel({ state, outputs, selected, tab, details, onTab, on
 									<Download size={14} aria-hidden="true" />
 									{t("Download")}
 								</button>
-								{onSendAsTask !== undefined && (
-									<button type="button" className="ghost small" onClick={() => onSendAsTask(active.body)}>
-										<Inbox size={14} aria-hidden="true" />
-										{t("Send as task")}
+								{resultAction !== undefined && (
+									<button type="button" className="ghost small" onClick={() => resultAction.run(active.body)}>
+										<resultAction.icon size={14} aria-hidden="true" />
+										{t(resultAction.label)}
 									</button>
 								)}
 							</div>
@@ -137,10 +127,7 @@ export function ResultsPanel({ state, outputs, selected, tab, details, onTab, on
 					) : (
 						<ul className="background">
 							{tools.map((line) => (
-								<li key={line.key}>
-									<span>{line.name}</span>
-									<ToolState state={line.state} />
-								</li>
+								<ToolActivity key={line.callId} line={line} />
 							))}
 						</ul>
 					))}

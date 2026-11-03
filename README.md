@@ -28,7 +28,7 @@ Both are in the working trees, uncommitted, alongside other work there.
 | `/v1/people` has no `relation` | The send form can't say which of offer or assignment will happen, so it states both. The result shown is the service's | `t10-collab` |
 | A redeemed code can't name the tenant for someone in several, and the list needs a token | They type a tenant ID once. `sample-multi` shows it | `auth-server` |
 | `/v1/signout` takes same-origin posts only | Sign-out ends the workbench session. The signed-out page says the hosted session stays, and links to where it can end. Until then, Sign in won't ask for a password | `auth-server` |
-| Tool summaries | Activity shows a tool's name only | `agent-pi` |
+| Tool payload inspection | Activity details require `agent-pi` with the `session.tool` method; older agents show a recoverable error | `agent-pi` |
 | `session.messages` leaves out image data | A reloaded conversation shows how many images a message had, not the images | `agent-pi` |
 
 ## Run it
@@ -50,6 +50,7 @@ For the frontend alone, run the backend and then `npm run dev` in `web/`.
 
 ```sh
 TEST_DATABASE_URL='postgres://…' go test ./...   # needs a throwaway Postgres, because it drops the workbench schema
+(cd web && npm run test:ux)                      # isolated browser UX checks, mocked APIs
 (cd web && npm test)                             # the stream reducer, output extraction and Chinese coverage
 
 scripts/e2e-stack.sh up                          # its own Postgres, LiveKit, auth-server, t10-collab and scripted agent
@@ -82,3 +83,7 @@ A new interface string needs its Chinese in `web/src/lib/zh.ts`, or `npm test` f
 | `web/src/modules/agents` | Which of the platform's agents this tenant uses, and its default, from `t10-agent-control` |
 
 `web/web.go` embeds `web/dist`, because Go can't embed a parent directory from `cmd/workbench`.
+
+## Activity payloads
+
+In a conversation, open **Results → Activity** and expand a tool call to inspect and copy its recorded request and response as JSON. Details load on demand and remain available after reload, including archived conversations. Running calls refresh while expanded. These are the recorded model tool-call block and tool-result message, not HTTP transport headers; tool middleware may have transformed arguments before execution. The sibling `agent-pi` must include `session.tool`, which checks session ownership before reading history.

@@ -21,6 +21,10 @@ export function HomeRows() {
 	const due = owned.data?.filter((item) => item.due_at !== null && dueDay(item.due_at) <= today() && (item.status === "todo" || item.status === "doing")) ?? [];
 	return (
 		<>
+			{[inbox, sent, owned].some((query) => query.isPending) && <li className="row" role="status">{t("Loading…")}</li>}
+			{[inbox, sent, owned].some((query) => query.isError) && <li className="row" role="alert">
+				{t("Couldn't load this. Try again.")} <button type="button" className="link" onClick={() => { void inbox.refetch(); void sent.refetch(); void owned.refetch(); }}>{t("Retry")}</button>
+			</li>}
 			{pending.map((offer) => (
 				<OfferRow key={offer.id} offer={offer} />
 			))}

@@ -6,7 +6,7 @@ import { Composer } from "../conversation/Composer.tsx";
 import { rpc } from "../lib/api.ts";
 import { type SessionInfo, startConversation, titleOf } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
-import { load, save } from "../lib/storage.ts";
+import { load } from "../lib/storage.ts";
 import { useModules, useResultAction } from "../modules/index.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
 
@@ -40,14 +40,14 @@ function greeting(): string {
 
 export function Home() {
 	const { t, ago, describe } = useI18n();
-	const { agent, profile, me, path, signedOut } = useWorkspace();
+	const { agent, agents, setAgent, profile, me, path, signedOut } = useWorkspace();
 	const modules = useModules();
 	const resultAction = useResultAction();
 	const navigate = useNavigate();
 	const refresh = useRefreshSessions();
 	const sessions = useSessions();
 	const [taskFrom, setTaskFrom] = useState<string>();
-	const [seed, setSeed] = useState(0);
+	const [suggestion, setSuggestion] = useState<{ text: string; id: number }>();
 	const [showAll, setShowAll] = useState(false);
 	const skills = useQuery({ queryKey: ["skills", agent], queryFn: () => rpc<{ skills: { name: string; description: string }[] }>(agent, "skills.list"), staleTime: 300_000 });
 	const start = useMutation({
@@ -68,11 +68,7 @@ export function Home() {
 	const firstRun = sessions.isSuccess && sessions.data.length === 0;
 	const recent = [...(sessions.data ?? [])].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, RECENT);
 	const firstName = displayName(me).split(/[\s@]/)[0] ?? "";
-	// A new key reads the draft again, so the starter lands in the box with the cursor after it.
-	const applyStarter = (prompt: string) => {
-		save("draft:home", prompt);
-		setSeed(seed + 1);
-	};
+	const applyStarter = (text: string) => setSuggestion((previous) => ({ text, id: (previous?.id ?? 0) + 1 }));
 
 	return (
 		<div className="page home">
@@ -80,13 +76,18 @@ export function Home() {
 				<h1>{t(greeting(), { name: firstName })}</h1>
 				<p>{t("What would you like to get done?")}</p>
 			</header>
+			<label className="with-label home-agent">{t("Agent")}
+				<select value={agent} disabled={start.isPending} onChange={(event) => setAgent(event.target.value)}>
+					{agents.map((option) => <option key={option.name} value={option.name}>{option.title ?? option.name}</option>)}
+				</select>
+			</label>
 			<Composer
-				key={seed}
+				suggestion={suggestion}
 				draftKey="home"
 				mode={signedOut ? "signed-out" : "idle"}
 				placeholder={t("Ask your agent")}
 				autoFocus
-				onSend={(input, text) => start.mutate({ input, text: text || t("New conversation") })}
+				onSend={async (input, text) => { await start.mutateAsync({ input, text: text || t("New conversation") }); }}
 				onSignIn={() => window.location.assign("/auth/login")}
 			/>
 			{start.isError && (
@@ -97,7 +98,7 @@ export function Home() {
 			<ul className="starters" aria-label={t("Suggestions")}>
 				{STARTERS.map((starter) => (
 					<li key={starter.label}>
-						<button type="button" onClick={() => applyStarter(t(starter.prompt))}>
+						<button type="button" disabled={start.isPending} onClick={() => applyStarter(t(starter.prompt))}>
 							<starter.icon size={15} aria-hidden="true" />
 							{t(starter.label)}
 						</button>
@@ -119,10 +120,12 @@ export function Home() {
 					</ul>
 				</section>
 			)}
-			{!firstRun && (
+			{(
 				<section className="always">
 					<h2>{t("Needs you")}</h2>
 					<ul className="rows" data-empty={t("You're all caught up.")}>
+						{sessions.isPending && <li className="row" role="status">{t("Loading…")}</li>}
+						{sessions.isError && <li className="row" role="alert">{t("Couldn't load this. Try again.")} <button type="button" className="link" onClick={() => void sessions.refetch()}>{t("Retry")}</button></li>}
 						{modules.map(({ id, HomeRows }) => HomeRows !== undefined && <HomeRows key={id} />)}
 						{(showAll ? done : done.slice(0, FINISHED_SHOWN)).map((session) => (
 							<li key={session.sessionId} className="row">

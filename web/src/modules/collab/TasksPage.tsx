@@ -67,6 +67,9 @@ export function TasksPage() {
 	const client = useQueryClient();
 	const [view, setView] = useState<View>("owned");
 	const [title, setTitle] = useState("");
+	const [search, setSearch] = useState("");
+	const [due, setDue] = useState("all");
+	const [showCompleted, setShowCompleted] = useState(false);
 	const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 60_000 });
 	const items = useQuery({ queryKey: ["items", view], queryFn: () => listItems(`view=${view}`) });
 	const inbox = useQuery({ queryKey: ["offers", "inbox"], queryFn: () => listOffers("inbox") });
@@ -78,6 +81,10 @@ export function TasksPage() {
 			void client.invalidateQueries({ queryKey: ["items"] });
 		},
 	});
+	const filtered = (items.data ?? []).filter((item) =>
+		(showCompleted || !isClosed(item)) && item.title.toLowerCase().includes(search.trim().toLowerCase()) &&
+		(due === "all" || (due === "overdue" ? isOverdue(item) : item.due_at !== null && dueDay(item.due_at) === today()))
+	).toSorted((a, b) => Number(isClosed(a)) - Number(isClosed(b)) || (a.due_at ?? "9999").localeCompare(b.due_at ?? "9999"));
 	const visibility = settings.data?.manager_visibility;
 	const views: View[] = visibility === undefined || visibility === "none" ? ["owned", "sent", "collaborating"] : ["owned", "sent", "collaborating", "reports"];
 	const offers = (inbox.data ?? []).filter((offer) => offer.state === "pending");
@@ -141,12 +148,19 @@ export function TasksPage() {
 					</button>
 				))}
 			</div>
+			<div className="task-filters">
+				<input type="search" value={search} placeholder={t("Search tasks")} aria-label={t("Search tasks")} onChange={(event) => setSearch(event.target.value)} />
+				<select value={due} aria-label={t("Due date")} onChange={(event) => setDue(event.target.value)}>
+					<option value="all">{t("Any due date")}</option><option value="overdue">{t("Overdue")}</option><option value="today">{t("Due today")}</option>
+				</select>
+				<label className="with-label"><input type="checkbox" checked={showCompleted} onChange={(event) => setShowCompleted(event.target.checked)} />{t("Show completed work")}</label>
+			</div>
 			{items.isPending && <Skeleton />}
-			{items.isError && <p className="inline-error">{t("Couldn't load this. Try again.")}</p>}
-			{items.isSuccess && items.data.length === 0 && <Empty icon={CheckSquare} title={t("Nothing here.")} />}
+			{items.isError && <p className="inline-error" role="alert">{t("Couldn't load this. Try again.")} <button type="button" className="link" onClick={() => void items.refetch()}>{t("Retry")}</button></p>}
+			{items.isSuccess && filtered.length === 0 && <Empty icon={CheckSquare} title={t("No tasks match these filters.")} />}
 			<ul className="rows">
 				{/* Finished work moves down, so what's left stays on top. */}
-				{items.data?.toSorted((a, b) => Number(isClosed(a)) - Number(isClosed(b))).map((item) => (
+				{filtered.map((item) => (
 					<ItemRow key={item.id} item={item} />
 				))}
 			</ul>

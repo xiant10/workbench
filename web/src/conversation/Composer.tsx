@@ -19,7 +19,8 @@ export type ComposerProps = {
 	placeholder: string;
 	queued?: Pending[];
 	autoFocus?: boolean;
-	onSend(input: PromptInput, text: string, images: number): void;
+	suggestion?: { text: string; id: number };
+	onSend(input: PromptInput, text: string, images: number): void | Promise<void>;
 	onStop?(): void;
 	onStopAndSend?(input: PromptInput, text: string, images: number): void;
 	onRetry?(): void;
@@ -39,14 +40,24 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, suggestion, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
 	const [problem, setProblem] = useState("");
 	const [dragging, setDragging] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
+	const [failed, setFailed] = useState(false);
+	const sending = useRef(false);
+	const applied = useRef<number>();
 	const box = useRef<HTMLTextAreaElement>(null);
 	const file = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (suggestion === undefined || applied.current === suggestion.id) return;
+		applied.current = suggestion.id;
+		setText((current) => current.trim() === "" ? suggestion.text : `${current}\n\n${suggestion.text}`);
+		box.current?.focus();
+	}, [suggestion]);
 
 	useEffect(() => save(`draft:${draftKey}`, text), [draftKey, text]);
 	useEffect(() => {
@@ -62,16 +73,29 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 		images: images.length,
 	});
 	const clear = () => {
+		save(`draft:${draftKey}`, undefined);
 		setText("");
 		setImages([]);
 		setProblem("");
 	};
-	const canSend = (text.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out" && (canAddToRun || (mode !== "running" && mode !== "stalled"));
-	const submit = () => {
-		if (!canSend) return;
+	const canSend = !submitting && (text.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out" && (canAddToRun || (mode !== "running" && mode !== "stalled"));
+	const submit = async () => {
+		if (!canSend || sending.current) return;
+		sending.current = true;
+		setSubmitting(true);
+		setProblem("");
 		const { input, text: typed, images: count } = payload();
-		onSend(input, typed, count);
-		clear();
+		try {
+			await onSend(input, typed, count);
+			setFailed(false);
+			clear();
+		} catch {
+			setFailed(true);
+			setProblem(t("Your message wasn't sent. Retry when you're ready."));
+		} finally {
+			sending.current = false;
+			setSubmitting(false);
+		}
 	};
 	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		// Enter also confirms an IME's candidate, and most users will type Chinese.
@@ -81,14 +105,22 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 		}
 	};
 	const add = async (files: Iterable<File>) => {
+		if (sending.current) return;
 		for (const candidate of files) {
-			if (!candidate.type.startsWith("image/")) continue;
+			if (!candidate.type.startsWith("image/")) {
+				setProblem(t("{name} isn't an image. Paste document text into the message instead.", { name: candidate.name }));
+				continue;
+			}
 			if (candidate.size > MAX_IMAGE_BYTES) {
 				setProblem(t("{name} is over the 8 MB limit.", { name: candidate.name }));
 				continue;
 			}
-			const image = await readImage(candidate);
-			setImages((current) => [...current, image]);
+			try {
+				const image = await readImage(candidate);
+				setImages((current) => [...current, image]);
+			} catch {
+				setProblem(t("Couldn't read {name}. Try attaching it again.", { name: candidate.name }));
+			}
 		}
 	};
 	const onPaste = (event: ClipboardEvent) => {
@@ -117,6 +149,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 					))}
 				</ul>
 			)}
+			{submitting && <p className="composer-status" role="status">{t("Sending…")}</p>}
 			{status !== "" && (
 				<p className="composer-status" role="status">
 					<CircleAlert size={14} aria-hidden="true" />
@@ -128,7 +161,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 					{images.map((image) => (
 						<li key={image.url}>
 							<img src={image.url} alt={image.name} />
-							<button type="button" aria-label={t("Remove")} onClick={() => setImages((current) => current.filter((other) => other !== image))}>
+							<button type="button" disabled={submitting} aria-label={t("Remove")} onClick={() => setImages((current) => current.filter((other) => other !== image))}>
 								<X size={12} aria-hidden="true" />
 							</button>
 						</li>
@@ -148,6 +181,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 					ref={box}
 					rows={1}
 					value={text}
+					readOnly={submitting}
 					placeholder={placeholder}
 					aria-label={placeholder}
 					autoFocus={autoFocus}
@@ -156,7 +190,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 					onPaste={onPaste}
 				/>
 				<div className="composer-actions">
-					<button type="button" className="icon-button" aria-label={t("Attach")} title={t("Attach an image")} onClick={() => file.current?.click()}>
+					<button type="button" className="icon-button" disabled={submitting} aria-label={t("Attach an image")} title={t("Attach an image")} onClick={() => file.current?.click()}>
 						<Paperclip size={17} aria-hidden="true" />
 					</button>
 					<input
@@ -213,7 +247,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 						)
 					)}
 					{(mode === "idle" || mode === "reconnecting") && (
-						<button type="button" className="primary send" aria-label={t("Send")} disabled={!canSend} onClick={submit}>
+						<button type="button" className="primary send" aria-label={t(failed ? "Retry" : "Send")} disabled={!canSend} onClick={submit}>
 							<ArrowUp size={17} aria-hidden="true" />
 						</button>
 					)}

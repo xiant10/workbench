@@ -96,7 +96,7 @@ export function CopyButton({ text, label, className = "icon-button" }: { text: s
 	);
 }
 
-export function Dialog({ label, onClose, wide, children }: { label: string; onClose?: () => void; wide?: boolean; children: ReactNode }) {
+export function Dialog({ label, onClose, wide, children, className, backdropClassName }: { label: string; onClose?: () => void; wide?: boolean; children: ReactNode; className?: string; backdropClassName?: string }) {
 	const box = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const before = document.activeElement as HTMLElement | null;
@@ -118,12 +118,12 @@ export function Dialog({ label, onClose, wide, children }: { label: string; onCl
 	};
 	return (
 		<div
-			className="dialog-backdrop"
+			className={backdropClassName ?? "dialog-backdrop"}
 			onMouseDown={(event) => {
 				if (event.target === event.currentTarget) onClose?.();
 			}}
 		>
-			<div ref={box} className={wide === true ? "dialog wide" : "dialog"} role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKeyDown}>
+			<div ref={box} className={className ?? (wide === true ? "dialog wide" : "dialog")} role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKeyDown}>
 				{children}
 			</div>
 		</div>

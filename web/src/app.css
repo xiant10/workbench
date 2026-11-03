@@ -568,3 +568,18 @@ label > input, label > select, label > textarea { color: var(--text); font-size:
 .unit-name:hover, .unit-name:focus { border-color: var(--line); background: var(--surface); }
 .secret-link { display: flex; align-items: center; gap: 0.5rem; }
 .secret-link code { word-break: break-all; user-select: all; flex: 1; }
+
+.home-agent { margin-bottom: 0.6rem; }
+.search-scope { padding: 0 1rem; font-size: 0.82rem; }
+.task-filters { display: flex; flex-wrap: wrap; gap: 0.65rem; align-items: center; margin: 1rem 0; }
+.task-filters > input { flex: 1; min-width: 160px; }
+.task-filters select { width: auto; }
+.task-filters input[type=checkbox] { width: auto; }
+
+.background li.tool-activity { display: block; }
+.tool-activity details { width: 100%; min-width: 0; }
+.tool-activity summary { cursor: pointer; padding: 0.4rem 0; overflow-wrap: anywhere; }
+.tool-activity summary .state { float: right; margin-left: 0.5rem; }
+.payload-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.payload-heading h3 { font-size: 0.9rem; margin: 0; }
+.tool-payload pre { max-height: 320px; overflow: auto; padding: 0.75rem; background: var(--sunken); border-radius: 8px; font-size: 0.8rem; }

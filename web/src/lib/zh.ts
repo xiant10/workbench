@@ -3,6 +3,25 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"Due date": "截止日期",
+	"This payload isn't available in the recorded history.": "历史记录中没有此请求或响应数据。",
+	"Waiting for the tool response…": "正在等待工具响应…",
+	"Response": "响应",
+	"Request": "请求",
+	"Payload details require an agent that supports this feature.": "查看请求和响应详情需要智能体支持此功能。",
+	"Call ID": "调用 ID",
+	"Recorded tool request and response": "已记录的工具请求和响应",
+	"No tasks match these filters.": "没有符合筛选条件的任务。",
+	"Show completed work": "显示已结束的任务",
+	"Due today": "今天截止",
+	"Overdue": "已逾期",
+	"Any due date": "所有截止日期",
+	"Search tasks": "搜索任务",
+	"Searches open conversation titles and actions.": "搜索未归档对话的标题和操作。",
+	"Sending…": "正在发送…",
+	"Couldn't read {name}. Try attaching it again.": "无法读取 {name}。请重新添加附件。",
+	"{name} isn't an image. Paste document text into the message instead.": "{name} 不是图片。请将文档文字粘贴到消息中。",
+	"Your message wasn't sent. Retry when you're ready.": "消息未发送。准备好后可以重试。",
 	// Product and navigation
 	Workbench: "工作台",
 	"New conversation": "新对话",
@@ -94,7 +113,6 @@ export const ZH: Record<string, string> = {
 	Send: "发送",
 	Stop: "停止",
 	"Stop and send this instead": "停止并改发此内容",
-	Attach: "附件",
 	"Attach an image": "添加图片",
 	"Enter to send, Shift+Enter for a new line": "Enter 发送，Shift+Enter 换行",
 	"{name} is over the 8 MB limit.": "{name} 超过了 8 MB 的上限。",

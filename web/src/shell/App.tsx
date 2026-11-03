@@ -47,12 +47,20 @@ function CenterCard({ children }: { children: ReactNode }) {
 	);
 }
 
+function LoadError({ retry }: { retry(): void }) {
+	const { t } = useI18n();
+	return <CenterCard><Empty icon={CircleAlert} title={t("Couldn't load this. Try again.")}>
+		<button type="button" className="primary" onClick={retry}>{t("Retry")}</button>
+	</Empty></CenterCard>;
+}
+
 function Root({ page = "" }: { page?: string }) {
 	const me = useMe();
 	const location = useLocation();
 	useEffect(() => {
 		if (me.error instanceof ApiError && me.error.status === 401) login(location.pathname);
 	}, [me.error, location.pathname]);
+	if (me.isError && !(me.error instanceof ApiError && me.error.status === 401)) return <LoadError retry={() => void me.refetch()} />;
 	if (me.data?.active_tenant === "") return <NoTenantPage />;
 	if (me.data !== undefined) return <Navigate to={`/t/${me.data.active_tenant}/${page}`} replace />;
 	return <Splash />;
@@ -215,6 +223,7 @@ function Shell() {
 			</main>
 		);
 	}
+	if (config.isError) return <LoadError retry={() => void config.refetch()} />;
 	if (workspace === undefined) return <Splash />;
 	const hide = (hidden: boolean) => {
 		setCollapsed(hidden);
