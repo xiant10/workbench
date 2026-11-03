@@ -1,3 +1,4 @@
+import { navigateOptions } from "../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, Sparkles, Square, Trash2, UserPlus, Users } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -78,9 +79,9 @@ export function AdminPage() {
 				<h1>{t("Administration")}</h1>
 			</header>
 			<p className="quiet">{t("Changes here apply to everyone in this tenant.")}</p>
-			<div className="tabs" role="tablist" aria-label={t("Administration")}>
+			<div className="tabs" role="tablist" onKeyDown={navigateOptions} aria-label={t("Administration")}>
 				{tabs.map((item) => (
-					<button key={item.id} type="button" role="tab" aria-selected={tab === item.id} className={tab === item.id ? "tab active" : "tab"} onClick={() => setParams({ tab: item.id })}>
+					<button key={item.id} type="button" role="tab" tabIndex={tab === item.id ? 0 : -1} aria-selected={tab === item.id} className={tab === item.id ? "tab active" : "tab"} onClick={() => setParams({ tab: item.id })}>
 						<item.icon size={14} aria-hidden="true" /> {t(item.label)}
 					</button>
 				))}
@@ -150,7 +151,7 @@ function People() {
 	const tree = unitTree(units.data ?? []);
 	return (
 		<section className="admin-section always">
-			<div className="add-row">
+			<div className="add-row invite-row">
 				<label className="with-label">
 					{t("Invite as")}
 					<select value={role} onChange={(event) => setRole(event.target.value as Role)}>

@@ -1,12 +1,15 @@
 import { Check, Copy, type LucideIcon } from "lucide-react";
 import { createContext, type KeyboardEvent, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { navigateOptions } from "./layout.ts";
 import { useI18n } from "./i18n.tsx";
 
 const TOAST_MS = 5000;
 const COPIED_MS = 1500;
 const MENU_GAP = 6;
-const FOCUSABLE = "input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href]";
+let openDialogs = 0;
+let rootWasInert = false;
+const FOCUSABLE = "input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href], summary, [tabindex='0']";
 
 export function Logo({ size = 28 }: { size?: number }) {
 	return <img className="logo" src="/logo.png" alt="t10" width={size} height={size} aria-hidden="true" />;
@@ -49,9 +52,9 @@ type SegmentedProps<T extends string> = { label: string; value: T; options: { va
 
 export function Segmented<T extends string>({ label, value, options, onChange }: SegmentedProps<T>) {
 	return (
-		<div className="segmented" role="radiogroup" aria-label={label}>
+		<div className="segmented" role="radiogroup" aria-label={label} onKeyDown={navigateOptions}>
 			{options.map((option) => (
-				<button key={option.value} type="button" role="radio" aria-checked={value === option.value} className={value === option.value ? "active" : ""} onClick={() => onChange(option.value)}>
+				<button key={option.value} type="button" role="radio" tabIndex={value === option.value ? 0 : -1} aria-checked={value === option.value} className={value === option.value ? "active" : ""} onClick={() => onChange(option.value)}>
 					{option.label}
 				</button>
 			))}
@@ -100,8 +103,17 @@ export function Dialog({ label, onClose, wide, children, className, backdropClas
 	const box = useRef<HTMLDivElement>(null);
 	useEffect(() => {
 		const before = document.activeElement as HTMLElement | null;
-		box.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-		return () => before?.focus();
+		const app = document.getElementById("root");
+		if (openDialogs++ === 0) rootWasInert = app?.inert ?? false;
+		if (app !== null) app.inert = true;
+		const underneath = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].filter((element) => element !== box.current && !element.inert);
+		underneath.forEach((element) => { element.inert = true; });
+		[...(box.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].find((element) => element.tabIndex >= 0 && element.getClientRects().length > 0)?.focus();
+		return () => {
+			underneath.forEach((element) => { element.inert = false; });
+			if (--openDialogs === 0 && app !== null) app.inert = rootWasInert;
+			if (before?.isConnected) before.focus();
+		};
 	}, []);
 	const onKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Escape") {
@@ -109,14 +121,14 @@ export function Dialog({ label, onClose, wide, children, className, backdropClas
 			onClose?.();
 		}
 		if (event.key !== "Tab" || box.current === null) return;
-		const stops = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
+		const stops = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
 		const edge = event.shiftKey ? stops[0] : stops.at(-1);
 		if (document.activeElement === edge) {
 			event.preventDefault();
 			(event.shiftKey ? stops.at(-1) : stops[0])?.focus();
 		}
 	};
-	return (
+	return createPortal(
 		<div
 			className={backdropClassName ?? "dialog-backdrop"}
 			onMouseDown={(event) => {
@@ -126,7 +138,8 @@ export function Dialog({ label, onClose, wide, children, className, backdropClas
 			<div ref={box} className={className ?? (wide === true ? "dialog wide" : "dialog")} role="dialog" aria-modal="true" aria-label={label} onKeyDown={onKeyDown}>
 				{children}
 			</div>
-		</div>
+		</div>,
+		document.body,
 	);
 }
 

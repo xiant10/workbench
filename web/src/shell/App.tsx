@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
 import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
+import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
-import { Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
+import { Dialog, Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
 import { moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
@@ -143,6 +144,9 @@ function Shell() {
 	const config = useQuery({ queryKey: ["config"], queryFn: () => request<AppConfig>("/api/config"), retry: false, staleTime: Infinity });
 	const [signedOut, setSignedOut] = useState(false);
 	const [drawer, setDrawer] = useState(false);
+	const menuButton = useRef<HTMLButtonElement>(null);
+	const mobile = useMedia("(max-width: 600px)");
+	useEffect(() => setDrawer(false), [location.pathname, mobile]);
 	const [denied, setDenied] = useState(false);
 	const [collapsed, setCollapsed] = useState(load("sidebar") === "hidden");
 	const [searching, setSearching] = useState(false);
@@ -234,6 +238,7 @@ function Shell() {
 			<div className={collapsed ? "shell collapsed" : "shell"}>
 				<button
 					type="button"
+					ref={menuButton}
 					className="drawer-toggle icon-button"
 					aria-label={t("Menu")}
 					aria-expanded={drawer}
@@ -244,8 +249,11 @@ function Shell() {
 				>
 					<PanelLeftOpen size={18} aria-hidden="true" />
 				</button>
-				{drawer && <div className="drawer-backdrop" onClick={() => setDrawer(false)} />}
-				<Sidebar open={drawer} onClose={() => setDrawer(false)} onCollapse={() => hide(window.innerWidth > 600)} onSearch={() => setSearching(true)} />
+				{mobile ? drawer && (
+					<Dialog label={t("Menu")} onClose={() => setDrawer(false)} className="sidebar-dialog" backdropClassName="sidebar-backdrop">
+						<Sidebar open onClose={() => setDrawer(false)} onCollapse={() => setDrawer(false)} onSearch={() => { setDrawer(false); setSearching(true); }} />
+					</Dialog>
+				) : <Sidebar open={false} onClose={() => setDrawer(false)} onCollapse={() => hide(true)} onSearch={() => setSearching(true)} />}
 				<main className="content">
 					{signedOut && (
 						<div className="banner" role="alert">
@@ -257,7 +265,7 @@ function Shell() {
 					)}
 					<Outlet />
 				</main>
-				{searching && <Palette onClose={() => setSearching(false)} />}
+				{searching && <Palette onClose={() => { setSearching(false); if (mobile) requestAnimationFrame(() => menuButton.current?.focus()); }} />}
 			</div>
 		</WorkspaceContext.Provider>
 	);

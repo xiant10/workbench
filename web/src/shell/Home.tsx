@@ -71,17 +71,18 @@ export function Home() {
 	const applyStarter = (text: string) => setSuggestion((previous) => ({ text, id: (previous?.id ?? 0) + 1 }));
 
 	return (
-		<div className="page home">
+		<div className={firstRun ? "page home" : "page home returning"}>
 			<header className="hero">
 				<h1>{t(greeting(), { name: firstName })}</h1>
 				<p>{t("What would you like to get done?")}</p>
 			</header>
-			<label className="with-label home-agent">{t("Agent")}
+
+			<Composer
+				toolbar={<label className="with-label home-agent">{t("Agent")}
 				<select value={agent} disabled={start.isPending} onChange={(event) => setAgent(event.target.value)}>
 					{agents.map((option) => <option key={option.name} value={option.name}>{option.title ?? option.name}</option>)}
 				</select>
-			</label>
-			<Composer
+			</label>}
 				suggestion={suggestion}
 				draftKey="home"
 				mode={signedOut ? "signed-out" : "idle"}

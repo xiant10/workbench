@@ -1,5 +1,5 @@
 import { ArrowUp, CircleAlert, Clock, Paperclip, Square, X } from "lucide-react";
-import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import type { PromptInput } from "../lib/agent.ts";
 import { load, save } from "../lib/storage.ts";
@@ -20,6 +20,7 @@ export type ComposerProps = {
 	queued?: Pending[];
 	autoFocus?: boolean;
 	suggestion?: { text: string; id: number };
+	toolbar?: ReactNode;
 	onSend(input: PromptInput, text: string, images: number): void | Promise<void>;
 	onStop?(): void;
 	onStopAndSend?(input: PromptInput, text: string, images: number): void;
@@ -40,7 +41,7 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, suggestion, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
@@ -190,6 +191,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 					onPaste={onPaste}
 				/>
 				<div className="composer-actions">
+					{toolbar}
 					<button type="button" className="icon-button" disabled={submitting} aria-label={t("Attach an image")} title={t("Attach an image")} onClick={() => file.current?.click()}>
 						<Paperclip size={17} aria-hidden="true" />
 					</button>

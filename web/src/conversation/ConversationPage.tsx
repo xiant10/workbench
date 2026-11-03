@@ -6,6 +6,7 @@ import { CallBar } from "../call/CallBar.tsx";
 import { useCall } from "../call/useCall.ts";
 import { type PromptInput, supports } from "../lib/agent.ts";
 import { rpc } from "../lib/api.ts";
+import { RESULTS_BREAKPOINT, useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
 import { Empty } from "../lib/ui.tsx";
@@ -20,7 +21,7 @@ import { useConversation } from "./useConversation.ts";
 
 const CLOCK_MS = 5000;
 /** Wide enough for all three panes at once. Below this, results open only when asked for. */
-const THREE_PANES_PX = 1100;
+const THREE_PANES_PX = RESULTS_BREAKPOINT;
 
 export function ConversationPage() {
 	const { sessionId = "" } = useParams();
@@ -55,7 +56,9 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const heard = call.heard.filter((item) => users <= (heardBase.current.get(item.id) ?? users)).map((item) => item.text);
 	const spoken = assistants > replyBase.current.assistants ? "" : call.reply.text;
 	const [now, setNow] = useState(Date.now);
+	const resultsTrigger = useRef<HTMLButtonElement>(null);
 	const [resultsChoice, setResultsOpen] = useState<boolean>();
+	const wide = useMedia(`(min-width: ${THREE_PANES_PX}px)`);
 	const [tab, setTab] = useState<ResultsTab>("outputs");
 	const [selected, setSelected] = useState<Output>();
 	const [taskText, setTaskText] = useState<string>();
@@ -78,7 +81,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const title = session?.metadata?.title ?? t("New conversation");
 	const resultCount = outputs.length + state.tasks.length;
 	// An empty pane only takes room from the reply, so it waits until there's something in it.
-	const resultsOpen = resultsChoice ?? (resultCount > 0 && window.innerWidth >= THREE_PANES_PX);
+	const resultsOpen = resultsChoice ?? (resultCount > 0 && wide);
 	const sendResult = resultAction === undefined ? {} : { resultAction: { label: resultAction.label, icon: resultAction.icon, run: setTaskText } };
 
 	if (state.status === "gone") {
@@ -106,7 +109,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 							<span className="label">{t(call.phase === "off" ? "Call" : "End call")}</span>
 						</button>
 					)}
-					<button type="button" className="ghost" onClick={() => setResultsOpen(!resultsOpen)} aria-label={t("Results")} aria-expanded={resultsOpen}>
+					<button ref={resultsTrigger} type="button" className="ghost" onClick={() => setResultsOpen(!resultsOpen)} aria-label={t("Results")} aria-expanded={resultsOpen}>
 						<PanelRight size={15} aria-hidden="true" />
 						<span className="label">{t("Results")}</span>
 						{resultCount > 0 && <span className="badge">{resultCount}</span>}
@@ -167,7 +170,6 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					/>
 				)}
 			</div>
-			{resultsOpen && <div className="sheet-backdrop" onClick={() => setResultsOpen(false)} />}
 			{resultsOpen && (
 				<ResultsPanel
 					state={state}
@@ -177,7 +179,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					{...(info.data === undefined ? {} : { details: info.data })}
 					onTab={setTab}
 					onSelect={setSelected}
-					onClose={() => setResultsOpen(false)}
+					onClose={() => { setResultsOpen(false); requestAnimationFrame(() => resultsTrigger.current?.focus()); }}
 					{...sendResult}
 					onStopTasks={() => void stop(true)}
 				/>

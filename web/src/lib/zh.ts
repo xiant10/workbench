@@ -3,6 +3,19 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"Discard draft": "放弃草稿",
+	"Unsaved changes · Draft kept on this device": "有未保存的更改 · 草稿保存在此设备上",
+	"To do": "待办",
+	"Saved": "已保存",
+	"Save and start": "保存并开始",
+	"Resolve the task conflict before starting your agent.": "请先解决任务冲突，再启动智能体。",
+	"Resize results": "调整结果宽度",
+	"Normal": "普通",
+	"Low": "低",
+	"In progress": "进行中",
+	"High": "高",
+	"Expand results": "展开结果",
+	"Cancelled": "已取消",
 	"Due date": "截止日期",
 	"This payload isn't available in the recorded history.": "历史记录中没有此请求或响应数据。",
 	"Waiting for the tool response…": "正在等待工具响应…",

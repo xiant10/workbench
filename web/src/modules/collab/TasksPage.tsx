@@ -1,3 +1,4 @@
+import { navigateOptions } from "../../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CheckSquare, ChevronRight, Circle, CircleDot, CircleOff, Eye, Flag, Plus } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -40,7 +41,7 @@ function ItemRow({ item }: { item: Item }) {
 	});
 	const Icon = STATUS_ICONS[item.status];
 	return (
-		<li className={isClosed(item) ? "row closed" : "row"}>
+		<li className={isClosed(item) ? "row task-row closed" : "row task-row"}>
 			<button type="button" className={`status-toggle ${item.status}`} disabled={!canEdit || toggle.isPending || item.status === "cancelled"} aria-label={t(finished ? "Mark as to do" : "Mark as done")} onClick={() => toggle.mutate()}>
 				<Icon size={finished ? 13 : 19} aria-hidden="true" />
 			</button>
@@ -55,7 +56,7 @@ function ItemRow({ item }: { item: Item }) {
 					</span>
 				)}
 				{item.due_at !== null && <span className={isOverdue(item) ? "due overdue" : "due"}>{day(item.due_at)}</span>}
-				<span className={`pill ${item.status}`}>{t(item.status)}</span>
+				<span className={`pill ${item.status}`}>{t({ todo: "To do", doing: "In progress", done: "Done", cancelled: "Cancelled" }[item.status])}</span>
 			</div>
 		</li>
 	);
@@ -141,9 +142,9 @@ export function TasksPage() {
 					</ul>
 				</section>
 			)}
-			<div className="tabs" role="tablist">
+			<div className="tabs" role="tablist" onKeyDown={navigateOptions}>
 				{views.map((name) => (
-					<button key={name} type="button" role="tab" aria-selected={view === name} className={view === name ? "tab active" : "tab"} onClick={() => setView(name)}>
+					<button key={name} type="button" role="tab" tabIndex={view === name ? 0 : -1} aria-selected={view === name} className={view === name ? "tab active" : "tab"} onClick={() => setView(name)}>
 						{t({ owned: "Owned", sent: "Sent", collaborating: "Collaborating", reports: "Reports" }[name])}
 					</button>
 				))}

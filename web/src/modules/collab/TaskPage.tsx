@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, CircleAlert, Eye, FileQuestion, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { load, save as saveLocal } from "../../lib/storage.ts";
 import { ApiError } from "../../lib/api.ts";
 import { startConversation, titleOf } from "../../lib/agent.ts";
 import { useI18n } from "../../lib/i18n.tsx";
@@ -67,13 +68,35 @@ export function TaskPage() {
 function TaskEditor({ item }: { item: Item }) {
 	const { t, dateTime, describe } = useI18n();
 	const { confirm, toast } = useFeedback();
-	const { me, agent, profile, path } = useWorkspace();
+	const { me, tenant, agent, profile, path } = useWorkspace();
 	const navigate = useNavigate();
 	const client = useQueryClient();
 	const refreshSessions = useRefreshSessions();
 	const { people, name } = usePeople();
-	const [base, setBase] = useState(item);
-	const [draft, setDraft] = useState(() => draftOf(item));
+	const draftKey = `task-draft:${tenant}:${me.user_id}:${item.id}`;
+	const [restored] = useState(() => {
+		try {
+			const saved = JSON.parse(load(draftKey) ?? "null") as { base: Draft; version: number; draft: Draft } | null;
+			const valid = (value: Draft) => value && typeof value.title === "string" && typeof value.description === "string" && ["todo", "doing", "done", "cancelled"].includes(value.status) && ["low", "normal", "high"].includes(value.priority) && (value.due_at === null || (typeof value.due_at === "string" && Number.isFinite(Date.parse(value.due_at))));
+			return saved && valid(saved.base) && valid(saved.draft) && Number.isInteger(saved.version) ? saved : undefined;
+		} catch { return undefined; }
+	});
+	const [base, setBase] = useState(() => restored ? { ...item, ...restored.base, version: restored.version } : item);
+	const [draft, setDraft] = useState(() => restored?.draft ?? draftOf(item));
+	const titleBox = useRef<HTMLTextAreaElement>(null);
+	useLayoutEffect(() => {
+		const element = titleBox.current;
+		if (element === null) return;
+		const fit = () => { element.style.height = "auto"; element.style.height = `${element.scrollHeight + 2}px`; };
+		fit();
+		let width = element.clientWidth;
+		const observer = new ResizeObserver(() => {
+			if (element.clientWidth !== width) { width = element.clientWidth; fit(); }
+		});
+		observer.observe(element);
+		void document.fonts.ready.then(() => { if (element.isConnected) fit(); });
+		return () => observer.disconnect();
+	}, [draft.title]);
 	const [conflict, setConflict] = useState<{ field: Editable; theirs: Item }>();
 	const [handing, setHanding] = useState(false);
 	const [preview, setPreview] = useState(false);
@@ -85,6 +108,9 @@ function TaskEditor({ item }: { item: Item }) {
 	const events = useQuery({ queryKey: ["events", item.id], queryFn: () => listEvents(item.id), refetchInterval: POLL_MS });
 	const mine = changes(draftOf(base), draft);
 	const dirty = Object.keys(mine).length > 0;
+	useEffect(() => {
+		if (canEdit) saveLocal(draftKey, dirty ? JSON.stringify({ base: draftOf(base), version: base.version, draft }) : undefined);
+	}, [draftKey, base, draft, dirty, canEdit]);
 
 	// A poll takes a teammate's edit, unless something typed here would be overwritten.
 	useEffect(() => {
@@ -97,9 +123,9 @@ function TaskEditor({ item }: { item: Item }) {
 	const refresh = () => void client.invalidateQueries({ queryKey: ["item", item.id] });
 
 	const save = useMutation({
-		mutationFn: async (values: Partial<Draft>) => {
+		mutationFn: async ({ values, version = base.version }: { values: Partial<Draft>; version?: number }) => {
 			try {
-				return await updateItem(item.id, { ...values, version: base.version });
+				return await updateItem(item.id, { ...values, version });
 			} catch (error) {
 				if (!(error instanceof ApiError) || error.code !== "version_conflict") throw error;
 				// Changes to different fields merge. One field, changed on both sides, is the person's choice.
@@ -118,6 +144,7 @@ function TaskEditor({ item }: { item: Item }) {
 			setBase(saved);
 			setDraft(draftOf(saved));
 			client.setQueryData(["item", item.id], saved);
+			void client.invalidateQueries({ queryKey: ["items"] });
 			void client.invalidateQueries({ queryKey: ["events", item.id] });
 		},
 	});
@@ -146,7 +173,7 @@ function TaskEditor({ item }: { item: Item }) {
 	});
 	const removePerson = useMutation({ mutationFn: (user: string) => removeCollaborator(item.id, user), onSuccess: refresh });
 	const work = useMutation({
-		mutationFn: () => startConversation(agent, profile, workItemPrompt(item), titleOf(item.title), { ref: workItemRef(item.id) }),
+		mutationFn: (current: Item) => startConversation(agent, profile, workItemPrompt(current), titleOf(current.title), { ref: workItemRef(item.id) }),
 		onSuccess: (sessionId) => {
 			refreshSessions();
 			navigate(path(`c/${sessionId}`));
@@ -165,6 +192,8 @@ function TaskEditor({ item }: { item: Item }) {
 					<ChevronLeft size={16} aria-hidden="true" />
 					{t("Tasks")}
 				</Link>
+				<span className="draft-status" role="status">{t(dirty ? "Unsaved changes · Draft kept on this device" : "Saved")}</span>
+				{dirty && <button type="button" className="link" onClick={() => { setBase(item); setDraft(draftOf(item)); }}>{t("Discard draft")}</button>}
 				<span className="spacer" />
 				{canEdit && (
 					<button type="button" className="ghost" onClick={() => setPreview(true)}>
@@ -173,7 +202,7 @@ function TaskEditor({ item }: { item: Item }) {
 					</button>
 				)}
 				{canEdit && (
-					<button type="button" className="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(mine)}>
+					<button type="button" className="primary" disabled={!dirty || save.isPending || draft.title.trim() === ""} onClick={() => save.mutate({ values: mine })}>
 						{t("Save")}
 					</button>
 				)}
@@ -202,7 +231,7 @@ function TaskEditor({ item }: { item: Item }) {
 							onClick={() => {
 								setBase(conflict.theirs);
 								setConflict(undefined);
-								save.mutate(mine);
+								save.mutate({ values: mine, version: conflict.theirs.version });
 							}}
 						>
 							{t("Keep mine")}
@@ -228,8 +257,8 @@ function TaskEditor({ item }: { item: Item }) {
 			)}
 			<div className="task-layout">
 				<div className="task-main">
-					<input className="title-input" value={draft.title} maxLength={300} aria-label={t("Title")} readOnly={!canEdit} onChange={(event) => set("title", event.target.value)} />
-					<textarea className="description-input" rows={6} value={draft.description} maxLength={20_000} aria-label={t("Description")} placeholder={t("Add a description")} readOnly={!canEdit} onChange={(event) => set("description", event.target.value)} />
+					<textarea ref={titleBox} rows={1} className="title-input" value={draft.title} maxLength={300} aria-label={t("Title")} readOnly={!canEdit || save.isPending} onChange={(event) => set("title", event.target.value)} />
+					<textarea className="description-input" rows={6} value={draft.description} maxLength={20_000} aria-label={t("Description")} placeholder={t("Add a description")} readOnly={!canEdit || save.isPending} onChange={(event) => set("description", event.target.value)} />
 
 					<section className="always">
 						<h2>{t("Comments")}</h2>
@@ -281,20 +310,20 @@ function TaskEditor({ item }: { item: Item }) {
 					<div className="fields">
 						<label>
 							{t("Status")}
-							<select value={draft.status} disabled={!canEdit} onChange={(event) => set("status", event.target.value as Item["status"])}>
+							<select value={draft.status} disabled={!canEdit || save.isPending} onChange={(event) => set("status", event.target.value as Item["status"])}>
 								{(["todo", "doing", "done", "cancelled"] as const).map((value) => (
 									<option key={value} value={value}>
-										{t(value)}
+										{t({ todo: "To do", doing: "In progress", done: "Done", cancelled: "Cancelled", low: "Low", normal: "Normal", high: "High" }[value])}
 									</option>
 								))}
 							</select>
 						</label>
 						<label>
 							{t("Priority")}
-							<select value={draft.priority} disabled={!canEdit} onChange={(event) => set("priority", event.target.value as Item["priority"])}>
+							<select value={draft.priority} disabled={!canEdit || save.isPending} onChange={(event) => set("priority", event.target.value as Item["priority"])}>
 								{(["low", "normal", "high"] as const).map((value) => (
 									<option key={value} value={value}>
-										{t(value)}
+										{t({ todo: "To do", doing: "In progress", done: "Done", cancelled: "Cancelled", low: "Low", normal: "Normal", high: "High" }[value])}
 									</option>
 								))}
 							</select>
@@ -304,7 +333,7 @@ function TaskEditor({ item }: { item: Item }) {
 							<input
 								type="date"
 								value={draft.due_at === null ? "" : dueDay(draft.due_at)}
-								disabled={!canEdit}
+								disabled={!canEdit || save.isPending}
 								onChange={(event) => set("due_at", event.target.value === "" ? null : new Date(event.target.value).toISOString())}
 							/>
 						</label>
@@ -374,14 +403,21 @@ function TaskEditor({ item }: { item: Item }) {
 				<Dialog label={t("Work on this with my agent")} onClose={() => setPreview(false)}>
 					<h2>{t("Work on this with my agent")}</h2>
 					<p className="quiet">{t("This text comes from the task, and anyone on it may have written it. Your agent reads it as data, not as instructions.")}</p>
-					<pre className="preview">{workItemPrompt(item)}</pre>
+					<pre className="preview">{workItemPrompt({ ...item, ...draft })}</pre>
+					{save.isError && <p className="inline-error" role="alert">{describe(save.error)}</p>}
+					{conflict !== undefined && <p role="alert">{t("Resolve the task conflict before starting your agent.")}</p>}
 					{work.isError && <p className="inline-error">{describe(work.error)}</p>}
 					<div className="dialog-actions">
 						<button type="button" className="ghost" onClick={() => setPreview(false)}>
 							{t("Cancel")}
 						</button>
-						<button type="button" className="primary" disabled={work.isPending} onClick={() => work.mutate()}>
-							{t("Start")}
+						<button type="button" className="primary" disabled={work.isPending || save.isPending || draft.title.trim() === ""} onClick={async () => {
+								try {
+									const current = dirty ? await save.mutateAsync({ values: mine }) : item;
+									if (current !== undefined) work.mutate(current);
+								} catch { /* The save error stays visible in this dialog. */ }
+							}}>
+							{t(dirty ? "Save and start" : "Start")}
 						</button>
 					</div>
 				</Dialog>
