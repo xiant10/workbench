@@ -1,6 +1,6 @@
 # workbench
 
-The web client where people work with their t10 agent: conversations, their results, voice calls, and teammates' tasks. It's a React app served by one Go binary, which holds tokens and proxies `agent-pi`, the auth service, business modules such as `t10-collab`, and room admission. The browser holds a cookie, never a t10 token. [docs/design.md](docs/design.md) explains why.
+The web client where people work with their t10 agent: conversations, their results, voice calls, and teammates' tasks. It's a React app served by one Go binary, which holds tokens and proxies `/agent` (to `ai-gateway-agent`, or straight to a harness such as `agent-pi`), the auth service, business modules such as `t10-collab`, and room admission. The browser holds a cookie, never a t10 token. [docs/design.md](docs/design.md) explains why.
 
 ## Status
 
@@ -71,7 +71,7 @@ A new interface string needs its Chinese in `web/src/lib/zh.ts`, or `npm test` f
 | Path | Owns |
 | --- | --- |
 | `internal/session` | Cookie, code flow, token refresh under a row lock, tenant switch |
-| `internal/proxy` | Passing calls to `agent-pi` and business modules, with sticky routing. No business rules |
+| `internal/proxy` | Passing calls to `/agent` and business modules. Routes by session ID only when `AGENT_URLS` names harnesses directly. No business rules |
 | `internal/voice` | Room admission |
 | `internal/server` | Routes, same-origin checks, content security policy, the built app |
 | `web/src/conversation` | Stream client, reducer, transcript, composer |

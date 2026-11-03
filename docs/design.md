@@ -6,7 +6,7 @@ Status: in progress. M1, most of M2, the client side of M3 and M4 on what `t10-c
 
 ## Summary
 
-Build `workbench`, the web client where people work with their t10 agent, on a three-pane layout: conversations, the active conversation, and its results. It is a React app served by a small Go backend, which holds tokens and proxies `agent-pi`, the auth service, `t10-collab` and voice admission.
+Build `workbench`, the web client where people work with their t10 agent, on a three-pane layout: conversations, the active conversation, and its results. It is a React app served by a small Go backend, which holds tokens and proxies `/agent`, the auth service, business modules such as `t10-collab`, and voice admission. On the cluster `/agent` goes to `ai-gateway-agent`, which places sessions across agents and replicas. With no gateway it goes straight to a harness such as `agent-pi`.
 
 Five decisions keep it small:
 
@@ -70,7 +70,8 @@ flowchart TB
   browser -->|room token, audio| livekit["LiveKit server"]
   mac["t10-mac-client: voice test harness"] --> livekit
   backend["Workbench backend (new): holds tokens, proxies calls, adds trace headers"] -->|code flow, refresh| auth["auth-server"]
-  backend -->|user token| pi["agent-pi"]
+  backend -->|user token, /agent| gw["ai-gateway-agent"]
+  gw --> pi["Harnesses: agent-pi, agent-sales"]
   backend -.->|user token, once built| collab["t10-collab: not built yet"]
   livekit --> lka["t10-livekit-agent"]
   lka -->|grant-scoped token, for voice turns| pi
@@ -426,7 +427,7 @@ Each open conversation holds one `GET /agent` stream, and its reducer is the onl
 
 The run continues on the server through all of this, so a closed tab costs nothing. The sidebar polls `session.get` about every 10 seconds for conversations known to be running, instead of holding a stream for each.
 
-Session IDs are `<agent>.<replica>.<n>`. The proxy routes on everything before the last dot, which is the sticky routing `agent-pi` asks for.
+Session IDs are `<pool>.<replica>.<n>`. Through `ai-gateway-agent`, the gateway routes on the ID and the proxy only adds the token. With `AGENT_URLS` naming harnesses directly, the proxy routes on everything before the last dot itself.
 
 ### Alternatives considered
 
@@ -507,7 +508,7 @@ A call's room is `conv-<session ID>`. Three rules make that safe and keep it sim
 2. **A conversation's room is private.** Session IDs can be guessed, and anyone in a room hears the call, so admission puts the user in the name: `<tenant>__<user>__conv-<session ID>`, and refuses any requested room containing `__`, so nobody can spell that name themselves. `agent-pi` still checks that the session belongs to the caller's grant. A session it refuses is never replaced by a new one, and the caller hears that it can't answer.
 3. **A voice turn keeps the session's model and profile.** The agent sends a `note` with each turn: reply briefly, for speech, and what was heard of a reply that was cut off. The model reads it, and `session.messages` leaves it out, so a spoken turn looks like any other. Chat-model latency is the price of one history.
 
-A call reaches one agent, set by `AGENT_PI_URL`. With several in `AGENT_URLS`, a conversation on any other agent can't take a call.
+A call reaches whichever agent holds the conversation. The voice worker finds the replica from the session ID, through its route snapshot or its own `AGENT_URLS`, and the Call button shows only when the session reports `voice`.
 
 These topic names become a third copy of the room contract, in TypeScript. The Go copies are meant to be held equal by a workspace check, which needs extending to cover it.
 
