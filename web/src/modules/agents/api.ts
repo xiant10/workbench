@@ -30,7 +30,18 @@ export type PlatformChange = { revision: number; actor: string; reason: string; 
 export const getPlatformChanges = () => request<{ changes: PlatformChange[] }>("/api/modules/agents/admin/platform-changes").then((body) => body.changes);
 
 /** One rule of a tenant's policy. An empty field matches anything; the first rule that matches decides. */
-export type PolicyRule = { id: string; agent?: string; trigger?: string[]; principal?: string; server: string; tool: string; effect: "deny"; note?: string };
+export type PolicyRule = {
+	id: string;
+	agent?: string;
+	trigger?: string[];
+	principal?: string;
+	server: string;
+	tool: string;
+	effect: "deny" | "approve";
+	approvers?: string[];
+	self_approval?: boolean;
+	note?: string;
+};
 
 export type Policy = { harnesses?: string[]; rules: PolicyRule[] };
 
@@ -81,3 +92,21 @@ export const listEvidence = (filter: Record<string, string>) => {
 export const verifyEvidence = () => request<Verification>("/api/modules/agents/admin/evidence/verify");
 
 export const exportURL = "/api/modules/agents/admin/evidence/export";
+
+/** A held tool call waiting for this person to decide. The summary is the call's plain values, kept only until it's decided. */
+export type Approval = {
+	id: string;
+	principal: string;
+	agent: string;
+	automation?: string;
+	server: string;
+	tool: string;
+	rule: string;
+	summary: Record<string, string | number | boolean>;
+	created_at: string;
+	expires_at: string;
+};
+
+export const listApprovals = () => request<{ approvals: Approval[] }>("/api/modules/agents/approvals").then((body) => body.approvals);
+
+export const decideApproval = (id: string, grant: boolean) => postJSON<Approval>(`/api/modules/agents/approvals/${encodeURIComponent(id)}`, { grant });

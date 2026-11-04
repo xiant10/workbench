@@ -10,6 +10,8 @@ const EVENTS: Record<string, string> = {
 	"automation.failing": "An automation stopped after failing",
 	"automation.revoked": "An automation stopped: your consent ended",
 	"automation.skipped": "An automation skipped a run",
+	"automation.approved": "A call your automation asked about was approved",
+	"automation.refused": "A call your automation asked about was refused",
 };
 
 /** A person's scheduled runs, from `t10-automations`. */

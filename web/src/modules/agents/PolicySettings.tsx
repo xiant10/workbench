@@ -102,6 +102,10 @@ export function PolicySettings() {
 function describeRule(rule: PolicyRule, t: ReturnType<typeof useI18n>["t"]): string {
 	const runs = rule.trigger === undefined || rule.trigger.length === 0 ? t("every run") : rule.trigger.map((trigger) => t(TRIGGER_LABELS[trigger] ?? trigger)).join(", ");
 	const agent = rule.agent === undefined || rule.agent === "" ? t("any agent") : rule.agent;
+	if (rule.effect === "approve") {
+		const who = (rule.approvers ?? ["principal", "owners"]).map((a) => (a === "admins" ? t("an admin") : a === "principal" || a === "owners" ? t("the run's person") : a)).join(", ");
+		return t("Hold {tool} on {server} for {who} to approve, for {runs}, by {agent}", { tool: rule.tool, server: rule.server, who, runs, agent });
+	}
 	return t("Deny {tool} on {server}, for {runs}, by {agent}", { tool: rule.tool, server: rule.server, runs, agent });
 }
 
@@ -111,11 +115,21 @@ function NewRule({ agents, rules, onAdd }: { agents: string[]; rules: PolicyRule
 	const [tool, setTool] = useState("");
 	const [agent, setAgent] = useState("");
 	const [triggers, setTriggers] = useState<string[]>(["schedule", "event", "webhook"]);
+	const [effect, setEffect] = useState<"deny" | "approve">("deny");
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
 		let n = rules.length + 1;
 		while (rules.some((r) => r.id === `r${n}`)) n++;
-		onAdd({ id: `r${n}`, server: server.trim(), tool: tool.trim(), effect: "deny", ...(agent === "" ? {} : { agent }), ...(triggers.length === 0 ? {} : { trigger: triggers }) });
+		onAdd({
+			id: `r${n}`,
+			server: server.trim(),
+			tool: tool.trim(),
+			effect,
+			// An admin decides, and never the run's own person.
+			...(effect === "approve" ? { approvers: ["admins"], self_approval: false } : {}),
+			...(agent === "" ? {} : { agent }),
+			...(triggers.length === 0 ? {} : { trigger: triggers }),
+		});
 		setTool("");
 	};
 	return (
@@ -138,8 +152,12 @@ function NewRule({ agents, rules, onAdd }: { agents: string[]; rules: PolicyRule
 					</label>
 				))}
 			</div>
+			<select aria-label={t("Decision")} value={effect} onChange={(event) => setEffect(event.target.value as "deny" | "approve")}>
+				<option value="deny">{t("Deny")}</option>
+				<option value="approve">{t("Needs an admin's approval")}</option>
+			</select>
 			<button type="submit" className="ghost" disabled={server.trim() === "" || tool.trim() === ""}>
-				{t("Add a deny rule")}
+				{t("Add a rule")}
 			</button>
 		</form>
 	);
