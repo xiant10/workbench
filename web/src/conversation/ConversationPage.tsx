@@ -31,7 +31,9 @@ export function ConversationPage() {
 
 function Conversation({ sessionId }: { sessionId: string }) {
 	const { t } = useI18n();
-	const { agent, config, signedOut, path } = useWorkspace();
+	const { agent, agents, config, signedOut, path } = useWorkspace();
+	const agentEntry = agents.find((a) => a.name === agent);
+	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "WorkBuddy AI" : agent);
 	const modules = useModules();
 	const resultAction = useResultAction();
 	const open = useSessions();
@@ -126,7 +128,10 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					</div>
 				)}
 				<Transcript
+					sessionId={sessionId}
 					state={state}
+					agentName={agentName}
+					details={info.data}
 					spoken={spoken}
 					heard={heard}
 					interim={call.interim}
@@ -136,6 +141,12 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						setResultsOpen(true);
 					}}
 					{...sendResult}
+					onRegenerate={() => {
+						const lastUser = [...state.lines].reverse().find((l) => l.role === "user");
+						if (lastUser && !state.busy) {
+							void send([{ type: "text", text: lastUser.text }], lastUser.text, 0, false).then(refresh);
+						}
+					}}
 					onRetry={(pending) => void retry(pending)}
 					onDiscard={discard}
 					onLoadEarlier={() => void loadEarlier()}

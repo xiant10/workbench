@@ -147,10 +147,10 @@ Everything a tenant admin runs is on one page, `/t/<tenant>/admin`. The auth ser
 | --- | --- | --- |
 | People | Members with their names, role, status, manager and unit. Invitation links, and one-time reset links | Auth service, through `/api/org/<tenant>/` |
 | Organization | Departments and teams. `collab`'s "Who can see tasks" sits above them | Auth service, and `t10-collab` |
-| Agents | Which of the platform's agents this tenant uses, and its default. Agents working for someone now, each with Stop | `t10-agent-control` as module `agents`, and the auth service's grants |
+| Agents | Which of the platform's agents this tenant uses, and its default. Agents working for someone now, each with Stop. Proposed: a reason on each change, the automations that use an agent before it's turned off, and the platform's changes that affect this tenant | `t10-agent-control` as module `agents`, the auth service's grants, and `t10-automations` |
 | Security and policies | Require a second factor. You can't turn it on without one yourself | Auth service |
 | A module's own tab | A module with many settings, between the built-in tabs and Activity | That module |
-| Activity | The tenant's audit log | Auth service |
+| Activity | The tenant's audit log. Proposed: one timeline with its agent setting changes and the platform's changes that affect it, combined by the shared fields in `contracts/audit/`, with names looked up at the auth service | Auth service, and `t10-agent-control` |
 
 A module places its settings with `admin` in its `WorkbenchModule`: `joins` puts its cards on a built-in tab, and `label` with `icon` gives it a tab of its own. The page names no module. `ARCHITECTURE.md` explains the choice under "Administering a module".
 
@@ -521,6 +521,22 @@ Send as task creates the item with a `client_ref`, so a retry can't make two tas
 ### Tracing
 
 The backend starts a span for each send, then passes `traceparent` and `X-Turn-ID` to `agent-pi`. The turn then appears in Grafana as one trace with the `agent.*` spans, as the Mac client's turns do. The turn ID shows in a message's details, so a user can quote it in a bug report.
+
+### What the agent did
+
+Proposed. Each reply's details open a run view: the turn's steps in order, with what went in, each model round's text and the tool calls it asked for, each tool's arguments and status, sub-agent runs nested, and the reply. Beside each step are the model, tokens, latency and any policy decision.
+
+| Part | From |
+| --- | --- |
+| Steps and their content | The harness's `session.run`, through `ai-gateway-agent`, on a pool with `run_view` |
+| Model facts | `ai-gateway-llm`'s `GET /v1/turns/{turn}/calls` |
+| Tool decisions | `ai-gateway-tools`' `GET /v1/turns/{turn}/tools` |
+
+The backend joins them by `requestId` and call ID, and keeps nothing. A tool result shows only when its server is marked `results_visible`. Otherwise the row shows its size and status, as the transcript does today. A pool without `run_view` shows the transcript and the gateway facts alone, and Light shows the steps alone.
+
+**Who sees it.** The owner, from their own conversation. A tenant admin opens anyone's from Administration: the Agents tab's running agents and Activity link to a run, and opening it asks for a reason and a fresh second factor, then gets a read token from the auth service for that one session. The page says it's someone else's conversation and that the owner will see the visit. The owner sees each visit in the conversation's details, from `GET /v1/me/session-reads`. Platform admins have no run view: they use traces and the console.
+
+The details live in [`contracts/agent/design.md`](../../contracts/agent/design.md), "Viewing a run", and [`auth-server/docs/agent-identity.md`](../../auth-server/docs/agent-identity.md), "Session reads".
 
 ## Changes needed in other repos
 
