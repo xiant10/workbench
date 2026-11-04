@@ -34,7 +34,7 @@ const (
 
 // forwarded lists what a browser may pass on. Cookies and Origin stay here:
 // agent-pi refuses a browser Origin, and the cookie is this service's own.
-var forwarded = []string{"Accept", "Content-Type", "Last-Event-ID", sessionHeader, methodHeader, turnHeader}
+var forwarded = []string{"Accept", "Content-Type", "Idempotency-Key", "Last-Event-ID", sessionHeader, methodHeader, turnHeader}
 
 // orgRoutes are the auth service's tenant routes that the admin pages use. Any
 // other path stays here, though the auth service would refuse it anyway.

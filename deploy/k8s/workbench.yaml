@@ -28,19 +28,21 @@ spec:
           image: t10-workbench:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8083
+            - containerPort: 18060
           env:
+            - name: WORKBENCH_LISTEN_ADDR
+              value: ":18060"
             - name: WORKBENCH_PUBLIC_URL
               value: https://workbench.example.com
             - name: AUTH_PUBLIC_URL
               value: https://auth.example.com
             - name: AUTH_URL
-              value: http://auth-server.t10.svc.cluster.local:8081
+              value: http://auth-server.t10.svc.cluster.local:18000
             # ai-gateway-agent, which finds each session's replica.
             - name: AGENT_URLS
-              value: assistant=http://ai-gateway-agent.t10.svc.cluster.local:7201
+              value: assistant=http://ai-gateway-agent.t10.svc.cluster.local:18090
             - name: MODULE_URLS
-              value: collab=http://t10-collab.t10.svc.cluster.local:8082,agents=http://t10-agent-control.t10.svc.cluster.local:8085
+              value: collab=http://t10-collab.t10.svc.cluster.local:18040,agents=http://t10-agent-control.t10.svc.cluster.local:18010,knowledge=http://t10-knowledge.t10.svc.cluster.local:18050
             # Offered to platform admins only. Leave it out with no console.
             - name: WORKBENCH_CONSOLE_URL
               value: https://console.internal.example.com
@@ -50,11 +52,11 @@ spec:
           readinessProbe:
             httpGet:
               path: /readyz
-              port: 8083
+              port: 18060
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8083
+              port: 18060
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -70,4 +72,4 @@ spec:
   selector:
     app.kubernetes.io/name: workbench
   ports:
-    - port: 8083
+    - port: 18060

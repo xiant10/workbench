@@ -25,6 +25,6 @@ COPY --from=build /out/workbench /usr/local/bin/
 
 USER 65534:65534
 
-EXPOSE 8083
+EXPOSE 18060
 
 ENTRYPOINT ["/usr/local/bin/workbench"]

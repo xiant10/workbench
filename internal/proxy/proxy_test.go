@@ -260,3 +260,16 @@ func TestOrgReachesOnlyTheTenantRoutes(t *testing.T) {
 		t.Errorf("no auth service: %d", w.Code)
 	}
 }
+
+// Retried multipart uploads must arrive at the module with the same idempotency
+// key, while browser cookies remain confined to Workbench.
+func TestUploadHeaders(t *testing.T) {
+	in := http.Header{}
+	in.Set("Content-Type", "multipart/form-data; boundary=test")
+	in.Set("Idempotency-Key", "upload-attempt-1")
+	in.Set("Cookie", "wb_session=private")
+	out := pick(in)
+	if out.Get("Idempotency-Key") != "upload-attempt-1" || out.Get("Content-Type") != in.Get("Content-Type") || out.Get("Cookie") != "" {
+		t.Fatal(out)
+	}
+}

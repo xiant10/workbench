@@ -91,3 +91,15 @@ In a conversation, open **Results → Activity** and expand a tool call to inspe
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+## Knowledge documents
+
+When `knowledge=http://t10-knowledge:18050` is present in `MODULE_URLS` and its
+manifest responds, the sidebar shows Knowledge and tenant admins get the
+Administration → Knowledge tab. Admins create a base, upload files or paste text,
+review drafts and processing failures, publish/replace/roll back versions, rename,
+unpublish, and use trash/restore. Sources are limited to 10 MiB TXT/Markdown, PDF
+with text and DOCX. Members browse/search only published content. Original
+sources download as attachments; previews render extracted text as plain text.
+Publication is tenant-wide. Semantic search and agent knowledge tools are not
+part of this release. Browser lifecycle coverage is in `web/e2e/knowledge.spec.ts`.
