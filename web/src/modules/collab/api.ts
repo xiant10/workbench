@@ -1,4 +1,5 @@
 import { postJSON, request } from "../../lib/api.ts";
+import type { Page } from "../../lib/paged.tsx";
 
 export type Status = "todo" | "doing" | "done" | "cancelled";
 export type Priority = "low" | "normal" | "high";
@@ -61,6 +62,16 @@ const base = "/api/modules/collab";
 const send = <T>(method: string, path: string, body?: unknown) =>
 	request<T>(`${base}${path}`, { method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
 
+/** One page of a collab list, newest first except comments and history, which run oldest first. */
+async function page<T>(path: string, key: string, cursor: string): Promise<Page<T>> {
+	const body = await request<Record<string, unknown>>(`${base}${path}${path.includes("?") ? "&" : "?"}limit=50${cursor === "" ? "" : `&cursor=${encodeURIComponent(cursor)}`}`);
+	return { items: (body[key] ?? []) as T[], ...(typeof body.next_cursor === "string" ? { next: body.next_cursor } : {}) };
+}
+export const itemsPage = (query: string, cursor: string) => page<Item>(`/work-items?${query}`, "items", cursor);
+export const commentsPage = (id: string, cursor: string) => page<Comment>(`/work-items/${id}/comments`, "comments", cursor);
+export const eventsPage = (id: string, cursor: string) => page<ItemEvent>(`/work-items/${id}/events`, "events", cursor);
+export const listsPage = (cursor: string) => page<TaskList>("/lists", "lists", cursor);
+/** A summary's first page: Home shows only a few of these. */
 export const listItems = async (query: string) => (await request<{ items: Item[] }>(`${base}/work-items?${query}&limit=100`)).items;
 export const getItem = (id: string) => request<Item>(`${base}/work-items/${id}`);
 export const createItem = (body: Record<string, unknown>) => postJSON<Item>(`${base}/work-items`, body);
@@ -70,8 +81,6 @@ export const claimItem = (id: string) => postJSON<Item>(`${base}/work-items/${id
 export const stopOwning = (id: string) => send<void>("DELETE", `/work-items/${id}/owners/me`);
 export const addCollaborator = (id: string, user: string) => send<void>("PUT", `/work-items/${id}/collaborators/${user}`);
 export const removeCollaborator = (id: string, user: string) => send<void>("DELETE", `/work-items/${id}/collaborators/${user}`);
-export const listEvents = async (id: string) => (await request<{ events: ItemEvent[] }>(`${base}/work-items/${id}/events?limit=200`)).events;
-export const listComments = async (id: string) => (await request<{ comments: Comment[] }>(`${base}/work-items/${id}/comments?limit=200`)).comments;
 export const addComment = (id: string, body: string) => postJSON<Comment>(`${base}/work-items/${id}/comments`, { body });
 export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
 
@@ -83,7 +92,6 @@ export const withdrawOffer = (id: string) => postJSON<Offer>(`${base}/offers/${i
 export const findPeople = async (q: string) => (await request<{ people: Person[] }>(`${base}/people?q=${encodeURIComponent(q)}&limit=200`)).people;
 export const listUnits = async () => (await request<{ units: Unit[] }>(`${base}/units`)).units;
 
-export const listLists = async () => (await request<{ lists: TaskList[] }>(`${base}/lists?limit=100`)).lists;
 export const getList = (id: string) => request<TaskList>(`${base}/lists/${id}`);
 export const createList = (name: string) => postJSON<TaskList>(`${base}/lists`, { name });
 export const putListMember = (id: string, user: string) => send<void>("PUT", `/lists/${id}/members/${user}`, { role: "member" });

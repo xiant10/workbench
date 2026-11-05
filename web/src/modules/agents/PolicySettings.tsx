@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemberName } from "../../admin/members.ts";
 import { Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useI18n } from "../../lib/i18n.tsx";
@@ -12,6 +13,7 @@ const TRIGGER_LABELS: Record<string, string> = { schedule: "scheduled", event: "
 /** The tenant's rules for what its agents' tools may do, enforced by the tool gateway for every harness. */
 export function PolicySettings() {
 	const { t, describe } = useI18n();
+	const nameOf = useMemberName();
 	const { toast } = useFeedback();
 	const client = useQueryClient();
 	const live = useQuery({ queryKey: ["agent-policy"], queryFn: getPolicy });
@@ -92,7 +94,7 @@ export function PolicySettings() {
 			)}
 			{view.history.length > 0 && (
 				<p className="quiet">
-					{t("Version {version}, by {actor}: {reason}", { version: String(view.version), actor: view.history[0]!.actor, reason: view.history[0]!.reason })}
+					{t("Version {version}, by {actor}: {reason}", { version: String(view.version), actor: nameOf(view.history[0]!.actor), reason: view.history[0]!.reason })}
 				</p>
 			)}
 		</div>

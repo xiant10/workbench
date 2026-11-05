@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemberName } from "../../admin/members.ts";
 import { useState } from "react";
 import { useI18n } from "../../lib/i18n.tsx";
 import { Setting, useFeedback } from "../../lib/ui.tsx";
@@ -86,6 +87,7 @@ export function AgentSettings() {
 /** Who changed these settings, and why, with refused attempts. */
 function SettingHistory() {
 	const { t, ago } = useI18n();
+	const nameOf = useMemberName();
 	const history = useQuery({ queryKey: ["agent-settings", "history"], queryFn: getSettingHistory });
 	if (history.data === undefined) return null;
 	return (
@@ -102,7 +104,7 @@ function SettingHistory() {
 								{entry.reason !== "" && <> · {entry.reason}</>}
 							</span>
 							<span className="quiet">
-								{entry.actor} · {ago(Date.parse(entry.at))}
+								{nameOf(entry.actor)} · {ago(Date.parse(entry.at))}
 								{entry.problem !== "" && <> · {entry.problem}</>}
 							</span>
 						</div>
@@ -116,6 +118,7 @@ function SettingHistory() {
 /** Platform changes that moved this tenant's people or changed what they can do there, so its admins aren't surprised by them. */
 function PlatformChanges() {
 	const { t, ago } = useI18n();
+	const nameOf = useMemberName();
 	const changes = useQuery({ queryKey: ["agent-settings", "platform"], queryFn: getPlatformChanges });
 	if (changes.data === undefined) return null;
 	const labels: Record<AgentImpact["changes"][number], string> = {
@@ -134,7 +137,7 @@ function PlatformChanges() {
 						<div className="row-main">
 							<span>{change.agents.map((agent) => `${agent.title ?? agent.agent}: ${agent.changes.map((kind) => labels[kind]).join(", ")}`).join("; ")}</span>
 							<span className="quiet">
-								{change.actor} · {ago(Date.parse(change.at))}
+								{nameOf(change.actor)} · {ago(Date.parse(change.at))}
 								{change.reason !== "" && <> · {change.reason}</>}
 							</span>
 						</div>

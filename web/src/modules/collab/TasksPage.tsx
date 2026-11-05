@@ -4,9 +4,10 @@ import { Check, CheckSquare, ChevronRight, Circle, CircleDot, CircleOff, Eye, Fl
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../lib/i18n.tsx";
+import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { createItem, dueDay, getSettings, type Item, listItems, listOffers, type Status, today, updateItem, type Visibility } from "./api.ts";
+import { createItem, dueDay, getSettings, type Item, itemsPage, listOffers, type Status, today, updateItem, type Visibility } from "./api.ts";
 import { OfferRow, WaitingRow } from "./offers.tsx";
 
 type View = "owned" | "sent" | "collaborating" | "reports";
@@ -72,7 +73,7 @@ export function TasksPage() {
 	const [due, setDue] = useState("all");
 	const [showCompleted, setShowCompleted] = useState(false);
 	const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 60_000 });
-	const items = useQuery({ queryKey: ["items", view], queryFn: () => listItems(`view=${view}`) });
+	const items = usePaged(["items", view], (cursor) => itemsPage(`view=${view}`, cursor));
 	const inbox = useQuery({ queryKey: ["offers", "inbox"], queryFn: () => listOffers("inbox") });
 	const sent = useQuery({ queryKey: ["offers", "sent"], queryFn: () => listOffers("sent") });
 	const add = useMutation({
@@ -82,14 +83,14 @@ export function TasksPage() {
 			void client.invalidateQueries({ queryKey: ["items"] });
 		},
 	});
-	const filtered = (items.data ?? []).filter((item) =>
+	const filtered = (Array.isArray(items.data) ? items.data : []).filter((item) =>
 		(showCompleted || !isClosed(item)) && item.title.toLowerCase().includes(search.trim().toLowerCase()) &&
 		(due === "all" || (due === "overdue" ? isOverdue(item) : item.due_at !== null && dueDay(item.due_at) === today()))
 	).toSorted((a, b) => Number(isClosed(a)) - Number(isClosed(b)) || (a.due_at ?? "9999").localeCompare(b.due_at ?? "9999"));
 	const visibility = settings.data?.manager_visibility;
 	const views: View[] = visibility === undefined || visibility === "none" ? ["owned", "sent", "collaborating"] : ["owned", "sent", "collaborating", "reports"];
-	const offers = (inbox.data ?? []).filter((offer) => offer.state === "pending");
-	const waiting = (sent.data ?? []).filter((offer) => offer.state === "pending");
+	const offers = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "pending");
+	const waiting = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "pending");
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
 		if (title.trim() !== "") add.mutate();
@@ -165,6 +166,7 @@ export function TasksPage() {
 					<ItemRow key={item.id} item={item} />
 				))}
 			</ul>
+			<LoadMore list={items} label="Load more tasks" />
 		</div>
 	);
 }

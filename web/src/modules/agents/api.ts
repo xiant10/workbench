@@ -1,3 +1,4 @@
+import type { SkillFlow } from "../../lib/agent.ts";
 import { postJSON, request } from "../../lib/api.ts";
 
 /** One agent the platform lets this tenant use. Agents it doesn't are never listed. */
@@ -110,3 +111,67 @@ export type Approval = {
 export const listApprovals = () => request<{ approvals: Approval[] }>("/api/modules/agents/approvals").then((body) => body.approvals);
 
 export const decideApproval = (id: string, grant: boolean) => postJSON<Approval>(`/api/modules/agents/approvals/${encodeURIComponent(id)}`, { grant });
+
+/** What a tenant skill version holds: an override has only its flow. */
+export type TenantSkillContent = {
+	description?: string;
+	body?: string;
+	tools?: string[];
+	keywords?: string[];
+	flow?: SkillFlow;
+	/** A custom skill's reference files by relative path, read by the agent with load_skill. */
+	files?: Record<string, string>;
+};
+
+/** A tenant's skill for one agent, at its current version. Agents read the published ones on their next turn. */
+export type TenantSkill = {
+	agent: string;
+	name: string;
+	kind: "override" | "custom";
+	state: "published" | "disabled";
+	version: number;
+	digest: string;
+	content: TenantSkillContent;
+	updated_by: string;
+	updated_at: string;
+};
+
+/** One published version of a tenant skill, never changed. */
+export type SkillVersion = { version: number; digest: string; content: TenantSkillContent; actor: string; reason: string; at: string };
+
+const skillPath = (agent: string, name: string) => `/api/modules/agents/admin/skills/${encodeURIComponent(agent)}/${encodeURIComponent(name)}`;
+
+export const getTenantSkills = (agent: string) =>
+	request<{ skills: TenantSkill[] }>(`/api/modules/agents/admin/skills?agent=${encodeURIComponent(agent)}`).then((body) => body.skills);
+
+/** Publish a version. `version` is the one the edit started from, 0 for a new skill; someone else's publish since is a 409. */
+export const putTenantSkill = (agent: string, name: string, body: { kind: TenantSkill["kind"]; content: TenantSkillContent; version: number; reason?: string }) =>
+	request<{ skill: TenantSkill }>(skillPath(agent, name), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+/** Turn a skill off: an override's built-in workflow comes back. */
+export const disableTenantSkill = (agent: string, name: string, version: number) =>
+	request<{ skill: TenantSkill }>(`${skillPath(agent, name)}?version=${version}`, { method: "DELETE" });
+
+/** Delete a skill: gone from lists and agents, its name free again, its versions kept. */
+export const removeTenantSkill = (agent: string, name: string, version: number) =>
+	request<{ deleted: boolean }>(`${skillPath(agent, name)}/remove`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version }) });
+
+/** Your unpublished edit of a skill, which only you see and only your test conversations use. */
+export type SkillDraft = {
+	kind: TenantSkill["kind"];
+	content: TenantSkillContent;
+	/** The version the edit started from, 0 for a new skill. */
+	base_version: number;
+	updated_at: string;
+	/** What publishing it would refuse; a draft saves anyway. */
+	problems?: { text: string }[];
+};
+
+export const putSkillDraft = (agent: string, name: string, draft: Pick<SkillDraft, "kind" | "content" | "base_version">) =>
+	request<SkillDraft>(`${skillPath(agent, name)}/draft`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
+
+export const discardSkillDraft = (agent: string, name: string) => request<unknown>(`${skillPath(agent, name)}/draft`, { method: "DELETE" });
+
+/** Your drafts for an agent, including skills that are only a draft so far. */
+export const listSkillDrafts = (agent: string) =>
+	request<{ drafts: (SkillDraft & { name: string })[] }>(`/api/modules/agents/admin/skills/drafts?agent=${encodeURIComponent(agent)}`).then((body) => body.drafts);

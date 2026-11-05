@@ -3,9 +3,6 @@ import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AdminPage } from "../admin/AdminPage.tsx";
-import { ConnectionsPage } from "../connectors/ConnectionsPage.tsx";
-import { ConnectorPage } from "../connectors/ConnectorPage.tsx";
-import { ConnectorsPage } from "../connectors/ConnectorsPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
 import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
@@ -19,6 +16,10 @@ import { Palette } from "./Palette.tsx";
 import { Settings } from "./Settings.tsx";
 import { Sidebar, signOut } from "./Sidebar.tsx";
 import { type AppConfig, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
+import { ConnectorPage } from "../connectors/ConnectorPage.tsx";
+import { ConnectorsPage } from "../connectors/ConnectorsPage.tsx";
+import { SkillPage } from "../skills/SkillPage.tsx";
+import { SkillsPage } from "../skills/SkillsPage.tsx";
 
 const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me"), retry: false });
 
@@ -286,14 +287,20 @@ export function App() {
 				{moduleRoutes.map(({ path, element }) => (
 					<Route key={path} path={path} element={element} />
 				))}
+				<Route path="skills" element={<SkillsPage />} />
+				<Route path="skills/:agent/:name" element={<SkillPage />} />
 				<Route path="connectors" element={<ConnectorsPage />} />
 				<Route path="connectors/:id" element={<ConnectorPage />} />
-				<Route path="connections" element={<ConnectionsPage />} />
+				<Route path="connections" element={<ConnectorsPage />} />
+				{/* The Workflows page became Skills, with each skill's workflow on its own tab. */}
+				<Route path="workflows" element={<Navigate to="../skills" replace />} />
 				<Route path="settings" element={<Settings />} />
 				<Route path="admin" element={<AdminPage />} />
 			</Route>
 			{/* The auth service's /admin sends tenant admins here, before it knows the tenant. */}
 			<Route path="/admin" element={<Root page="admin" />} />
+			<Route path="/workflows" element={<Root page="skills" />} />
+			<Route path="/skills" element={<Root page="skills" />} />
 			<Route path="*" element={<Navigate to="/" replace />} />
 		</Routes>
 	);

@@ -1,5 +1,5 @@
-import { Check, Copy, type LucideIcon } from "lucide-react";
-import { createContext, type KeyboardEvent, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Check, CircleAlert, Copy, type LucideIcon } from "lucide-react";
+import { Component, createContext, type ErrorInfo, type KeyboardEvent, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { navigateOptions } from "./layout.ts";
 import { useI18n } from "./i18n.tsx";
@@ -297,4 +297,31 @@ export function Setting({ title, hint, children }: { title: string; hint?: strin
 			{children}
 		</div>
 	);
+}
+
+export class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, { error?: Error }> {
+	override state: { error?: Error } = {};
+	static getDerivedStateFromError(error: Error) {
+		return { error };
+	}
+	override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+		console.error("Uncaught render error:", error, errorInfo);
+	}
+	override render() {
+		if (this.state.error) {
+			if (this.props.fallback) return this.props.fallback;
+			return (
+				<main className="center-page">
+					<div className="center-card">
+						<Empty icon={CircleAlert} title="Something went wrong.">
+							<button type="button" className="primary" onClick={() => window.location.reload()}>
+								Reload
+							</button>
+						</Empty>
+					</div>
+				</main>
+			);
+		}
+		return this.props.children;
+	}
 }

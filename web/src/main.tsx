@@ -5,7 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import "@fontsource-variable/inter/wght.css";
 import "./app.css";
 import { I18nProvider } from "./lib/i18n.tsx";
-import { FeedbackProvider } from "./lib/ui.tsx";
+import { FeedbackProvider, ErrorBoundary } from "./lib/ui.tsx";
 import { App } from "./shell/App.tsx";
 import { applyTheme } from "./shell/theme.ts";
 
@@ -14,14 +14,16 @@ const client = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFoc
 
 createRoot(document.getElementById("root") as HTMLElement).render(
 	<StrictMode>
-		<QueryClientProvider client={client}>
-			<I18nProvider>
-				<FeedbackProvider>
-					<BrowserRouter>
-						<App />
-					</BrowserRouter>
-				</FeedbackProvider>
-			</I18nProvider>
-		</QueryClientProvider>
+		<ErrorBoundary>
+			<QueryClientProvider client={client}>
+				<I18nProvider>
+					<FeedbackProvider>
+						<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+							<App />
+						</BrowserRouter>
+					</FeedbackProvider>
+				</I18nProvider>
+			</QueryClientProvider>
+		</ErrorBoundary>
 	</StrictMode>,
 );

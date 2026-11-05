@@ -1,34 +1,126 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { LockKeyhole, Plug, Plus } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Check, Plug, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
-import { Dialog, Empty, Skeleton } from "../lib/ui.tsx";
+import { Dialog, Empty, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
-import { AUTH_LABELS, type Auth, type AuthKind, type Connector, createConnector, listConnectors } from "./api.ts";
+import {
+	AUTH_LABELS,
+	type Auth,
+	type AuthKind,
+	type Connector,
+	createConnector,
+	disconnect,
+	listConnections,
+	listConnectors,
+	startConnection,
+} from "./api.ts";
 import "./connectors.css";
 
 const NAME = /^[a-z][a-z0-9-]{0,30}$/;
+
+const RESULTS: Record<string, string> = {
+	connected: "Connected.",
+	refused: "Sign-in was cancelled.",
+	expired: "That sign-in had expired or wasn't yours. Try again.",
+	failed: "Sign-in failed. Try again, or tell an admin.",
+	invalid: "That sign-in couldn't be read. Try again.",
+};
 
 export function stateLabel(connector: Pick<Connector, "state">): string {
 	return { draft: "Draft", published: "Live", disabled: "Off" }[connector.state];
 }
 
-/** `/t/<tenant>/connectors`: the tenant's own MCP servers, for admins only. */
+/** `/t/<tenant>/connectors`: the tenant's MCP servers and connections. */
 export function ConnectorsPage() {
-	const { t, ago } = useI18n();
+	const { t, ago, describe } = useI18n();
 	const { isAdmin, path } = useWorkspace();
+	const { toast } = useFeedback();
+	const queries = useQueryClient();
 	const navigate = useNavigate();
+	const [params, setParams] = useSearchParams();
 	const [adding, setAdding] = useState(false);
-	const list = useQuery({ queryKey: ["connectors"], queryFn: listConnectors, enabled: isAdmin, retry: false });
+
+	const result = params.get("result");
+	const connectorId = params.get("connector");
+
+	useEffect(() => {
+		if (result === null) return;
+		toast(t(RESULTS[result] ?? "Sign-in failed. Try again, or tell an admin."));
+		setParams({}, { replace: true });
+	}, [result]);
+
+	const adminList = useQuery({ queryKey: ["connectors"], queryFn: listConnectors, enabled: isAdmin, retry: false });
+	const memberList = useQuery({ queryKey: ["connections"], queryFn: listConnections, enabled: !isAdmin, retry: false });
+
+	const connect = useMutation({
+		mutationFn: startConnection,
+		onSuccess: (url) => window.location.assign(url),
+		onError: (e: Error) => toast(e.message || describe(e)),
+	});
+	const leave = useMutation({
+		mutationFn: disconnect,
+		onSuccess: () => {
+			void queries.invalidateQueries({ queryKey: ["connections"] });
+			void queries.invalidateQueries({ queryKey: ["connectors"] });
+		},
+	});
+
 	if (!isAdmin) {
 		return (
-			<div className="page">
-				<Empty icon={LockKeyhole} title={t("Only this tenant's admins can open this page.")} />
+			<div className="page connectors-page">
+				<header className="page-head">
+					<h1>{t("Connectors")}</h1>
+				</header>
+				<p className="quiet">
+					{t("Services your organization's agents can use as you. Until you connect one, the agent can't use it for you, and never uses anyone else's account instead.")}
+				</p>
+				{memberList.isPending && <Skeleton rows={3} />}
+				{memberList.isError && <Empty icon={Plug} title={t("Connectors can't be read right now.")} />}
+				{memberList.isSuccess && memberList.data.length === 0 && <Empty icon={Plug} title={t("Nothing here needs your own sign-in.")} />}
+				{memberList.isSuccess && memberList.data.length > 0 && (
+					<ul className="connectors-list">
+						{memberList.data.map((connection) => (
+							<li key={connection.id} className="connectors-row static" data-testid={`connection-${connection.name}`}>
+								<span className="connectors-name">
+									<strong>{connection.title}</strong>
+									<span className="quiet">
+										{connection.connected && connection.connected_at !== undefined
+											? t("Connected {when}", { when: ago(Date.parse(connection.connected_at)) })
+											: t("Not connected")}
+									</span>
+								</span>
+								{connection.connected ? (
+									<button
+										type="button"
+										className="ghost small"
+										disabled={leave.isPending}
+										onClick={() => leave.mutate(connection.id)}
+										data-testid={`disconnect-${connection.name}`}
+									>
+										{t("Disconnect")}
+									</button>
+								) : (
+									<button
+										type="button"
+										className="primary small"
+										disabled={connect.isPending}
+										onClick={() => connect.mutate(connection.id)}
+										data-testid={`connect-${connection.name}`}
+									>
+										{t("Connect")}
+									</button>
+								)}
+							</li>
+						))}
+					</ul>
+				)}
 			</div>
 		);
 	}
-	const connectors = list.data?.connectors ?? [];
+
+	const connectors = adminList.data?.connectors ?? [];
 	return (
 		<div className="page connectors-page">
 			<header className="page-head">
@@ -38,20 +130,43 @@ export function ConnectorsPage() {
 					{t("Add connector")}
 				</button>
 			</header>
-			<p className="quiet">{t("Your own MCP servers. Their tools reach the agents you choose on everyone's next turn, and every call goes through the tool gateway with this tenant's policy.")}</p>
-			{list.data?.sealing === false && <p className="connectors-notice">{t("This platform has no key for credentials, so only servers without sign-in can be added.")}</p>}
-			{list.isPending && <Skeleton rows={3} />}
-			{list.isError && <Empty icon={Plug} title={t("Connectors can't be read right now.")} />}
-			{list.isSuccess && connectors.length === 0 && <Empty icon={Plug} title={t("No connectors yet.")} />}
+			<p className="quiet">
+				{t("Your own MCP servers. Their tools reach the agents you choose on everyone's next turn, and every call goes through the tool gateway with this tenant's policy.")}
+			</p>
+			{adminList.data?.sealing === false && (
+				<p className="connectors-notice">
+					{t("This platform has no key for credentials, so only servers without sign-in can be added.")}
+				</p>
+			)}
+			{connectorId && result === "connected" && (
+				<p className="connectors-notice">
+					<Check size={14} aria-hidden="true" />
+					<span>{t("Signed in with your account.")}</span>
+					<Link to={path(`connectors/${connectorId}`)} className="link" style={{ marginLeft: "0.5rem", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}>
+						{t("Return to connector")} <ArrowRight size={12} aria-hidden="true" />
+					</Link>
+				</p>
+			)}
+			{adminList.isPending && <Skeleton rows={3} />}
+			{adminList.isError && <Empty icon={Plug} title={t("Connectors can't be read right now.")} />}
+			{adminList.isSuccess && connectors.length === 0 && <Empty icon={Plug} title={t("No connectors yet.")} />}
 			{connectors.length > 0 && (
 				<ul className="connectors-list">
 					{connectors.map((connector) => (
 						<li key={connector.id}>
-							<button type="button" className="connectors-row" onClick={() => navigate(path(`connectors/${connector.id}`))} data-testid={`connector-row-${connector.name}`}>
+							<button
+								type="button"
+								className="connectors-row"
+								onClick={() => navigate(path(`connectors/${connector.id}`))}
+								data-testid={`connector-row-${connector.name}`}
+							>
 								<span className="connectors-name">
 									<strong>{connector.title}</strong>
 									<span className="quiet">
 										{connector.name} · {t(AUTH_LABELS[connector.draft.auth.kind])}
+										{connector.draft.auth.kind === "oauth_user" && (
+											<> · {connector.connected ? t("You're signed in") : t("Not signed in")}</>
+										)}
 									</span>
 								</span>
 								<span className={`connectors-state ${connector.state}`}>{t(stateLabel(connector))}</span>

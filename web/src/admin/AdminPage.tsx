@@ -1,13 +1,15 @@
 import { navigateOptions } from "../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, Sparkles, Square, Trash2, UserPlus, Users } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, Sparkles, Square, Trash2, UserPlus, Users, Wand2 } from "lucide-react";
+import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { CopyButton, Dialog, Empty, Setting, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { useModules } from "../modules/index.tsx";
 import type { AdminTab } from "../modules/types.ts";
 import { useWorkspace } from "../shell/workspace.ts";
+import { SkillsLibrary } from "../skills/SkillsPage.tsx";
+import { useMemberName } from "./members.ts";
 import {
 	createUnit,
 	deleteUnit,
@@ -35,6 +37,7 @@ const TABS: Record<AdminTab, { label: string; icon: LucideIcon }> = {
 	people: { label: "People", icon: Users },
 	organization: { label: "Organization", icon: Building2 },
 	agents: { label: "Agents", icon: Sparkles },
+	skills: { label: "Skills", icon: Wand2 },
 	security: { label: "Security and policies", icon: LockKeyhole },
 };
 
@@ -90,6 +93,7 @@ export function AdminPage() {
 			{tab === "people" && <People />}
 			{tab === "organization" && <Organization />}
 			{tab === "agents" && <Agents />}
+			{tab === "skills" && <AdminSkills />}
 			{tab === "security" && <Security />}
 			{tab === "activity" && <Activity />}
 			{own !== undefined && (
@@ -123,6 +127,8 @@ function OneTimeLink({ title, hint, url, onClose }: { title: string; hint: strin
 	);
 }
 
+const PAGE_SIZE = 50;
+
 function People() {
 	const { t } = useI18n();
 	const { tenant, me } = useWorkspace();
@@ -133,6 +139,9 @@ function People() {
 	const units = useQuery({ queryKey: ["org", tenant, "units"], queryFn: () => listUnits(tenant) });
 	const [link, setLink] = useState<{ title: string; hint: string; url: string }>();
 	const [role, setRole] = useState<Role>("member");
+	const [search, setSearch] = useState("");
+	const [limit, setLimit] = useState(PAGE_SIZE);
+
 	const refresh = () => void client.invalidateQueries({ queryKey: ["org", tenant, "members"] });
 	const change = useMutation({ mutationFn: (args: { user: string; role?: Role; status?: Member["status"] }) => updateMember(tenant, args.user, args), onSuccess: refresh, onError: failed });
 	const place = useMutation({ mutationFn: (args: { user: string; manager_user_id: string; org_unit_id: string }) => setPlacement(tenant, args.user, args), onSuccess: refresh, onError: failed });
@@ -149,6 +158,27 @@ function People() {
 	if (members.isPending) return <Skeleton />;
 	const people = members.data ?? [];
 	const tree = unitTree(units.data ?? []);
+
+	const activeManagers = useMemo(() => people.filter((other) => other.status === "active"), [people]);
+	const filtered = useMemo(() => {
+		const q = search.trim().toLowerCase();
+		if (!q) return people;
+		return people.filter((m) => (m.name || "").toLowerCase().includes(q) || m.user_id.toLowerCase().includes(q));
+	}, [people, search]);
+	const shown = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
+
+	const managersFor = useCallback(
+		(member: Member) => {
+			const list = activeManagers.filter((other) => other.user_id !== member.user_id);
+			if (member.manager_user_id && !list.some((m) => m.user_id === member.manager_user_id)) {
+				const departed = people.find((m) => m.user_id === member.manager_user_id);
+				if (departed) list.push(departed);
+			}
+			return list;
+		},
+		[activeManagers, people],
+	);
+
 	return (
 		<section className="admin-section always">
 			<div className="add-row invite-row">
@@ -164,11 +194,24 @@ function People() {
 					{t("Create an invitation link")}
 				</button>
 			</div>
-			{people.length === 0 && <Empty icon={Users} title={t("No one here yet.")} />}
+			{people.length > PAGE_SIZE && (
+				<div className="add-row">
+					<input
+						type="search"
+						value={search}
+						placeholder={t("Search")}
+						aria-label={t("Search")}
+						onChange={(event) => {
+							setSearch(event.target.value);
+							setLimit(PAGE_SIZE);
+						}}
+					/>
+				</div>
+			)}
+			{filtered.length === 0 && <Empty icon={Users} title={t("No one here yet.")} />}
 			<ul className="rows">
-				{people.map((member) => {
-					// A departed manager stays selectable, or saving this row would cut the link.
-					const managers = people.filter((other) => other.user_id !== member.user_id && (other.status === "active" || other.user_id === member.manager_user_id));
+				{shown.map((member) => {
+					const managers = managersFor(member);
 					const off = member.status !== "active" || member.user_status !== "active";
 					return (
 						<li key={member.user_id} className="row member-row">
@@ -237,6 +280,11 @@ function People() {
 					);
 				})}
 			</ul>
+			{limit < filtered.length && (
+				<button type="button" className="ghost small load-more" onClick={() => setLimit((current) => current + PAGE_SIZE)}>
+					{t("Load more")}
+				</button>
+			)}
 			{link !== undefined && <OneTimeLink {...link} onClose={() => setLink(undefined)} />}
 		</section>
 	);
@@ -433,6 +481,7 @@ function Security() {
 
 function Activity() {
 	const { t, ago } = useI18n();
+	const nameOf = useMemberName();
 	const { tenant } = useWorkspace();
 	const records = useQuery({ queryKey: ["org", tenant, "audit"], queryFn: () => listAudit(tenant) });
 	if (records.isPending) return <Skeleton />;
@@ -449,12 +498,23 @@ function Activity() {
 								{record.outcome !== "success" && <span className="pill warn">{t("Refused")}</span>}
 							</span>
 							<span className="quiet">
-								{record.actor} · {record.target} · {ago(Date.parse(record.at))}
+								{nameOf(record.actor)} · {record.target} · {ago(Date.parse(record.at))}
 							</span>
 						</div>
 					</li>
 				))}
 			</ul>
+		</section>
+	);
+}
+
+/** The skills library, inside Administration; the same one as the Skills page. */
+function AdminSkills() {
+	const { agent: current } = useWorkspace();
+	const [agent, setAgent] = useState(current);
+	return (
+		<section className="admin-section always">
+			<SkillsLibrary agent={agent} onAgent={setAgent} />
 		</section>
 	);
 }

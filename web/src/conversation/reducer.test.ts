@@ -189,4 +189,32 @@ describe("temporary progress", () => {
 		expect(run([event({ type: "run.finished", submissionIds: [1, 2] })], state).progress).toEqual({});
 		expect(run([event({ type: "submission", submissionId: 1, status: "unanswered", reason: "aborted" })], state).progress).toEqual({ 2: "Working on it." });
 	});
+
+	it("tracks live flow execution traces from snapshot and flow.updated events", () => {
+		const trace = {
+			runId: "r1",
+			skillName: "customer-visit-preparation",
+			mode: "deterministic" as const,
+			status: "completed" as const,
+			startedAt: 1000,
+			finishedAt: 1020,
+			durationMs: 20,
+			llmCallsSaved: 3,
+			parallelToolsRun: 6,
+			flow: {
+				id: "customer-visit-preparation",
+				title: "Visit Prep",
+				mode: "deterministic" as const,
+				nodes: [{ id: "start", kind: "start" as const, label: "Start" }],
+				edges: [],
+			},
+			steps: { start: { nodeId: "start", status: "completed" as const, durationMs: 1 } },
+		};
+		const fromEvent = run([event({ type: "flow.updated", trace })]);
+		expect(fromEvent.flow?.skillName).toBe("customer-visit-preparation");
+		expect(fromEvent.flow?.parallelToolsRun).toBe(6);
+
+		const fromSnapshot = run([event({ type: "snapshot", busy: false, inbox: [], tasks: [], flow: trace })]);
+		expect(fromSnapshot.flow?.llmCallsSaved).toBe(3);
+	});
 });

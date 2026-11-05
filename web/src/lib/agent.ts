@@ -10,7 +10,8 @@ export type SessionInfo = {
 	/** `ref` is `<module>:<type>:<id>`. `workItemId` is what older sessions hold. */
 	/** What this session's harness supports. Older harnesses don't say, and support everything. */
 	capabilities?: string[];
-	metadata?: { title?: string; pinned?: boolean; ref?: string; workItemId?: string };
+	/** `skillDraft` marks a skill editor's private test conversation. */
+	metadata?: { title?: string; pinned?: boolean; ref?: string; workItemId?: string; skillDraft?: string };
 };
 
 export type TranscriptMessage =
@@ -22,6 +23,132 @@ export type TranscriptMessage =
 	| { id: number; role: "compaction" };
 
 export type BackgroundTask = { taskId: string; name: string; status: string };
+
+export type FlowNodeKind = "start" | "extract" | "tool" | "parallel" | "switch" | "ask_user" | "llm_reply";
+
+export type FlowExtractField = {
+	pattern?: string;
+	keywords?: Record<string, string | boolean>;
+	fallbackInput?: boolean;
+	default?: string | boolean;
+};
+
+export type FlowParallelCall = {
+	id: string;
+	label: string;
+	labelZh?: string;
+	tool: string;
+	args?: Record<string, unknown>;
+	when?: string;
+	storeAs?: string;
+};
+
+export type FlowSwitchBranch = {
+	id: string;
+	label: string;
+	labelZh?: string;
+	when: string;
+	target: string;
+};
+
+export type FlowNode = {
+	id: string;
+	kind: FlowNodeKind;
+	label: string;
+	labelZh?: string;
+	description?: string;
+	descriptionZh?: string;
+	tools?: string[];
+	extract?: Record<string, FlowExtractField>;
+	call?: {
+		tool: string;
+		args?: Record<string, unknown>;
+		storeAs?: string;
+	};
+	parallel?: FlowParallelCall[];
+	branches?: FlowSwitchBranch[];
+	defaultTarget?: string;
+	promptTemplate?: string;
+	promptTemplateZh?: string;
+};
+
+export type FlowEdge = {
+	id: string;
+	source: string;
+	target: string;
+	label?: string;
+	labelZh?: string;
+	branch?: string;
+};
+
+export type SkillFlow = {
+	id: string;
+	title: string;
+	titleZh?: string;
+	/** Set on a workflow made here; it becomes a new skill's description. */
+	description?: string;
+	mode: "deterministic" | "guided";
+	triggerKeywords?: string[];
+	nodes: FlowNode[];
+	edges: FlowEdge[];
+};
+
+export type FlowStepStatus = "pending" | "running" | "completed" | "skipped" | "needs_input" | "failed";
+
+export type FlowStepToolCall = {
+	name?: string;
+	tool?: string;
+	label?: string;
+	labelZh?: string;
+	status: "running" | "done" | "completed" | "skipped" | "failed";
+	durationMs?: number;
+	summary?: string;
+	isError?: boolean;
+};
+
+export type FlowStepTrace = {
+	stepId?: string;
+	nodeId?: string;
+	status: FlowStepStatus;
+	startedAt?: number;
+	finishedAt?: number;
+	durationMs?: number;
+	branchId?: string;
+	branchChosen?: string;
+	toolCalls?: FlowStepToolCall[];
+	summary?: string;
+	outputSummary?: string;
+	error?: string;
+};
+
+export type FlowRunTrace = {
+	runId?: string;
+	flowId?: string;
+	skill?: string;
+	skillName?: string;
+	title?: string;
+	titleZh?: string;
+	mode: "deterministic" | "guided";
+	status: "running" | "completed" | "needs_input" | "failed";
+	startedAt: number;
+	finishedAt?: number;
+	totalDurationMs?: number;
+	durationMs?: number;
+	llmCallsSaved?: number;
+	parallelToolsRun?: number;
+	flow?: SkillFlow;
+	steps: FlowStepTrace[] | Record<string, FlowStepTrace>;
+	variables?: Record<string, unknown>;
+};
+
+export type SkillEntry = {
+	name: string;
+	description: string;
+	tools?: string[];
+	flow?: SkillFlow;
+	/** Set when this tenant's published version changed or added the skill. */
+	source?: { kind: "override" | "custom"; version: number; digest: string };
+};
 
 /** Whether a session can do something. Unknown counts as yes, so the page doesn't lose controls before a session loads. */
 export function supports(session: Pick<SessionInfo, "capabilities"> | undefined, capability: string): boolean {
@@ -54,6 +181,7 @@ export type SessionDetails = SessionInfo & {
 	usage: { models?: Record<string, unknown> };
 	taskUsage?: unknown;
 	tasks: (BackgroundTask & { startedAt: number; activeAt: number })[];
+	flow?: FlowRunTrace;
 };
 
 export type PromptInput = string | ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[];

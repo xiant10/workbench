@@ -105,16 +105,16 @@ test("an admin connects a per-person OAuth server, and the agent calls it as eac
 	await ask(admin, "Call the fixture-notes_whoami tool now and tell me exactly what it returned.");
 	await expect(admin.locator(".transcript")).toContainText("acme-admin-at-fixture", { timeout: 120_000 });
 
-	// A member who hasn't connected is told to, and sees it under Connections.
+	// A member who hasn't connected is told to, and sees it under Connectors.
 	const member = await (await browser.newContext()).newPage();
 	await login(member, "sample-member");
-	await expect(member.getByTestId("nav-connectors")).toHaveCount(0);
+	await expect(member.getByTestId("nav-connectors")).toBeVisible();
 	expect((await call(member, "GET", "/api/modules/agents/admin/connectors")).status).toBe(403);
 	await ask(member, "Call the fixture-notes_whoami tool now and tell me exactly what it returned.");
 	// The gateway's tool error says where to connect; the model passes it on in its own words.
 	await expect(member.locator(".transcript")).toContainText(/connect|连接/i, { timeout: 120_000 });
 	await expect(member.locator(".transcript")).not.toContainText("acme-admin-at-fixture");
-	await member.getByTestId("nav-connections").click();
+	await member.getByTestId("nav-connectors").click();
 	await expect(member.getByTestId("connection-fixture-notes")).toContainText(/Not connected|未连接/);
 
 	// A shared key is stored and never read back.

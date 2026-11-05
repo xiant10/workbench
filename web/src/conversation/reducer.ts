@@ -1,4 +1,4 @@
-import type { BackgroundTask, TranscriptMessage } from "../lib/agent.ts";
+import type { BackgroundTask, FlowRunTrace, TranscriptMessage } from "../lib/agent.ts";
 import type { AgentEvent, StreamStatus } from "./stream.ts";
 
 /** What the transcript shows. `seq` marks a line an event added, until a transcript read replaces it. */
@@ -41,6 +41,7 @@ export type ConversationState = {
 	status: StreamStatus;
 	inbox: number[];
 	tasks: BackgroundTask[];
+	flow?: FlowRunTrace;
 	retry?: { attempt: number; error: string };
 	/** Turns up on each event, so a transcript read knows which lines it can't have seen. */
 	seq: number;
@@ -188,6 +189,7 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 				progress: event.busy && event.progress?.phase !== "finished" && event.progress ? Object.fromEntries(event.progress.submissionIds.map(id => [id, event.progress!.text])) : {},
 				inbox: event.inbox.map((item) => item.id),
 				tasks: event.tasks,
+				...(event.flow === undefined ? {} : { flow: event.flow }),
 				live: partial?.text ?? "",
 				...(partial === undefined ? {} : { liveMessage: partial.messageId }),
 				thinking: "",
@@ -226,6 +228,8 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 			const known = state.tasks.some((other) => other.taskId === task.taskId);
 			return { ...next, tasks: known ? state.tasks.map((other) => (other.taskId === task.taskId ? task : other)) : [...state.tasks, task] };
 		}
+		case "flow.updated":
+			return { ...next, flow: event.trace };
 		case "inbox": {
 			const inbox = event.items.map((item) => item.id);
 			// Off the inbox means it's in the transcript now, or it was refused, which `submission` reports.

@@ -6,9 +6,10 @@ import { load, save as saveLocal } from "../../lib/storage.ts";
 import { ApiError } from "../../lib/api.ts";
 import { startConversation, titleOf } from "../../lib/agent.ts";
 import { useI18n } from "../../lib/i18n.tsx";
+import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
-import { addCollaborator, addComment, deleteItem, dueDay, getItem, type Item, listComments, listEvents, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
+import { addCollaborator, addComment, deleteItem, dueDay, getItem, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
 import { eventLabel } from "./events.ts";
 import { SendDialog } from "./SendDialog.tsx";
 import { usePeople } from "./usePeople.ts";
@@ -104,8 +105,8 @@ function TaskEditor({ item }: { item: Item }) {
 	const [adding, setAdding] = useState("");
 	const canEdit = item.owners.includes(me.user_id) || item.collaborators.includes(me.user_id);
 	const isOwner = item.owners.includes(me.user_id);
-	const comments = useQuery({ queryKey: ["comments", item.id], queryFn: () => listComments(item.id), refetchInterval: POLL_MS });
-	const events = useQuery({ queryKey: ["events", item.id], queryFn: () => listEvents(item.id), refetchInterval: POLL_MS });
+	const comments = usePaged(["comments", item.id], (cursor) => commentsPage(item.id, cursor), { refetchInterval: POLL_MS });
+	const events = usePaged(["events", item.id], (cursor) => eventsPage(item.id, cursor), { refetchInterval: POLL_MS });
 	const mine = changes(draftOf(base), draft);
 	const dirty = Object.keys(mine).length > 0;
 	useEffect(() => {
@@ -275,6 +276,7 @@ function TaskEditor({ item }: { item: Item }) {
 								</li>
 							))}
 						</ul>
+						<LoadMore list={comments} label="Show more comments" />
 						<div className="comment-box">
 							<textarea
 								rows={2}
@@ -303,6 +305,7 @@ function TaskEditor({ item }: { item: Item }) {
 								</li>
 							))}
 						</ul>
+						<LoadMore list={events} label="Show more history" />
 					</details>
 				</div>
 

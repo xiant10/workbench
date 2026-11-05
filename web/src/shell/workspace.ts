@@ -1,6 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import { rpc } from "../lib/api.ts";
+import { usePaged } from "../lib/paged.tsx";
 import type { AgentEntry, SessionInfo } from "../lib/agent.ts";
 
 export type Me = {
@@ -44,27 +45,20 @@ export function useWorkspace(): Workspace {
 	return workspace;
 }
 
-const LIST_PAGE = 200;
+/** Conversations come newest first, so one page covers the sidebar; older ones load on request. */
+const LIST_PAGE = 50;
 const BUSY_POLL_MS = 10_000;
 const IDLE_POLL_MS = 60_000;
 
 /** The sidebar polls instead of holding a stream per conversation. */
 export function useSessions(archived = false) {
 	const { agent, tenant } = useWorkspace();
-	return useQuery({
-		queryKey: ["sessions", tenant, agent, archived],
-		queryFn: async () => {
-			const sessions: SessionInfo[] = [];
-			let cursor: string | undefined;
-			do {
-				const page: { sessions: SessionInfo[]; nextCursor?: string } = await rpc(agent, "session.list", { limit: LIST_PAGE, archived, ...(cursor === undefined ? {} : { cursor }) });
-				sessions.push(...page.sessions);
-				cursor = page.nextCursor;
-			} while (cursor !== undefined);
-			return sessions;
-		},
-		refetchInterval: (query) => (query.state.data?.some((session) => session.busy) ? BUSY_POLL_MS : IDLE_POLL_MS),
-	});
+	const sessions = usePaged<SessionInfo>(["sessions", tenant, agent, archived], async (cursor) => {
+		const page: { sessions: SessionInfo[]; nextCursor?: string } = await rpc(agent, "session.list", { limit: LIST_PAGE, archived, ...(cursor === "" ? {} : { cursor }) });
+		// A skill editor's test conversations stay out of the sidebar and search.
+		return { items: page.sessions.filter((session) => session.metadata?.skillDraft === undefined), ...(page.nextCursor === undefined ? {} : { next: String(page.nextCursor) }) };
+	}, { refetchInterval: (items) => (items?.some((session) => session.busy) ? BUSY_POLL_MS : IDLE_POLL_MS) });
+	return sessions;
 }
 
 export function useRefreshSessions(): () => void {

@@ -65,7 +65,7 @@ export function Home() {
 		onSuccess: setTaskFrom,
 	});
 	const done = finished(sessions.data ?? []);
-	const firstRun = sessions.isSuccess && sessions.data.length === 0;
+	const firstRun = sessions.isSuccess && sessions.data?.length === 0;
 	const recent = [...(sessions.data ?? [])].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, RECENT);
 	const firstName = displayName(me).split(/[\s@]/)[0] ?? "";
 	const applyStarter = (text: string) => setSuggestion((previous) => ({ text, id: (previous?.id ?? 0) + 1 }));

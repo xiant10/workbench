@@ -4,9 +4,10 @@ import { type FormEvent, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError } from "../../lib/api.ts";
 import { useI18n } from "../../lib/i18n.tsx";
+import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Empty, Skeleton } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { claimItem, createItem, createList, getList, listItems, listLists, putListMember, removeListMember } from "./api.ts";
+import { claimItem, createItem, createList, getList, itemsPage, listsPage, putListMember, removeListMember } from "./api.ts";
 import { usePeople } from "./usePeople.ts";
 
 export function ListsPage() {
@@ -14,7 +15,7 @@ export function ListsPage() {
 	const { path } = useWorkspace();
 	const client = useQueryClient();
 	const [name, setName] = useState("");
-	const lists = useQuery({ queryKey: ["lists"], queryFn: listLists });
+	const lists = usePaged(["lists"], listsPage);
 	const add = useMutation({
 		mutationFn: () => createList(name),
 		onSuccess: () => {
@@ -40,7 +41,7 @@ export function ListsPage() {
 				</button>
 			</form>
 			{lists.isPending && <Skeleton />}
-			{lists.isSuccess && lists.data.length === 0 && <Empty icon={ListTodo} title={t("No shared lists yet.")} />}
+			{lists.isSuccess && lists.data?.length === 0 && <Empty icon={ListTodo} title={t("No shared lists yet.")} />}
 			<ul className="rows">
 				{lists.data?.map((list) => (
 					<li key={list.id} className="row">
@@ -54,6 +55,7 @@ export function ListsPage() {
 					</li>
 				))}
 			</ul>
+			<LoadMore list={lists} />
 		</div>
 	);
 }
@@ -67,7 +69,7 @@ export function ListPage() {
 	const [title, setTitle] = useState("");
 	const [adding, setAdding] = useState("");
 	const list = useQuery({ queryKey: ["list", id], queryFn: () => getList(id), retry: false });
-	const items = useQuery({ queryKey: ["items", "list", id], queryFn: () => listItems(`view=list&list=${id}`) });
+	const items = usePaged(["items", "list", id], (cursor) => itemsPage(`view=list&list=${id}`, cursor));
 	const refresh = () => {
 		void client.invalidateQueries({ queryKey: ["list", id] });
 		void client.invalidateQueries({ queryKey: ["items", "list", id] });
@@ -119,7 +121,7 @@ export function ListPage() {
 				</button>
 			</form>
 			{claim.isError && <p className="inline-error">{describe(claim.error)}</p>}
-			{items.isSuccess && items.data.length === 0 && <Empty icon={ListTodo} title={t("Nothing here.")} />}
+			{items.isSuccess && items.data?.length === 0 && <Empty icon={ListTodo} title={t("Nothing here.")} />}
 			<ul className="rows">
 				{items.data?.map((item) => (
 					<li key={item.id} className="row">
@@ -137,6 +139,7 @@ export function ListPage() {
 					</li>
 				))}
 			</ul>
+			<LoadMore list={items} label="Load more tasks" />
 			<section>
 				<h2>{t("Members")}</h2>
 				<ul className="people">

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, Link2, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plug, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plug, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
@@ -11,6 +11,7 @@ import { useModules } from "../modules/index.tsx";
 import type { WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
+import { LoadMore } from "../lib/paged.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
 
 function UnreadBadge({ module }: { module: WorkbenchModule }) {
@@ -304,14 +305,14 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					)),
 				)}
 				{isAdmin && (
-					<NavLink className="nav-link" to={path("connectors")} onClick={onClose} data-testid="nav-connectors">
-						<Plug size={16} aria-hidden="true" />
-						{t("Connectors")}
+					<NavLink className="nav-link" to={path("skills")} onClick={onClose} data-testid="nav-skills">
+						<Wand2 size={16} aria-hidden="true" />
+						{t("Skills")}
 					</NavLink>
 				)}
-				<NavLink className="nav-link" to={path("connections")} onClick={onClose} data-testid="nav-connections">
-					<Link2 size={16} aria-hidden="true" />
-					{t("Connections")}
+				<NavLink className="nav-link" to={path("connectors")} onClick={onClose} data-testid="nav-connectors">
+					<Plug size={16} aria-hidden="true" />
+					{t("Connectors")}
 				</NavLink>
 				{isAdmin && (
 					<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
@@ -335,13 +336,16 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					</div>
 				))}
 				{sessions.isSuccess && all.length === 0 && <p className="sidebar-hint">{t("Your conversations will appear here.")}</p>}
+				<LoadMore list={sessions} label="Show older conversations" className="link sidebar-more" />
 				{(archived.data?.length ?? 0) > 0 && (
 					<>
 						<button type="button" className="archive-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
 							<ChevronRight size={14} aria-hidden="true" />
-							{t("Archived")} ({archived.data?.length})
+							{t("Archived")} ({archived.data?.length}
+							{archived.hasMore ? "+" : ""})
 						</button>
 						{showArchived && rows(archived.data ?? [])}
+						{showArchived && <LoadMore list={archived} label="Show older conversations" className="link sidebar-more" />}
 					</>
 				)}
 			</div>

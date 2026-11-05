@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Clock, UserCheck, UserX } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../lib/i18n.tsx";
+import { usePaged } from "../../lib/paged.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { dueDay, listItems, listOffers, today } from "./api.ts";
+import { dueDay, itemsPage, listOffers, today } from "./api.ts";
 import { OfferRow, WaitingRow } from "./offers.tsx";
 import { usePeople } from "./usePeople.ts";
 
@@ -13,12 +14,12 @@ export function HomeRows() {
 	const { name } = usePeople();
 	const inbox = useQuery({ queryKey: ["offers", "inbox"], queryFn: () => listOffers("inbox") });
 	const sent = useQuery({ queryKey: ["offers", "sent"], queryFn: () => listOffers("sent") });
-	const owned = useQuery({ queryKey: ["items", "owned"], queryFn: () => listItems("view=owned") });
-	const pending = inbox.data?.filter((offer) => offer.state === "pending") ?? [];
-	const assigned = inbox.data?.filter((offer) => offer.state === "assigned" && offer.to_user_id === me.user_id) ?? [];
-	const declined = sent.data?.filter((offer) => offer.state === "declined") ?? [];
-	const waiting = sent.data?.filter((offer) => offer.state === "pending") ?? [];
-	const due = owned.data?.filter((item) => item.due_at !== null && dueDay(item.due_at) <= today() && (item.status === "todo" || item.status === "doing")) ?? [];
+	const owned = usePaged(["items", "owned"], (cursor) => itemsPage("view=owned", cursor));
+	const pending = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "pending");
+	const assigned = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "assigned" && offer.to_user_id === me.user_id);
+	const declined = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "declined");
+	const waiting = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "pending");
+	const due = (Array.isArray(owned.data) ? owned.data : []).filter((item) => item.due_at !== null && dueDay(item.due_at) <= today() && (item.status === "todo" || item.status === "doing"));
 	return (
 		<>
 			{[inbox, sent, owned].some((query) => query.isPending) && <li className="row" role="status">{t("Loading…")}</li>}

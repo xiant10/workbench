@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, KeyRound, LockKeyhole, Plug, RefreshCw, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { Empty, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
@@ -9,6 +9,7 @@ import {
 	type Auth,
 	type ConnectorConfig,
 	type ConnectorDetail,
+	disconnect,
 	discover,
 	disableConnector,
 	getConnector,
@@ -20,6 +21,14 @@ import {
 } from "./api.ts";
 import { AuthFields, stateLabel } from "./ConnectorsPage.tsx";
 import "./connectors.css";
+
+const RESULTS: Record<string, string> = {
+	connected: "Connected.",
+	refused: "Sign-in was cancelled.",
+	expired: "That sign-in had expired or wasn't yours. Try again.",
+	failed: "Sign-in failed. Try again, or tell an admin.",
+	invalid: "That sign-in couldn't be read. Try again.",
+};
 
 const ACTIONS: Record<string, string> = {
 	create: "Created",
@@ -40,6 +49,14 @@ export function ConnectorPage() {
 	const { toast, confirm } = useFeedback();
 	const navigate = useNavigate();
 	const queries = useQueryClient();
+	const [params, setParams] = useSearchParams();
+	const result = params.get("result");
+	useEffect(() => {
+		if (result === null) return;
+		toast(t(RESULTS[result] ?? "Sign-in failed. Try again, or tell an admin."));
+		setParams({}, { replace: true });
+	}, [result]);
+
 	const detail = useQuery({ queryKey: ["connector", id], queryFn: () => getConnector(id), enabled: isAdmin, retry: false });
 	const [title, setTitle] = useState("");
 	const [draft, setDraft] = useState<ConnectorConfig>({ url: "", auth: { kind: "none" }, tools: [], agents: [] });
@@ -80,6 +97,15 @@ export function ConnectorPage() {
 		onError: failed,
 	});
 	const connect = useMutation({ mutationFn: async () => (await saveConnector(id, { ...draft, title }), startConnection(id)), onSuccess: (url) => window.location.assign(url), onError: failed });
+	const leave = useMutation({
+		mutationFn: () => disconnect(id),
+		onSuccess: () => {
+			void queries.invalidateQueries({ queryKey: ["connector", id] });
+			void queries.invalidateQueries({ queryKey: ["connectors"] });
+			toast(t("Disconnected."));
+		},
+		onError: failed,
+	});
 
 	if (!isAdmin) {
 		return (
@@ -186,11 +212,24 @@ export function ConnectorPage() {
 					{kind === "oauth_user" && (
 						<div className="connector-secret">
 							<span className="quiet">
-								{loaded.connected === true ? t("You're signed in. Discovery uses your account; everyone else signs in under Connections.") : t("Sign in with your own account to discover its tools.")}
+								{loaded.connected === true
+									? t("You're signed in. Discovery uses your account; everyone else signs in under Connectors.")
+									: t("Sign in with your own account to discover its tools.")}
 							</span>
 							<button type="button" className="small" disabled={busy} onClick={() => connect.mutate()} data-testid="connector-connect">
 								{loaded.connected === true ? t("Sign in again") : t("Sign in")}
 							</button>
+							{loaded.connected === true && (
+								<button
+									type="button"
+									className="ghost small"
+									disabled={busy || leave.isPending}
+									onClick={() => leave.mutate()}
+									data-testid="connector-disconnect"
+								>
+									{t("Disconnect")}
+								</button>
+							)}
 						</div>
 					)}
 					{kind === "oauth_user" && <p className="quiet">{t("Redirect URL to register with the provider: {url}", { url: detail.data.callback_url })}</p>}

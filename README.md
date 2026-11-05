@@ -103,3 +103,8 @@ with text and DOCX. Members browse/search only published content. Original
 sources download as attachments; previews render extracted text as plain text.
 Publication is tenant-wide. Semantic search and agent knowledge tools are not
 part of this release. Browser lifecycle coverage is in `web/e2e/knowledge.spec.ts`.
+
+Knowledge also supports reusable **document sets**: admins group documents from
+multiple bases and members choose a set to browse/search. Documents can belong to
+several sets. Base and set selectors intersect; deleting a set never deletes files.
+Sets control retrieval scope, not who is allowed to read published content.

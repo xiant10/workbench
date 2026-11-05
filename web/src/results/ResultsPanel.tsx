@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { RESULTS_BREAKPOINT, useMedia, navigateOptions } from "../lib/layout.ts";
-import { Download, Expand, FileText, type LucideIcon, Moon, Square, Wrench, X } from "lucide-react";
+import { Download, Expand, FileText, GitBranch, type LucideIcon, Moon, Square, Wrench, X } from "lucide-react";
 import { ToolActivity } from "./ToolActivity.tsx";
+import { WorkflowView } from "./WorkflowView.tsx";
 import { Markdown } from "../conversation/Markdown.tsx";
 import type { ConversationState } from "../conversation/reducer.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -9,9 +10,10 @@ import type { SessionDetails } from "../lib/agent.ts";
 import { CopyButton, Dialog, Empty } from "../lib/ui.tsx";
 import { type Output, outputFilename } from "./outputs.ts";
 
-export type ResultsTab = "outputs" | "background" | "activity";
+export type ResultsTab = "outputs" | "workflow" | "background" | "activity";
 
 type Props = {
+	agent?: string;
 	state: ConversationState;
 	outputs: Output[];
 	selected?: Output;
@@ -45,11 +47,12 @@ function totalTokens(details: SessionDetails | undefined): number | undefined {
 /** Agent-pi's words for a background task. One it adds later shows as sent. */
 const TASK_STATUS: Record<string, string> = { working: "Running", done: "Done", completed: "Done", failed: "Failed", stopped: "Stopped" };
 
-export function ResultsPanel({ state, outputs, selected, tab, details, onTab, onSelect, onClose, resultAction, onStopTasks }: Props) {
+export function ResultsPanel({ agent = "sales", state, outputs, selected, tab, details, onTab, onSelect, onClose, resultAction, onStopTasks }: Props) {
 	const { t, language } = useI18n();
 	const active = selected ?? outputs.at(-1);
 	const tools = state.lines.filter((line) => line.role === "tool");
 	const running = state.tasks.filter((task) => task.status === "working");
+	const activeFlow = state.flow ?? details?.flow;
 	const tokens = totalTokens(details);
 	const narrow = useMedia(`(max-width: ${RESULTS_BREAKPOINT - 1}px)`);
 	const [expanded, setExpanded] = useState(false);
@@ -66,9 +69,15 @@ export function ResultsPanel({ state, outputs, selected, tab, details, onTab, on
 			/>}
 			<div className="results-head">
 			<div className="results-tabs" role="tablist" onKeyDown={navigateOptions}>
-				{(["outputs", "background", "activity"] as const).map((name) => (
+				{(["outputs", "workflow", "background", "activity"] as const).map((name) => (
 					<button key={name} type="button" role="tab" tabIndex={tab === name ? 0 : -1} aria-selected={tab === name} className={tab === name ? "tab active" : "tab"} onClick={() => onTab(name)}>
-						{t({ outputs: "Outputs", background: "Background work", activity: "Activity" }[name])}
+						{name === "workflow" && <GitBranch size={13} aria-hidden="true" />}
+						{t({ outputs: "Outputs", workflow: "Workflow", background: "Background work", activity: "Activity" }[name])}
+						{name === "workflow" && activeFlow !== undefined && (
+							<span className={`badge${activeFlow.mode === "deterministic" ? " badge-deterministic" : ""}`}>
+								{activeFlow.mode === "deterministic" ? "⚡" : "●"}
+							</span>
+						)}
 						{name === "background" && state.tasks.length > 0 && <span className="badge">{state.tasks.length}</span>}
 					</button>
 				))}
@@ -114,6 +123,7 @@ export function ResultsPanel({ state, outputs, selected, tab, details, onTab, on
 							{active.kind === "code" ? <pre className="output-code">{active.body}</pre> : <Markdown text={active.body} />}
 						</>
 					))}
+				{tab === "workflow" && <WorkflowView agent={agent} readOnly {...(activeFlow === undefined ? {} : { trace: activeFlow })} />}
 				{tab === "background" &&
 					(state.tasks.length === 0 ? (
 						<Empty icon={Moon} title={t("No background work.")} />

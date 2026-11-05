@@ -1,11 +1,11 @@
 import { announceSignedOut } from "../lib/api.ts";
-import type { BackgroundTask } from "../lib/agent.ts";
+import type { BackgroundTask, FlowRunTrace } from "../lib/agent.ts";
 
 export type ProgressEvent = { type: "progress"; submissionIds: number[]; phase: "working" | "waiting" | "retrying" | "finished"; text: string };
 
 export type AgentEvent =
 	| ProgressEvent
-	| { type: "snapshot"; busy: boolean; inbox: { id: number; mode: string }[]; tasks: BackgroundTask[]; progress?: ProgressEvent; partial?: { turnId?: string; messageId: string; text: string } }
+	| { type: "snapshot"; busy: boolean; inbox: { id: number; mode: string }[]; tasks: BackgroundTask[]; flow?: FlowRunTrace; progress?: ProgressEvent; partial?: { turnId?: string; messageId: string; text: string } }
 	| { type: "run.started" | "run.finished"; submissionIds: number[] }
 	| { type: "text.delta"; text: string; offset?: number; messageId?: string; turnId?: string }
 	| { type: "thinking.delta"; text: string }
@@ -13,6 +13,7 @@ export type AgentEvent =
 	| { type: "tool.started"; callId: string; name: string }
 	| { type: "tool.finished"; callId: string; name: string; isError: boolean }
 	| ({ type: "task.updated" } & BackgroundTask)
+	| { type: "flow.updated"; trace: FlowRunTrace }
 	| { type: "inbox"; items: { id: number; mode: string }[] }
 	| { type: "submission"; submissionId: number; status: string; reason?: string; detail?: string }
 	| { type: "retry"; attempt: number; error: string }

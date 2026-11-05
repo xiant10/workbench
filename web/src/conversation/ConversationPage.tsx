@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, CircleAlert, MessageSquareOff, PanelRight, Phone, PhoneOff } from "lucide-react";
+import { Archive, CircleAlert, GitBranch, MessageSquareOff, PanelRight, Phone, PhoneOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CallBar } from "../call/CallBar.tsx";
 import { useCall } from "../call/useCall.ts";
-import { type PromptInput, supports } from "../lib/agent.ts";
+import { type PromptInput, type SessionInfo, supports } from "../lib/agent.ts";
 import { rpc } from "../lib/api.ts";
 import { RESULTS_BREAKPOINT, useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -31,7 +31,7 @@ export function ConversationPage() {
 
 function Conversation({ sessionId }: { sessionId: string }) {
 	const { t } = useI18n();
-	const { agent, agents, config, signedOut, path } = useWorkspace();
+	const { agent, agents, config, signedOut, path, tenant } = useWorkspace();
 	const agentEntry = agents.find((a) => a.name === agent);
 	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "WorkBuddy AI" : agent);
 	const modules = useModules();
@@ -39,7 +39,15 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const open = useSessions();
 	const archivedList = useSessions(true);
 	const refresh = useRefreshSessions();
-	const session = open.data?.find((item) => item.sessionId === sessionId) ?? archivedList.data?.find((item) => item.sessionId === sessionId);
+	const listed = open.data?.find((item) => item.sessionId === sessionId) ?? archivedList.data?.find((item) => item.sessionId === sessionId);
+	// The lists hold only recent pages, so an older conversation is read on its own.
+	const single = useQuery({
+		queryKey: ["sessions", tenant, "one", agent, sessionId],
+		queryFn: () => rpc<SessionInfo>(agent, "session.get", {}, sessionId),
+		enabled: listed === undefined && open.isSuccess && archivedList.isSuccess,
+		retry: false,
+	});
+	const session = listed ?? single.data;
 	const archived = session?.archived === true;
 
 	const call = useCall(`conv-${sessionId}`);
@@ -81,6 +89,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const queued = state.pending.filter((item) => item.state === "queued");
 	const stalled = state.pending.find((item) => item.state === "sending");
 	const title = session?.metadata?.title ?? t("New conversation");
+	const activeFlow = state.flow ?? info.data?.flow;
 	const resultCount = outputs.length + state.tasks.length;
 	// An empty pane only takes room from the reply, so it waits until there's something in it.
 	const resultsOpen = resultsChoice ?? (resultCount > 0 && wide);
@@ -111,6 +120,25 @@ function Conversation({ sessionId }: { sessionId: string }) {
 							<span className="label">{t(call.phase === "off" ? "Call" : "End call")}</span>
 						</button>
 					)}
+					<button
+						type="button"
+						className={`ghost${resultsOpen && tab === "workflow" ? " active" : ""}`}
+						onClick={() => {
+							if (resultsOpen && tab === "workflow") {
+								setResultsOpen(false);
+							} else {
+								setTab("workflow");
+								setResultsOpen(true);
+							}
+						}}
+						aria-label={t("Workflow")}
+					>
+						<GitBranch size={15} aria-hidden="true" />
+						<span className="label">{t("Workflow")}</span>
+						{activeFlow !== undefined && (
+							<span className="badge">{activeFlow.mode === "deterministic" ? "⚡" : "●"}</span>
+						)}
+					</button>
 					<button ref={resultsTrigger} type="button" className="ghost" onClick={() => setResultsOpen(!resultsOpen)} aria-label={t("Results")} aria-expanded={resultsOpen}>
 						<PanelRight size={15} aria-hidden="true" />
 						<span className="label">{t("Results")}</span>
@@ -138,6 +166,10 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					onOpenOutput={(output) => {
 						setSelected(output);
 						setTab("outputs");
+						setResultsOpen(true);
+					}}
+					onOpenWorkflow={() => {
+						setTab("workflow");
 						setResultsOpen(true);
 					}}
 					{...sendResult}
@@ -183,6 +215,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 			</div>
 			{resultsOpen && (
 				<ResultsPanel
+					agent={agent}
 					state={state}
 					outputs={outputs}
 					{...(selected === undefined ? {} : { selected })}

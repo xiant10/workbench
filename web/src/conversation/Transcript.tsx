@@ -1,4 +1,4 @@
-import { ArrowDown, Bot, Check, ChevronRight, CirclePlay, FileText, Image as ImageIcon, type LucideIcon, Pencil, RotateCcw, Share2, Sparkles, ThumbsDown, ThumbsUp, Trash2, Volume2 } from "lucide-react";
+import { ArrowDown, Bot, Check, ChevronRight, CirclePlay, FileText, GitBranch, Image as ImageIcon, type LucideIcon, Pencil, RotateCcw, Share2, Sparkles, ThumbsDown, ThumbsUp, Trash2, Volume2, Zap } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import { CopyButton, Logo } from "../lib/ui.tsx";
@@ -7,7 +7,7 @@ import { type Output, outputsOf } from "../results/outputs.ts";
 import { useTypewriter } from "../call/useTypewriter.ts";
 import { Markdown } from "./Markdown.tsx";
 import type { ConversationState, Line, Pending } from "./reducer.ts";
-import type { SessionDetails } from "../lib/agent.ts";
+import type { FlowRunTrace, SessionDetails } from "../lib/agent.ts";
 
 type Props = {
 	sessionId?: string;
@@ -15,6 +15,7 @@ type Props = {
 	agentName?: string;
 	details?: SessionDetails;
 	onOpenOutput(output: Output): void;
+	onOpenWorkflow?(): void;
 	/** Absent when tasks aren't available here. */
 	resultAction?: { label: string; icon: LucideIcon; run(text: string): void };
 	onRegenerate?(): void;
@@ -228,6 +229,8 @@ function AgentHeader({
 	hasTools,
 	isExpanded,
 	onToggle,
+	flow,
+	onOpenWorkflow,
 }: {
 	name: string;
 	duration?: number;
@@ -235,8 +238,11 @@ function AgentHeader({
 	hasTools?: boolean;
 	isExpanded?: boolean;
 	onToggle?(): void;
+	flow?: FlowRunTrace;
+	onOpenWorkflow?(): void;
 }) {
-	const { t } = useI18n();
+	const { t, language } = useI18n();
+	const isZh = language === "zh";
 	return (
 		<div className="agent-header">
 			<span className="agent-mark">
@@ -261,6 +267,26 @@ function AgentHeader({
 							{isBusy ? t("Processed {time}", { time: formatDuration(duration) }) : t("Completed {time}", { time: formatDuration(duration) })}
 						</span>
 					)
+				)}
+				{flow !== undefined && onOpenWorkflow !== undefined && (
+					<button
+						type="button"
+						className={`agent-flow-chip ${flow.mode}`}
+						onClick={onOpenWorkflow}
+						title={isZh ? "查看可视化执行工作流" : "View visual workflow trace"}
+					>
+						{flow.mode === "deterministic" ? <Zap size={12} aria-hidden="true" /> : <GitBranch size={12} aria-hidden="true" />}
+						<span>
+							{isZh
+								? (flow.titleZh ?? flow.flow?.titleZh ?? flow.title ?? flow.flow?.title ?? flow.skill ?? "工作流")
+								: (flow.title ?? flow.flow?.title ?? flow.skill ?? "Workflow")}
+							{(flow.parallelToolsRun ?? 0) > 0
+								? isZh
+									? ` · ${flow.parallelToolsRun} 并发`
+									: ` · ${flow.parallelToolsRun} parallel`
+								: ""}
+						</span>
+					</button>
 				)}
 			</div>
 		</div>
@@ -572,7 +598,7 @@ function LineView({
 	}
 }
 
-export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", details, onOpenOutput, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
+export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
 	const { t, language } = useI18n();
 	const scroller = useRef<HTMLDivElement>(null);
 	const pinned = useRef(true);
@@ -752,6 +778,8 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 										hasTools={turnHasTools}
 										isExpanded={isTurnExpanded}
 										onToggle={() => setExpandedTurns((prev) => ({ ...prev, [turnKey]: !prev[turnKey] }))}
+										{...(isCurrentTurn && (state.flow ?? details?.flow) !== undefined ? { flow: state.flow ?? details?.flow } : {})}
+										{...(onOpenWorkflow === undefined ? {} : { onOpenWorkflow })}
 									/>
 								)}
 								<LineView
@@ -793,6 +821,8 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 							name={agentName}
 							duration={state.busy ? elapsedSec : undefined}
 							isBusy={state.busy}
+							{...((state.flow ?? details?.flow) !== undefined ? { flow: state.flow ?? details?.flow } : {})}
+							{...(onOpenWorkflow === undefined ? {} : { onOpenWorkflow })}
 						/>
 					)}
 					{state.thinking !== "" && (
