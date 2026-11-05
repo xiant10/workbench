@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, Link2, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plug, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
@@ -303,6 +303,16 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 						</NavLink>
 					)),
 				)}
+				{isAdmin && (
+					<NavLink className="nav-link" to={path("connectors")} onClick={onClose} data-testid="nav-connectors">
+						<Plug size={16} aria-hidden="true" />
+						{t("Connectors")}
+					</NavLink>
+				)}
+				<NavLink className="nav-link" to={path("connections")} onClick={onClose} data-testid="nav-connections">
+					<Link2 size={16} aria-hidden="true" />
+					{t("Connections")}
+				</NavLink>
 				{isAdmin && (
 					<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
 						<UsersRound size={16} aria-hidden="true" />

@@ -1,0 +1,88 @@
+/* Connectors and Connections: the tenant's own MCP servers. */
+.connectors-list {
+	list-style: none;
+	margin: 1rem 0 0;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--surface);
+}
+.connectors-list li + li { border-top: 1px solid var(--line); }
+.connectors-row {
+	width: 100%;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 6rem 3.5rem 7rem;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0.9rem;
+	border-radius: 0;
+	background: none;
+	color: var(--text);
+	text-align: left;
+	font-weight: 400;
+	white-space: normal;
+}
+button.connectors-row:hover { background: var(--sunken); }
+.connectors-row.static { grid-template-columns: minmax(0, 1fr) auto; }
+.connectors-name { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.connectors-name .quiet { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connectors-state { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+.connectors-state.published { color: var(--accent); }
+.connectors-state.disabled { color: var(--warn); }
+.connectors-notice {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.4rem;
+	margin: 0.75rem 0 0;
+	padding: 0.6rem 0.8rem;
+	border-radius: 9px;
+	background: var(--warn-soft);
+	color: var(--warn);
+	font-size: 0.9rem;
+}
+.connectors-notice.danger { background: var(--danger-soft); color: var(--danger); }
+.connectors-form { display: flex; flex-direction: column; gap: 0.9rem; max-width: 40rem; }
+.connectors-form label { display: flex; flex-direction: column; gap: 0.3rem; }
+.connectors-form label > span:first-child { font-weight: 600; }
+.connectors-form label > .quiet { font-size: 0.82rem; }
+.connectors-form input, .connectors-form select, .connector-secret input, .connector-publish input {
+	font: inherit;
+	padding: 0.5rem 0.65rem;
+	border-radius: 9px;
+	border: 1px solid var(--line-strong);
+	background: var(--bg);
+	color: var(--text);
+}
+.connector-section { margin-top: 1.75rem; }
+.connector-section h2 { font-size: 1rem; margin: 0 0 0.6rem; }
+.connector-section-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.connector-secret { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.connector-secret .quiet { flex-basis: 100%; font-size: 0.88rem; }
+.connector-secret input { flex: 1 1 16rem; min-width: 0; }
+.connector-tools { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.connector-tools label { display: flex; align-items: flex-start; gap: 0.6rem; }
+.connector-tools label > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; min-width: 0; }
+.connector-tools .quiet { flex-basis: 100%; font-size: 0.85rem; }
+.connector-hint { font-size: 0.75rem; padding: 0.05rem 0.4rem; border-radius: 6px; background: var(--sunken); color: var(--muted); }
+.connector-hint.danger { background: var(--danger-soft); color: var(--danger); }
+.connector-agents { display: flex; flex-wrap: wrap; gap: 1rem; }
+.connector-agents label { display: flex; align-items: center; gap: 0.4rem; }
+.connector-publish { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.connector-publish input { flex: 1 1 14rem; min-width: 0; }
+.connector-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.88rem; }
+.connector-history li { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+@media (max-width: 640px) {
+	.connectors-row { grid-template-columns: minmax(0, 1fr) auto; }
+	.connectors-row > .quiet { display: none; }
+}
+.connector-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--muted);
+	text-decoration: none;
+	font-size: 0.87rem;
+	margin-bottom: 0.5rem;
+}
+.connector-back:hover { color: var(--text); }

@@ -3,6 +3,9 @@ import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AdminPage } from "../admin/AdminPage.tsx";
+import { ConnectionsPage } from "../connectors/ConnectionsPage.tsx";
+import { ConnectorPage } from "../connectors/ConnectorPage.tsx";
+import { ConnectorsPage } from "../connectors/ConnectorsPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
 import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
@@ -283,6 +286,9 @@ export function App() {
 				{moduleRoutes.map(({ path, element }) => (
 					<Route key={path} path={path} element={element} />
 				))}
+				<Route path="connectors" element={<ConnectorsPage />} />
+				<Route path="connectors/:id" element={<ConnectorPage />} />
+				<Route path="connections" element={<ConnectionsPage />} />
 				<Route path="settings" element={<Settings />} />
 				<Route path="admin" element={<AdminPage />} />
 			</Route>
