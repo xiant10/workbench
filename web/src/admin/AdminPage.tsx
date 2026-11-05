@@ -1,6 +1,6 @@
 import { navigateOptions } from "../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, Sparkles, Square, Trash2, UserPlus, Users, Wand2 } from "lucide-react";
+import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, ShieldCheck, Sparkles, Square, Trash2, UserPlus, Users, Wand2 } from "lucide-react";
 import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
@@ -9,7 +9,8 @@ import { useModules } from "../modules/index.tsx";
 import type { AdminTab } from "../modules/types.ts";
 import { useWorkspace } from "../shell/workspace.ts";
 import { SkillsLibrary } from "../skills/SkillsPage.tsx";
-import { useMemberName } from "./members.ts";
+import { useFailure, useMemberName } from "./members.ts";
+import { MemberRoles, Roles } from "./RolesTab.tsx";
 import {
 	createUnit,
 	deleteUnit,
@@ -20,7 +21,6 @@ import {
 	listMembers,
 	listUnits,
 	type Member,
-	reason,
 	resetLink,
 	revokeGrant,
 	type Role,
@@ -36,22 +36,13 @@ import {
 const TABS: Record<AdminTab, { label: string; icon: LucideIcon }> = {
 	people: { label: "People", icon: Users },
 	organization: { label: "Organization", icon: Building2 },
+	roles: { label: "Roles", icon: ShieldCheck },
 	agents: { label: "Agents", icon: Sparkles },
 	skills: { label: "Skills", icon: Wand2 },
 	security: { label: "Security and policies", icon: LockKeyhole },
 };
 
 const ACTIVITY = { label: "Activity", icon: History };
-
-/** Reports a failure, with the auth service's own reason when it gave one. */
-function useFailure(): (error: Error) => void {
-	const { t, describe } = useI18n();
-	const { toast } = useFeedback();
-	return (error) => {
-		const known = reason(error);
-		toast(known === undefined ? describe(error) : t(known));
-	};
-}
 
 /** Everything a tenant admin runs, in one place: the tenant's people and organization from the auth service, and each module's settings. */
 export function AdminPage() {
@@ -92,6 +83,7 @@ export function AdminPage() {
 			{Object.hasOwn(TABS, tab) && <JoinedSettings tab={tab as AdminTab} />}
 			{tab === "people" && <People />}
 			{tab === "organization" && <Organization />}
+			{tab === "roles" && <Roles />}
 			{tab === "agents" && <Agents />}
 			{tab === "skills" && <AdminSkills />}
 			{tab === "security" && <Security />}
@@ -138,6 +130,7 @@ function People() {
 	const members = useQuery({ queryKey: ["org", tenant, "members"], queryFn: () => listMembers(tenant) });
 	const units = useQuery({ queryKey: ["org", tenant, "units"], queryFn: () => listUnits(tenant) });
 	const [link, setLink] = useState<{ title: string; hint: string; url: string }>();
+	const [rolesFor, setRolesFor] = useState<Member>();
 	const [role, setRole] = useState<Role>("member");
 	const [search, setSearch] = useState("");
 	const [limit, setLimit] = useState(PAGE_SIZE);
@@ -155,7 +148,6 @@ function People() {
 		onSuccess: (links) => setLink({ title: t("Invitation link"), hint: t("Send it to the person you're inviting. Someone new signs up with it, and someone with an account joins. It isn't shown again."), url: links.invite_url }),
 		onError: failed,
 	});
-	if (members.isPending) return <Skeleton />;
 	const people = members.data ?? [];
 	const tree = unitTree(units.data ?? []);
 
@@ -178,6 +170,8 @@ function People() {
 		},
 		[activeManagers, people],
 	);
+	// After every hook, so a render while loading calls the same hooks as one after.
+	if (members.isPending) return <Skeleton />;
 
 	return (
 		<section className="admin-section always">
@@ -256,6 +250,10 @@ function People() {
 										</option>
 									))}
 								</select>
+								<button type="button" className="ghost small" disabled={member.status !== "active"} onClick={() => setRolesFor(member)}>
+									<ShieldCheck size={14} aria-hidden="true" />
+									{t("Roles")}
+								</button>
 								<button type="button" className="ghost small" onClick={() => reset.mutate(member)}>
 									<KeyRound size={14} aria-hidden="true" />
 									{t("Reset link")}
@@ -286,6 +284,7 @@ function People() {
 				</button>
 			)}
 			{link !== undefined && <OneTimeLink {...link} onClose={() => setLink(undefined)} />}
+			{rolesFor !== undefined && <MemberRoles member={rolesFor} onClose={() => setRolesFor(undefined)} />}
 		</section>
 	);
 }

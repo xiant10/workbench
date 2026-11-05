@@ -145,8 +145,9 @@ Everything a tenant admin runs is on one page, `/t/<tenant>/admin`. The auth ser
 
 | Tab | Contents | From |
 | --- | --- | --- |
-| People | Members with their names, role, status, manager and unit. Invitation links, and one-time reset links | Auth service, through `/api/org/<tenant>/` |
+| People | Members with their names, role, status, manager and unit. Invitation links, and one-time reset links. Each active member's Roles button gives and takes back business roles | Auth service, through `/api/org/<tenant>/` |
 | Organization | Departments and teams. `collab`'s "Who can see tasks" sits above them | Auth service, and `t10-collab` |
+| Roles | Business roles: sets of permissions that deployed modules declare, made by hand or from a module's template. Each role edits its name, description, on or off and permissions, sending the revision it opened with. Permissions whose module isn't deployed show apart, kept or cleared by the admin. A role's name grants nothing; only the built-in Admin opens this page | Auth service, through `/api/org/<tenant>/roles` and `permission-catalog` |
 | Agents | Which of the platform's agents this tenant uses, and its default. Agents working for someone now, each with Stop. Proposed: a reason on each change, the automations that use an agent before it's turned off, and the platform's changes that affect this tenant | `t10-agent-control` as module `agents`, the auth service's grants, and `t10-automations` |
 | Security and policies | Require a second factor. You can't turn it on without one yourself | Auth service |
 | A module's own tab | A module with many settings, between the built-in tabs and Activity | That module |
@@ -404,7 +405,7 @@ web/src/modules/agents/  a tenant's agent settings, from t10-agent-control
 | `GET`, `POST`, `DELETE /api/agents/{agent}/agent` | Passes through to that agent's `/agent`, adding the bearer token and trace headers |
 | `POST /api/voice/admission` | Calls room admission and returns only the room fields |
 | `/api/modules/{id}/*` | Passes through to the business module named in `MODULE_URLS`, mapping to its `/v1/*` routes |
-| `/api/org/{tenant}`, `/api/org/{tenant}/*` | Passes through to the auth service's `/v1/tenants/{tenant}/*`, for Administration. Only `members`, `invitations`, `units`, `grants` and `audit` |
+| `/api/org/{tenant}`, `/api/org/{tenant}/*` | Passes through to the auth service's `/v1/tenants/{tenant}/*`, for Administration. Only `members`, `invitations`, `units`, `grants`, `audit`, `roles` and `permission-catalog` |
 | `GET /api/config` | Agents, modules, voice, and the account address. `console_url` too, for a platform admin |
 
 `/api/config` lists the modules that answer `GET /v1/module` for this person's tenant, so the shell names none of them. The proxy adds no business rules. `agent-pi` and `t10-collab` still verify every token and own every access check.

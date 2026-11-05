@@ -24,7 +24,7 @@ export type ResultAction = {
 };
 
 /** Administration's own tabs that a module's settings can join. Activity is the auth service's log, so nothing joins it. */
-export type AdminTab = "people" | "organization" | "agents" | "skills" | "security";
+export type AdminTab = "people" | "organization" | "roles" | "agents" | "skills" | "security";
 
 /**
  * A module's settings in Administration, for tenant admins. `Settings` renders whole cards. A module with one or two

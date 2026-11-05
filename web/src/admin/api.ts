@@ -57,6 +57,42 @@ export const revokeGrant = (tenant: string, id: string) => postJSON<unknown>(bas
 
 export const listAudit = (tenant: string) => request<{ records: AuditRecord[] }>(base(tenant, "audit")).then((body) => body.records);
 
+/** Business roles: sets of permissions that deployed modules declare. A role's name grants nothing. */
+export type Lifecycle = "active" | "deprecated" | "retired";
+export type Permission = { key: string; description: string; lifecycle: Lifecycle };
+export type RoleTemplate = { id: string; name: string; description: string; permissions: string[] };
+export type CatalogModule = { id: string; prefix: string; version: number; permissions: Permission[]; templates: RoleTemplate[] };
+/** A permission this tenant's roles hold that grants nothing here: its module isn't deployed, or it was retired. */
+export type UnavailablePermission = { key: string; module: string; description: string; reason: "module_not_deployed" | "retired" };
+export type Catalog = { modules: CatalogModule[]; unavailable: UnavailablePermission[] };
+
+export type BusinessRole = {
+	id: string;
+	name: string;
+	description: string;
+	enabled: boolean;
+	revision: number;
+	permissions: string[];
+	unavailable: string[];
+	/** Enabled, with at least one permission that grants something here. */
+	active: boolean;
+	template?: { module: string; id: string; version: number; latest_version?: number };
+	assignments: number;
+};
+
+export type RoleAssignment = { id: string; user_id: string; role_id: string; role_name: string; status: "active" | "revoked"; revision: number; created_at: string };
+
+export const getCatalog = (tenant: string) => request<Catalog>(base(tenant, "permission-catalog"));
+export const listRoles = (tenant: string) => request<{ roles: BusinessRole[] }>(base(tenant, "roles")).then((body) => body.roles);
+export const createRole = (tenant: string, role: { name?: string; description?: string; permissions?: string[]; template?: { module: string; id: string } }) => postJSON<BusinessRole>(base(tenant, "roles"), role);
+export const updateRole = (tenant: string, id: string, change: { revision: number; name?: string; description?: string; enabled?: boolean; permissions?: string[] }) =>
+	send<BusinessRole>("PATCH", base(tenant, `roles/${encodeURIComponent(id)}`), change);
+export const listAssignments = (tenant: string, user: string) =>
+	request<{ assignments: RoleAssignment[] }>(base(tenant, `members/${encodeURIComponent(user)}/role-assignments`)).then((body) => body.assignments);
+export const assignRole = (tenant: string, user: string, role: string) => postJSON<RoleAssignment>(base(tenant, `members/${encodeURIComponent(user)}/role-assignments`), { role_id: role });
+export const revokeAssignment = (tenant: string, user: string, assignment: RoleAssignment) =>
+	send<void>("DELETE", base(tenant, `members/${encodeURIComponent(user)}/role-assignments/${encodeURIComponent(assignment.id)}?revision=${assignment.revision}`));
+
 /** The auth service's own reasons, in English like every string here. Anything else falls back to the usual text. */
 const REASONS: Record<string, string> = {
 	last_admin: "A tenant needs at least one active admin. Make someone else an admin first.",
@@ -66,6 +102,9 @@ const REASONS: Record<string, string> = {
 	invalid_request: "That value isn't valid.",
 	mfa_needed: "Sign in with an authenticator before requiring one, or you'd lock yourself out.",
 	forbidden: "Only a platform admin can do that for an admin, or for someone in another tenant.",
+	stale_revision: "Someone else changed it since you opened it. Close it and open it again.",
+	role_disabled: "Turn the role on before giving it to anyone.",
+	unknown_permission: "That permission can't be added here: its module isn't deployed, or it's no longer offered.",
 };
 
 /** What went wrong, in words a tenant admin can act on. */

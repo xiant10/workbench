@@ -243,6 +243,7 @@ func TestOrgReachesOnlyTheTenantRoutes(t *testing.T) {
 	for path, want := range map[string]int{
 		"": http.StatusOK, "members": http.StatusOK, "members/usr_1/placement": http.StatusOK, "units/u1": http.StatusOK,
 		"grants/grt_1/revoke": http.StatusOK, "audit": http.StatusOK, "invitations": http.StatusOK,
+		"roles/rol_1": http.StatusOK, "permission-catalog": http.StatusOK, "members/usr_1/role-assignments/rla_1": http.StatusOK,
 		"suspend": http.StatusNotFound, "members/../suspend": http.StatusNotFound, "../../v1/users": http.StatusNotFound,
 	} {
 		w := httptest.NewRecorder()
@@ -251,7 +252,7 @@ func TestOrgReachesOnlyTheTenantRoutes(t *testing.T) {
 			t.Errorf("%q: %d, want %d", path, w.Code, want)
 		}
 	}
-	if len(got) != 7 || !strings.Contains(strings.Join(got, "\n"), "GET /v1/tenants/ten_1/members/usr_1/placement Bearer user-token") {
+	if len(got) != 10 ||!strings.Contains(strings.Join(got, "\n"), "GET /v1/tenants/ten_1/members/usr_1/placement Bearer user-token") {
 		t.Errorf("reached: %v", got)
 	}
 	w := httptest.NewRecorder()

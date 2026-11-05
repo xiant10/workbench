@@ -63,7 +63,21 @@ done
 (cd "$root" && go build -o "$stack/bin/workbench" ./cmd/workbench)
 
 sed "s/127\.0\.0\.1:8083/127.0.0.1:$port/g" "$t10/auth-server/clients.yaml" >"$stack/clients.yaml"
-export AUTH_PUBLIC_URL=$auth_url AUTH_LISTEN_ADDR=:18081 AUTH_DEV_MODE=true AUTH_CLIENTS_FILE="$stack/clients.yaml"
+# A permission catalog for one made-up module, so the Roles page has something
+# to offer. No service reads its entitlements.
+mkdir -p "$stack/permissions"
+cat >"$stack/permissions/demo.yaml" <<'EOF'
+module: demo
+prefix: demo
+version: 1
+permissions:
+  - {key: demo:read, description: See demo records, lifecycle: active}
+  - {key: demo:write, description: Change demo records, lifecycle: active}
+  - {key: demo:admin, description: Demo settings, lifecycle: active}
+templates:
+  - {id: editor, name: Demo editor, description: Reads and changes demo records, permissions: [demo:read, demo:write]}
+EOF
+export AUTH_PUBLIC_URL=$auth_url AUTH_LISTEN_ADDR=:18081 AUTH_DEV_MODE=true AUTH_CLIENTS_FILE="$stack/clients.yaml" AUTH_PERMISSIONS_DIR="$stack/permissions"
 export DATABASE_URL="$db/e2e_auth?sslmode=disable"
 export LIVEKIT_URL=ws://localhost:18890 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=e2e-only-livekit-secret-of-32-characters
 AUTHCTL_PASSWORD=e2e-admin-password "$stack/bin/authctl" bootstrap --if-empty --username=admin@e2e.example --tenant-id=ten_e2e --tenant-name=E2E >/dev/null

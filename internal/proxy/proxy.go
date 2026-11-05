@@ -38,7 +38,7 @@ var forwarded = []string{"Accept", "Content-Type", "Idempotency-Key", "Last-Even
 
 // orgRoutes are the auth service's tenant routes that the admin pages use. Any
 // other path stays here, though the auth service would refuse it anyway.
-var orgRoutes = []string{"", "members", "invitations", "units", "grants", "audit"}
+var orgRoutes = []string{"", "members", "invitations", "units", "grants", "audit", "roles", "permission-catalog"}
 
 // Proxy forwards to one kind of upstream.
 type Proxy struct {
