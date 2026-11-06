@@ -414,8 +414,6 @@ button:disabled { opacity: 0.45; cursor: default; }
 .composer-status { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.85rem; margin: 0 0 0.4rem 0.2rem; }
 .send { width: 34px; height: 34px; padding: 0; border-radius: 50%; }
 .stop { background: var(--text); color: var(--bg); }
-.queued { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.4rem; }
-.queued li { display: flex; align-items: center; gap: 0.35rem; background: var(--sunken); border-radius: 9px; padding: 0.2rem 0.65rem; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attachments { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
 .attachments li { position: relative; }
 .attachments img { width: 68px; height: 68px; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--line); }
@@ -1383,3 +1381,4 @@ label > input, label > select, label > textarea { color: var(--text); font-size:
 	justify-content: flex-end;
 	gap: 0.5rem;
 }
+.line.user .queued-note { margin: 2px 4px 0; font-size: 12px; color: var(--muted, #6b7280); text-align: right; }

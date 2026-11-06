@@ -49,7 +49,7 @@ export function Home() {
 	const [taskFrom, setTaskFrom] = useState<string>();
 	const [suggestion, setSuggestion] = useState<{ text: string; id: number }>();
 	const start = useMutation({
-		mutationFn: ({ input, text }: { input: Parameters<typeof startConversation>[2]; text: string }) => startConversation(agent, profile, input, titleOf(text)),
+		mutationFn: ({ input, text }: { input: Parameters<typeof startConversation>[2]; text: string }) => startConversation(agent, profile, input, titleOf(text), {}, text),
 		onSuccess: (sessionId) => {
 			refresh();
 			navigate(path(`c/${sessionId}`));

@@ -102,7 +102,7 @@ function toLine(message: TranscriptMessage): Line {
 				...(message.stopReason === "aborted" ? { aborted: true } : {}),
 			};
 		case "tool":
-			return { key, id: message.id, role: "tool", callId: message.callId, name: message.name, state: message.isError ? "failed" : "done" };
+			return { key, id: message.id, role: "tool", callId: message.callId, name: message.name ?? "", state: message.isError ? "failed" : "done" };
 		case "task":
 			return { key, id: message.id, role: "task", name: message.name, text: message.text };
 		case "compaction":
@@ -168,6 +168,19 @@ function withDelta(state: ConversationState, event: Extract<AgentEvent, { type: 
 	const held = event.messageId === state.liveMessage ? state.live : "";
 	const overlap = event.offset === undefined ? 0 : Math.max(0, held.length - event.offset);
 	return { live: held + event.text.slice(overlap), ...(event.messageId === undefined ? {} : { liveMessage: event.messageId }) };
+}
+
+/**
+ * A message the agent took up is in the conversation, even before the transcript says so. An agent that never reports its
+ * inbox shows it by the first event of the turn the message started.
+ */
+function startedTurn(state: ConversationState, event: AgentEvent): ConversationState {
+	if (event.type !== "run.started" && event.type !== "text.delta" && event.type !== "message.end") return state;
+	const turnId = event.turnId;
+	if (turnId === undefined || !state.pending.some((item) => item.state !== "failed" && item.turnId === turnId)) return state;
+	const started = state.pending.filter((item) => item.state !== "failed" && item.turnId === turnId);
+	const seq = state.seq + 1;
+	return { ...state, seq, pending: state.pending.filter((item) => !started.includes(item)), lines: [...state.lines, ...started.map((item) => placedLine(item, seq))] };
 }
 
 function applyEvent(state: ConversationState, event: AgentEvent, at: number): ConversationState {
@@ -266,7 +279,7 @@ function placedLine(item: Pending, seq: number): Line {
 export function reducer(state: ConversationState, action: Action): ConversationState {
 	switch (action.type) {
 		case "event":
-			return applyEvent(state, action.event, action.at);
+			return applyEvent(startedTurn(state, action.event), action.event, action.at);
 		case "status":
 			return { ...state, status: action.status };
 		case "call":

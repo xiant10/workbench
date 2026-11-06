@@ -106,6 +106,16 @@ describe("transcript reads", () => {
 		expect(state.lines.map((line) => line.key)).toEqual(["e3", "e4"]);
 	});
 
+	it("places a queued message when its own turn starts, ahead of the reply", () => {
+		const state = run([
+			{ type: "sending", pending: pending("r1", { turnId: "t7", state: "queued", submissionId: 3 }) },
+			event({ type: "run.started", turnId: "t7", submissionIds: [3] }),
+			event({ type: "message.end", text: "Hi", stopReason: "stop", turnId: "t7" }),
+		]);
+		expect(state.pending).toEqual([]);
+		expect(state.lines).toMatchObject([{ role: "user", text: "hi" }, { role: "assistant", text: "Hi" }]);
+	});
+
 	it("drops a pending message once the transcript has it, by request ID", () => {
 		const state = run([{ type: "sending", pending: pending("r1") }, { type: "transcript", messages: [user], since: 0 }]);
 		expect(state.pending).toEqual([]);

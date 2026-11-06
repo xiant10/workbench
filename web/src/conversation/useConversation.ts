@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { newTurnId, rpc } from "../lib/api.ts";
-import type { Admission, PromptInput, SessionDetails, TranscriptMessage } from "../lib/agent.ts";
+import { type Admission, type PromptInput, type SessionDetails, takeFirstPrompt, type TranscriptMessage } from "../lib/agent.ts";
 import { ApiError } from "../lib/api.ts";
 import { initialState, type Pending, reducer } from "./reducer.ts";
 import { openStream } from "./stream.ts";
@@ -30,6 +30,11 @@ export function useConversation(agent: string, sessionId: string, archived: bool
 		const page = await rpc<Page>(agent, "session.messages", { limit: PAGE }, sessionId);
 		dispatch({ type: "transcript", messages: page.messages, ...(page.nextCursor === undefined ? {} : { earlier: page.nextCursor }), since });
 	}, [agent, sessionId]);
+
+	useEffect(() => {
+		const first = takeFirstPrompt(sessionId);
+		if (first !== undefined) dispatch({ type: "sending", pending: first });
+	}, [sessionId]);
 
 	useEffect(() => {
 		const controller = new AbortController();

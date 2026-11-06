@@ -208,6 +208,7 @@ export const ZH: Record<string, string> = {
 	"Invite your team": "邀请团队成员",
 	"Create roles for your team": "为团队创建角色",
 	"Add your first document": "添加第一份文档",
+	"Create your property project": "创建物业项目",
 	"Approve or refuse {tool}": "批准或拒绝 {tool}",
 	"{name} stopped after failures": "{name} 因多次失败已停止",
 	"{name} stopped: your consent ended": "{name} 已停止：你的授权已结束",

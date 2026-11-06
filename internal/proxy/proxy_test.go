@@ -43,7 +43,7 @@ func TestAgentAddsTokenAndDropsBrowserHeaders(t *testing.T) {
 	r.Header.Set("Agent-Method", "session.prompt")
 	r.Header.Set("X-Unknown", "value")
 	w := httptest.NewRecorder()
-	p.Agent(w, r, "assistant", "user-token")
+	p.Agent(w, r, "assistant", "user-token", func() bool { return true })
 
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("status = %d", w.Code)
@@ -83,7 +83,7 @@ func TestAgentRoutesOnSessionReplica(t *testing.T) {
 	for session, want := range map[string]string{"assistant.r2.7": "second", "assistant.r1.7": "first", "": "first"} {
 		r := httptest.NewRequest("GET", "/api/agents/assistant/agent", nil)
 		r.Header.Set(sessionHeader, session)
-		p.Agent(httptest.NewRecorder(), r, "assistant", "token")
+		p.Agent(httptest.NewRecorder(), r, "assistant", "token", func() bool { return true })
 		if hit != want {
 			t.Errorf("session %q went to %q, want %q", session, hit, want)
 		}
@@ -93,7 +93,7 @@ func TestAgentRoutesOnSessionReplica(t *testing.T) {
 func TestUnknownAgent(t *testing.T) {
 	p := New(nil, nil, nil)
 	w := httptest.NewRecorder()
-	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "ghost", "token")
+	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "ghost", "token", func() bool { return true })
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d", w.Code)
 	}
@@ -156,7 +156,7 @@ func TestUpstreamDownAnswersJSON(t *testing.T) {
 	upstream.Close()
 	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, address)}}, nil, nil)
 	w := httptest.NewRecorder()
-	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "assistant", "token")
+	p.Agent(w, httptest.NewRequest("GET", "/x", nil), "assistant", "token", func() bool { return true })
 	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "upstream_unavailable") {
 		t.Errorf("got %d %s", w.Code, w.Body)
 	}
@@ -178,7 +178,7 @@ func TestEventStreamFlushesEachEvent(t *testing.T) {
 	defer close(release)
 	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
 	front := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p.Agent(w, r, "assistant", "token")
+		p.Agent(w, r, "assistant", "token", func() bool { return true })
 	}))
 	defer front.Close()
 
@@ -211,7 +211,7 @@ func TestLoneEntryIsAGatewayThatServesEveryAgent(t *testing.T) {
 	}))
 	defer gateway.Close()
 	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, gateway.URL)}}, nil, nil)
-	p.Agent(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")), "sales", "tok")
+	p.Agent(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}")), "sales", "tok", func() bool { return true })
 	if gotAgent.Load() != "sales" {
 		t.Fatalf("the gateway was told agent %v", gotAgent.Load())
 	}
@@ -230,7 +230,7 @@ func TestSessionRoutesByPoolAndSendsNoAgentName(t *testing.T) {
 	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, assistant.URL)}, {Name: "sales", URL: mustURL(t, sales.URL)}}, nil, nil)
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
 	r.Header.Set("Agent-Session-Id", "sales.agent-1.7")
-	p.Agent(httptest.NewRecorder(), r, "assistant", "tok")
+	p.Agent(httptest.NewRecorder(), r, "assistant", "tok", func() bool { return true })
 	if gotAgent.Load() != "" {
 		t.Fatalf("a call with a session named agent %v", gotAgent.Load())
 	}
@@ -256,7 +256,7 @@ func TestOrgReachesOnlyTheTenantRoutes(t *testing.T) {
 			t.Errorf("%q: %d, want %d", path, w.Code, want)
 		}
 	}
-	if len(got) != 10 ||!strings.Contains(strings.Join(got, "\n"), "GET /v1/tenants/ten_1/members/usr_1/placement Bearer user-token") {
+	if len(got) != 10 || !strings.Contains(strings.Join(got, "\n"), "GET /v1/tenants/ten_1/members/usr_1/placement Bearer user-token") {
 		t.Errorf("reached: %v", got)
 	}
 	w := httptest.NewRecorder()
@@ -276,5 +276,60 @@ func TestUploadHeaders(t *testing.T) {
 	out := pick(in)
 	if out.Get("Idempotency-Key") != "upload-attempt-1" || out.Get("Content-Type") != in.Get("Content-Type") || out.Get("Cookie") != "" {
 		t.Fatal(out)
+	}
+}
+
+func TestSessionGetHidesUsageUnlessAllowed(t *testing.T) {
+	var accept string
+	const answer = `{"jsonrpc":"2.0","id":1,"result":{"sessionId":"s","usage":{"models":{"m":{"totalTokens":9}}},"taskUsage":{"totalTokens":3},"tasks":[{"id":"t","usage":{"totalTokens":3}}]}}`
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(answer))
+	}))
+	defer upstream.Close()
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
+
+	call := func(body string, allowed bool) (string, int) {
+		asked := 0
+		r := httptest.NewRequest(http.MethodPost, "/api/agents/assistant/agent", strings.NewReader(body))
+		r.Header.Set("Accept", "application/json, text/event-stream")
+		w := httptest.NewRecorder()
+		p.Agent(w, r, "assistant", "tok", func() bool { asked++; return allowed })
+		return w.Body.String(), asked
+	}
+
+	got, asked := call(`{"method":"session.get"}`, false)
+	if asked != 1 || strings.Contains(got, "totalTokens") || strings.Contains(got, "taskUsage") || !strings.Contains(got, `"usage":{}`) || !strings.Contains(got, `"sessionId":"s"`) {
+		t.Fatalf("member got %s (asked %d)", got, asked)
+	}
+	if accept != "application/json" {
+		t.Fatalf("Accept = %q: a stream couldn't be filtered", accept)
+	}
+	if got, _ := call(`{"method":"session.get"}`, true); got != answer {
+		t.Fatalf("admin got %s", got)
+	}
+	// Go matches struct keys loosely, and a harness doesn't: this is still session.get.
+	if got, _ := call(`{"method":"session.get","METHOD":"session.list"}`, false); strings.Contains(got, "totalTokens") {
+		t.Fatalf("mixed-case key got %s", got)
+	}
+	if got, asked := call(`{"method":"session.prompt"}`, false); asked != 0 || got != answer {
+		t.Fatalf("another method got %s (asked %d)", got, asked)
+	}
+}
+
+func TestSessionGetFailsRatherThanPassUnreadableAnswer(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("data: {\"result\":{\"usage\":{\"totalTokens\":9}}}\n\n"))
+	}))
+	defer upstream.Close()
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
+
+	r := httptest.NewRequest(http.MethodPost, "/api/agents/assistant/agent", strings.NewReader(`{"method":"session.get"}`))
+	w := httptest.NewRecorder()
+	p.Agent(w, r, "assistant", "tok", func() bool { return false })
+	if w.Code != http.StatusBadGateway || strings.Contains(w.Body.String(), "totalTokens") {
+		t.Fatalf("status %d: %s", w.Code, w.Body)
 	}
 }

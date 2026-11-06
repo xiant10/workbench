@@ -1,16 +1,19 @@
 // Package proxy passes browser calls to agent-pi, business modules and the auth
-// service's tenant routes with the user's token. It adds no business rules: those services verify every token and own
-// every access check.
+// service's tenant routes with the user's token. Those services verify every token and own every access check. The one
+// rule added here is that only admins see token usage, which a harness returns to any conversation's owner.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,7 +63,8 @@ func New(agents, modules []config.Agent, auth *url.URL) *Proxy {
 		Rewrite: func(*httputil.ProxyRequest) {},
 		// A negative interval flushes after every write. The event stream
 		// depends on it.
-		FlushInterval: -1,
+		FlushInterval:  -1,
+		ModifyResponse: hideUsage,
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			slog.Warn("upstream failed", "path", r.URL.Path, "error", err)
 			WriteError(w, http.StatusBadGateway, "upstream_unavailable", "that service can't be reached")
@@ -73,7 +77,9 @@ func New(agents, modules []config.Agent, auth *url.URL) *Proxy {
 // once more than one replica runs. Session IDs are <pool>.<replica>.<n>: the ID
 // picks the entry for that replica or pool. An ID no entry names goes to the
 // agent's own entry, and a lone entry is a gateway that serves every agent.
-func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token string) {
+// showUsage says whether this person may see token usage, and is asked only when
+// an answer holds some.
+func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token string, showUsage func() bool) {
 	target, ok := p.route(agent, r.Header.Get(sessionHeader))
 	if !ok {
 		WriteError(w, http.StatusNotFound, "unknown_agent", "no such agent")
@@ -87,6 +93,17 @@ func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token strin
 	}
 	ctx := r.Context()
 	if r.Method == http.MethodPost {
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
+		if err != nil {
+			WriteError(w, http.StatusRequestEntityTooLarge, "too_large", "that request is too large")
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if rpcMethod(body) == "session.get" {
+			// A harness may answer as a stream if asked, and that couldn't be filtered.
+			headers.Set("Accept", "application/json")
+			ctx = context.WithValue(ctx, usageGate{}, showUsage)
+		}
 		turnCtx, traceparent, end := telemetry.StartTurn(ctx, r.Header.Get(turnHeader))
 		defer end()
 		ctx = turnCtx
@@ -95,6 +112,82 @@ func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token strin
 		}
 	}
 	p.forward(w, r.WithContext(ctx), target.JoinPath("agent"), headers, token)
+}
+
+// usageGate is the context key for the check on a session.get answer.
+type usageGate struct{}
+
+// rpcMethod reads a JSON-RPC call's method by its exact key, as a harness does.
+func rpcMethod(body []byte) string {
+	var call map[string]json.RawMessage
+	var method string
+	if json.Unmarshal(body, &call) != nil || json.Unmarshal(call["method"], &method) != nil {
+		return ""
+	}
+	return method
+}
+
+// hideUsage removes token usage from a session.get answer unless the caller may
+// see it. An answer it can't read fails, rather than pass usage on.
+func hideUsage(resp *http.Response) error {
+	showUsage, _ := resp.Request.Context().Value(usageGate{}).(func() bool)
+	if showUsage == nil || resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	stripped, found, err := withoutUsage(body)
+	if err != nil {
+		return err
+	}
+	if found && !showUsage() {
+		body = stripped
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	resp.ContentLength = int64(len(body))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
+}
+
+// withoutUsage empties `usage` and drops `taskUsage` and each task's `usage`, and
+// says whether there was any. An error answer has no result, and passes unchanged.
+func withoutUsage(body []byte) (stripped []byte, found bool, err error) {
+	var answer map[string]json.RawMessage
+	if err := json.Unmarshal(body, &answer); err != nil {
+		return nil, false, err
+	}
+	var result map[string]json.RawMessage
+	if raw, ok := answer["result"]; !ok || json.Unmarshal(raw, &result) != nil || result == nil {
+		return body, false, nil
+	}
+	if _, ok := result["usage"]; ok {
+		found = true
+		result["usage"] = json.RawMessage(`{}`)
+	}
+	if _, ok := result["taskUsage"]; ok {
+		found = true
+		delete(result, "taskUsage")
+	}
+	var tasks []map[string]json.RawMessage
+	if raw, ok := result["tasks"]; ok && json.Unmarshal(raw, &tasks) == nil {
+		for _, task := range tasks {
+			if _, ok := task["usage"]; ok {
+				found = true
+				delete(task, "usage")
+			}
+		}
+		if result["tasks"], err = json.Marshal(tasks); err != nil {
+			return nil, false, err
+		}
+	}
+	if answer["result"], err = json.Marshal(result); err != nil {
+		return nil, false, err
+	}
+	stripped, err = json.Marshal(answer)
+	return stripped, found, err
 }
 
 // Module passes one call to a business module, mapping

@@ -243,11 +243,25 @@ test.describe("safety", () => {
 });
 
 test.describe("M2: working results", () => {
-	test("a long reply opens as an output, with usage shown", async ({ page }) => {
-		await signIn(page, "sample-member");
+	test("usage shows to admins, not members", async ({ page }) => {
+		await signIn(page, "sample-acme-admin");
 		await startFromHome(page, "write a document");
 		await page.getByRole("button", { name: /Customer brief: Open/ }).click();
+		await expect(page.locator(".results-foot")).toContainText("tokens");
+		await expect(page.locator(".assistant-footer-cost").first()).toBeVisible();
+	});
+
+	test("a long reply opens as an output, with no usage for a member", async ({ page }) => {
+		await signIn(page, "sample-member");
+		const answer = page.waitForResponse((response) => response.request().postData()?.includes('"session.get"') === true && response.status() === 200);
+		await startFromHome(page, "write a document");
+		const { result } = await (await answer).json();
+		expect(result.usage).toEqual({});
+		expect(result.taskUsage).toBeUndefined();
+		await page.getByRole("button", { name: /Customer brief: Open/ }).click();
 		await expect(page.locator(".results")).toContainText("Customer brief");
+		await expect(page.locator(".results-foot")).toHaveCount(0);
+		await expect(page.locator(".assistant-footer-cost, .temp-cost")).toHaveCount(0);
 		await expect(page.locator(".results").getByRole("button", { name: "Download" })).toBeVisible();
 		await page.getByRole("tab", { name: "Activity" }).click();
 		await expect(page.getByText("No tool activity yet.")).toBeVisible();

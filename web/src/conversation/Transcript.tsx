@@ -5,6 +5,7 @@ import { CopyButton, Logo } from "../lib/ui.tsx";
 import { load, save } from "../lib/storage.ts";
 import { type Output, outputsOf } from "../results/outputs.ts";
 import { useTypewriter } from "../call/useTypewriter.ts";
+import { useWorkspace } from "../shell/workspace.ts";
 import { Markdown } from "./Markdown.tsx";
 import type { ConversationState, Line, Pending } from "./reducer.ts";
 import type { FlowRunTrace, SessionDetails } from "../lib/agent.ts";
@@ -362,7 +363,7 @@ function AssistantFooter({
 	resultAction,
 }: {
 	text: string;
-	tokenCost: string;
+	tokenCost?: string;
 	timestamp?: number;
 	onRegenerate?(): void;
 	resultAction?: { label: string; icon: LucideIcon; run(text: string): void };
@@ -485,7 +486,7 @@ function AssistantFooter({
 				)}
 			</div>
 			<div className="assistant-footer-meta">
-				<span className="assistant-footer-cost">{t("Total ✧ {cost}", { cost: tokenCost })}</span>
+				{tokenCost !== undefined && <span className="assistant-footer-cost">{t("Total ✧ {cost}", { cost: tokenCost })}</span>}
 				<span className="assistant-footer-model">
 					<Bot size={13} aria-hidden="true" />
 					<span>Auto</span>
@@ -496,12 +497,16 @@ function AssistantFooter({
 	);
 }
 
-function TempFooter({ cost, status }: { cost: string; status: string }) {
+function TempFooter({ cost, status }: { cost?: string; status: string }) {
 	const { t } = useI18n();
 	return (
 		<div className="working temp-footer" role="status" aria-label={t("Working…")} aria-live="polite" aria-atomic="true" data-temporary="true">
-			<span className="temp-cost">{t("Consumed ✧ {cost}", { cost })}</span>
-			<span className="temp-divider" aria-hidden="true">|</span>
+			{cost !== undefined && (
+				<>
+					<span className="temp-cost">{t("Consumed ✧ {cost}", { cost })}</span>
+					<span className="temp-divider" aria-hidden="true">|</span>
+				</>
+			)}
 			<span className="temp-status">{status}</span>
 		</div>
 	);
@@ -517,7 +522,7 @@ function LineView({
 }: {
 	line: Line;
 	hiddenTool?: boolean;
-	tokenCost: string;
+	tokenCost?: string;
 	onRegenerate?(): void;
 } & Pick<Props, "onOpenOutput" | "resultAction">) {
 	const { t } = useI18n();
@@ -600,11 +605,13 @@ function LineView({
 
 export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
 	const { t, language } = useI18n();
+	const { isAdmin } = useWorkspace();
 	const scroller = useRef<HTMLDivElement>(null);
 	const pinned = useRef(true);
 	const [away, setAway] = useState(false);
 	const failed = state.pending.filter((item) => item.state === "failed");
-	const sending = state.pending.filter((item) => item.state === "sending");
+	// A queued message waits for the run to reach it, but the person sent it now, so it sits where it will land.
+	const sending = state.pending.filter((item) => item.state === "sending" || item.state === "queued");
 
 	const [elapsedSec, setElapsedSec] = useState(0);
 	const startRef = useRef(0);
@@ -682,7 +689,8 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 	const counted = (value: unknown): number => (value as { totalTokens?: number } | null)?.totalTokens ?? 0;
 	const own = Object.values(details?.usage?.models ?? {}).reduce<number>((sum, usage) => sum + counted(usage), 0);
 	const totalTokens = own + counted(details?.taskUsage);
-	const tokenCost = totalTokens > 0 ? (totalTokens / 1000).toFixed(2) : (Math.max(1.2, 1.2 + elapsedSec * 0.071)).toFixed(2);
+	// Usage is for admins, and shows only what the agent counted.
+	const tokenCost = isAdmin && totalTokens > 0 ? (totalTokens / 1000).toFixed(2) : undefined;
 
 	const progressText = [...new Set(Object.values(state.progress).filter(Boolean))].join(" ");
 	const activeTool = [...state.lines].reverse().find((l): l is Extract<Line, { role: "tool" }> => l.role === "tool" && l.state === "running");
@@ -764,10 +772,6 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 						const hasFinalResponse = getTurnHasFinalResponse(state.lines, index, state.live);
 						const isHiddenTool = line.role === "tool" && line.state !== "running" && hasFinalResponse && !isTurnExpanded;
 
-						const lineCost = totalTokens > 0
-							? (totalTokens / 1000).toFixed(2)
-							: (Math.max(1.2, line.role === "assistant" ? (line.text.length * 4) / 1000 + 0.5 : 1.2)).toFixed(2);
-
 						return (
 							<Fragment key={line.key}>
 								{isFirstAgent && (
@@ -785,7 +789,7 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 								<LineView
 									line={line}
 									hiddenTool={isHiddenTool}
-									tokenCost={lineCost}
+									tokenCost={tokenCost}
 									onOpenOutput={onOpenOutput}
 									onRegenerate={onRegenerate}
 									resultAction={resultAction}
@@ -796,6 +800,7 @@ export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", 
 					{sending.map((item) => (
 						<div key={item.requestId} className="line user sending">
 							<div className="bubble">{item.text}</div>
+							{item.state === "queued" && <p className="queued-note">{t("Queued")}</p>}
 						</div>
 					))}
 					{failed.map((item) => (

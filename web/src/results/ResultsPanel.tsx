@@ -8,6 +8,7 @@ import type { ConversationState } from "../conversation/reducer.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import type { SessionDetails } from "../lib/agent.ts";
 import { CopyButton, Dialog, Empty } from "../lib/ui.tsx";
+import { useWorkspace } from "../shell/workspace.ts";
 import { type Output, outputFilename } from "./outputs.ts";
 
 export type ResultsTab = "outputs" | "workflow" | "background" | "activity";
@@ -49,11 +50,12 @@ const TASK_STATUS: Record<string, string> = { working: "Running", done: "Done", 
 
 export function ResultsPanel({ agent = "sales", state, outputs, selected, tab, details, onTab, onSelect, onClose, resultAction, onStopTasks }: Props) {
 	const { t, language } = useI18n();
+	const { isAdmin } = useWorkspace();
 	const active = selected ?? outputs.at(-1);
 	const tools = state.lines.filter((line) => line.role === "tool");
 	const running = state.tasks.filter((task) => task.status === "working");
 	const activeFlow = state.flow ?? details?.flow;
-	const tokens = totalTokens(details);
+	const tokens = isAdmin ? totalTokens(details) : undefined;
 	const narrow = useMedia(`(max-width: ${RESULTS_BREAKPOINT - 1}px)`);
 	const [expanded, setExpanded] = useState(false);
 	const [width, setWidth] = useState(440);

@@ -1,9 +1,9 @@
-import { ArrowUp, CircleAlert, Clock, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, CircleAlert, Paperclip, Square, X } from "lucide-react";
 import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import type { PromptInput } from "../lib/agent.ts";
 import { load, save } from "../lib/storage.ts";
-import type { ComposerMode, Pending } from "./reducer.ts";
+import type { ComposerMode } from "./reducer.ts";
 
 const MAX_IMAGE_BYTES = 8 << 20;
 
@@ -17,7 +17,6 @@ export type ComposerProps = {
 	canAddToRun?: boolean;
 	inCall?: boolean;
 	placeholder: string;
-	queued?: Pending[];
 	autoFocus?: boolean;
 	suggestion?: { text: string; id: number };
 	toolbar?: ReactNode;
@@ -41,7 +40,7 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, queued = [], autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
@@ -140,16 +139,6 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 
 	return (
 		<div className="composer">
-			{queued.length > 0 && (
-				<ul className="queued" aria-label={t("Queued")}>
-					{queued.map((item) => (
-						<li key={item.requestId}>
-							<Clock size={13} aria-hidden="true" />
-							{t("Queued")}: {item.text}
-						</li>
-					))}
-				</ul>
-			)}
 			{submitting && <p className="composer-status" role="status">{t("Sending…")}</p>}
 			{status !== "" && (
 				<p className="composer-status" role="status">

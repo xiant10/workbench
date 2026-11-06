@@ -6,7 +6,7 @@ export type ProgressEvent = { type: "progress"; submissionIds: number[]; phase: 
 export type AgentEvent =
 	| ProgressEvent
 	| { type: "snapshot"; busy: boolean; inbox: { id: number; mode: string }[]; tasks: BackgroundTask[]; flow?: FlowRunTrace; progress?: ProgressEvent; partial?: { turnId?: string; messageId: string; text: string } }
-	| { type: "run.started" | "run.finished"; submissionIds: number[] }
+	| { type: "run.started" | "run.finished"; submissionIds: number[]; turnId?: string }
 	| { type: "text.delta"; text: string; offset?: number; messageId?: string; turnId?: string }
 	| { type: "thinking.delta"; text: string }
 	| { type: "message.end"; text: string; stopReason: string; error?: string; source?: string; messageId?: string; turnId?: string }

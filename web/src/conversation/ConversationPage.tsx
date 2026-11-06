@@ -86,7 +86,6 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const info = useQuery({ queryKey: ["session", sessionId, state.settled], queryFn: details, enabled: state.status === "open", retry: false });
 	const outputs = useMemo(() => state.lines.flatMap((line) => (line.role === "assistant" ? outputsOf(line.key, line.text) : [])), [state.lines]);
 	const mode = signedOut ? "signed-out" : composerMode(state, now);
-	const queued = state.pending.filter((item) => item.state === "queued");
 	const stalled = state.pending.find((item) => item.state === "sending");
 	const title = session?.metadata?.title ?? t("New conversation");
 	const activeFlow = state.flow ?? info.data?.flow;
@@ -202,7 +201,6 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						inCall={inCall}
 						canAddToRun={supports(session, "steer")}
 						placeholder={!state.busy ? t("Ask your agent") : supports(session, "steer") ? t("Add to this run…") : t("Wait for this run to finish")}
-						queued={queued}
 						autoFocus
 						onSend={(input, text, images) => void send(input, text, images, state.busy).then(refresh)}
 						onStop={() => void stop()}

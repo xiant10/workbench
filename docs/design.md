@@ -116,8 +116,8 @@ The workbench takes its layout from WorkBuddy, its progress and steering from Cl
 |   Travel plan    | (Queued: use the EU account)        | +-------------------+ |
 |                  | +---------------------------------+ |                       |
 |------------------| | Add to this run...              | |                       |
-| Your name        | | Attach · Voice · Profile   Stop | | Usage for this        |
-| Tenant, settings | +---------------------------------+ | conversation          |
+| Your name        | | Attach · Voice · Profile   Stop | | Usage, admins only    |
+| Tenant, settings | +---------------------------------+ |                       |
 +------------------+-------------------------------------+-----------------------+
 ```
 
@@ -613,7 +613,7 @@ The backend gets Go tests. The browser flows run in Playwright against Compose, 
 | A reply can carry remote images or links | Injected content could leak conversation data through an image URL | Block remote images in the content security policy, and confirm before opening external links |
 | `agent-pi` changes touch durable storage | A bad migration would risk every conversation | Keep changes additive, and rerun the mock comparison scripts |
 | Browser voice is unproven | Echo, device permissions and mobile browsers may differ from the Mac client | Test with real people before M3 ends |
-| Long runs cost money with no client limit | A stuck run could spend for hours under its grant | Show usage per conversation. New-tenant quotas remain open in the auth design |
+| Long runs cost money with no client limit | A stuck run could spend for hours under its grant | Show tenant admins usage per conversation; members don't see it. New-tenant quotas remain open in the auth design |
 | Sign-in is pre-review | Registration stays invitation-only | Launch to invited tenants only, until the external review is done |
 
 ## Open questions

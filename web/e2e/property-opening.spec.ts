@@ -1,0 +1,23 @@
+import {expect,test} from '@playwright/test';
+import {xlsx} from './property-xlsx.ts';
+const headers=['房号','收费项目','金额','账单所属期','应缴到期日'];
+test('historical balances validate atomically and enter the opening cohort after confirmation',async({page})=>{
+ await page.goto('/');await page.locator('#name').fill('property-finance');await page.locator('#password').fill('t10-sample-password');await page.locator('#password').press('Enter');await page.waitForURL(/\/t\//);
+ const charge='Synthetic opening '+Date.now();const setup=await page.evaluate(async(charge)=>{const r=await fetch('/api/modules/property/charge',{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({name:charge,basis:'fixed',price_fen:'100'})});if(!r.ok)throw new Error('charge '+r.status);return(await fetch('/api/modules/property/opening-imports/setup')).json()},charge);
+ const cutoff:string=setup.cutoff??new Date().toISOString().slice(0,7)+'-01';const boundary=new Date(cutoff+'T00:00:00Z');
+ const month=(back:number)=>{const date=new Date(boundary);date.setUTCMonth(date.getUTCMonth()-back);return date.toISOString().slice(0,7)};
+ const due=(back:number)=>{const date=new Date(boundary);date.setUTCMonth(date.getUTCMonth()-back+1);date.setUTCDate(0);return date.toISOString().slice(0,10)};
+ const before=await page.evaluate(async(period)=>{const r=await fetch('/api/modules/property/reports/finance?'+new URLSearchParams({period}));if(!r.ok)throw new Error('report '+r.status);return r.json()},cutoff.slice(0,7));
+ const count=async()=>page.evaluate(async()=>(await(await fetch('/api/modules/property/opening-imports')).json()).imports.length);
+ const original=await count();await page.goto('/t/ten_sample-acme/property');await page.getByRole('tab',{name:'Opening balances'}).click();if(!setup.cutoff)await page.getByLabel('Opening cutoff').fill(cutoff);else await expect(page.getByLabel('Opening cutoff')).toHaveValue(cutoff);
+ const upload=async(rows:string[][])=>{await page.getByLabel('Opening balance workbook').setInputFiles({name:'opening.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:xlsx(rows,headers)});await page.getByRole('button',{name:'Validate opening balances'}).click()};
+ await upload([['A-101',charge,'41.07',month(1),due(1)],['not-a-room',charge,'23.11',month(2),due(2)]]);await expect(page.getByText('Nothing was staged.',{exact:false})).toBeVisible();await expect(page.getByText('Row 3:',{exact:false})).toBeVisible();expect(await count()).toBe(original);
+ await upload([['A-101',charge,'41.07',month(1),due(1)],['A-101',charge,'23.11',month(2),due(2)]]);await expect(page.getByRole('heading',{name:'Opening balance preview'})).toBeVisible();await expect(page.getByText('No ledger changes yet',{exact:false})).toBeVisible();
+ const id=await page.getByLabel('Saved opening import').inputValue();const preview=await page.evaluate(async(id)=>(await(await fetch('/api/modules/property/opening-imports/'+id)).json()),id);expect(preview.confirmed_at).toBeNull();expect(preview.rows.every((r:{bill_id:string})=>!r.bill_id)).toBe(true);
+ await page.getByRole('button',{name:'Review opening import'}).click();await page.getByRole('button',{name:'Confirm opening import',exact:true}).click();await expect(page.getByText(`cutoff ${cutoff} · Imported`,{exact:false})).toBeVisible();
+ const result=await page.evaluate(async({id,period})=>{const batch=await(await fetch('/api/modules/property/opening-imports/'+id)).json();const report=await(await fetch('/api/modules/property/reports/finance?'+new URLSearchParams({period}))).json();return{batch,report}},{id,period:cutoff.slice(0,7)});
+ expect(result.batch.rows).toHaveLength(2);expect(result.batch.rows.every((r:{bill_id:string})=>r.bill_id.startsWith('opening_bill_'))).toBe(true);expect(result.report.totals.opening_arrears_fen).toBe(before.totals.opening_arrears_fen+6418);expect(result.report.totals.issued_fen).toBe(before.totals.issued_fen);
+ await page.getByRole('heading',{name:'Opening balance preview'}).scrollIntoViewIfNeeded();await page.screenshot({path:'test-results/property-opening-import.png',fullPage:true});
+ await upload([['A-101',charge,'41.08',month(1),due(1)],['A-101',charge,'1.00',month(3),due(3)]]);await expect(page.getByText('An existing bill overlaps',{exact:false})).toBeVisible();expect(await count()).toBe(original+1);
+ await page.context().clearCookies();await page.goto('/');await page.locator('#name').fill('sample-acme-admin');await page.locator('#password').fill('t10-sample-password');await page.locator('#password').press('Enter');await page.waitForURL(/\/t\//);expect(await page.evaluate(async()=>(await fetch('/api/modules/property/opening-imports')).status)).toBe(403);
+});

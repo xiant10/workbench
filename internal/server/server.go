@@ -74,7 +74,7 @@ func (s *Server) Handler() http.Handler {
 	handle("GET /api/me", s.user(s.handleMe))
 	handle("POST /api/voice/admission", s.sameOrigin(s.user(s.handleAdmission)))
 	agent := s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
-		s.Proxy.Agent(w, r, r.PathValue("agent"), id.Access)
+		s.Proxy.Agent(w, r, r.PathValue("agent"), id.Access, func() bool { return s.isTenantAdmin(r, id) })
 	}))
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		handle(method+" /api/agents/{agent}/agent", agent)
@@ -242,6 +242,30 @@ func (s *Server) meAccess(r *http.Request, id session.Identity) meAccess {
 		return meAccess{}
 	}
 	return access
+}
+
+// isTenantAdmin decides whether token usage is shown, so any failure hides it.
+func (s *Server) isTenantAdmin(r *http.Request, id session.Identity) bool {
+	status, body, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me", id.Access, nil)
+	if err != nil || status != http.StatusOK {
+		return false
+	}
+	var me struct {
+		ActiveTenant string `json:"active_tenant"`
+		Tenants      []struct {
+			ID   string `json:"id"`
+			Role string `json:"role"`
+		} `json:"tenants"`
+	}
+	if json.Unmarshal(body, &me) != nil {
+		return false
+	}
+	for _, tenant := range me.Tenants {
+		if tenant.ID == me.ActiveTenant {
+			return tenant.Role == "admin"
+		}
+	}
+	return false
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, id session.Identity) {

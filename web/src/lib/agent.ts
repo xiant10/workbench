@@ -1,4 +1,5 @@
 import { newTurnId, rpc } from "./api.ts";
+import type { Pending } from "../conversation/reducer.ts";
 
 export type SessionInfo = {
 	sessionId: string;
@@ -202,9 +203,24 @@ export async function startConversation(
 	input: PromptInput,
 	title: string,
 	metadata: Record<string, string> = {},
+	text?: string,
 ): Promise<string> {
 	const { sessionId } = await rpc<{ sessionId: string }>(agent, "session.create", { profile, metadata: { ...metadata, title } });
 	const turnId = newTurnId();
-	await rpc(agent, "session.prompt", { input, requestId: crypto.randomUUID(), turnId, wait: false }, sessionId, turnId);
+	const requestId = crypto.randomUUID();
+	await rpc(agent, "session.prompt", { input, requestId, turnId, wait: false }, sessionId, turnId);
+	if (text !== undefined) firstPrompts.set(sessionId, { requestId, turnId, text, images: 0, input, state: "sending", sentAt: Date.now() });
 	return sessionId;
+}
+
+/**
+ * The prompt a conversation was started with, for the page that opens it. An agent may not have written the message to
+ * the transcript yet, and the page would show nothing until the reply began.
+ */
+const firstPrompts = new Map<string, Pending>();
+
+export function takeFirstPrompt(sessionId: string): Pending | undefined {
+	const pending = firstPrompts.get(sessionId);
+	firstPrompts.delete(sessionId);
+	return pending;
 }
