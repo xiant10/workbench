@@ -455,7 +455,10 @@ test.describe("due dates stay on the day that was picked", () => {
 			await page.getByLabel("Add a task").press("Enter");
 			await page.getByRole("link", { name: title }).click();
 			await page.getByLabel("Due").fill("2031-03-09");
+			// Reloading before the answer would cancel the save.
+			const saved = page.waitForResponse((response) => response.request().method() === "PATCH" && response.ok());
 			await page.getByRole("button", { name: "Save" }).click();
+			await saved;
 			await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
 			await page.reload();
 			await expect(page.getByLabel("Due")).toHaveValue("2031-03-09");
@@ -474,8 +477,11 @@ test.describe("due dates stay on the day that was picked", () => {
 			await expect(page.getByRole("link", { name: title })).toBeVisible();
 		}
 		const sinks = page.locator(".row").filter({ hasText: `Sinks ${run}` });
+		// Finished tasks leave the list, unless asked for.
 		await sinks.getByRole("button", { name: "Mark as done" }).click();
-		await expect(sinks.locator(".pill")).toHaveText("done");
+		await expect(sinks).toHaveCount(0);
+		await page.getByLabel("Show completed").check();
+		await expect(sinks.locator(".pill")).toHaveText("Done");
 		const titles = await page.locator(".row a").allTextContents();
 		expect(titles.indexOf(`Sinks ${run}`)).toBeGreaterThan(titles.indexOf(`Stays ${run}`));
 	});
@@ -488,7 +494,7 @@ test.describe("getting around", () => {
 		await startFromHome(page, "palette target");
 		await page.getByRole("link", { name: "Tasks" }).click();
 		await page.keyboard.press("ControlOrMeta+k");
-		await page.getByRole("combobox").fill("palette target");
+		await page.getByRole("combobox", { name: "Search conversations" }).fill("palette target");
 		await page.keyboard.press("Enter");
 		await page.waitForURL(/\/c\//);
 		await expect(page.locator(".conversation-head h1")).toHaveText("palette target");
@@ -538,10 +544,11 @@ test.describe("getting around", () => {
 		await page.getByLabel("Add a task").fill(title);
 		await page.getByLabel("Add a task").press("Enter");
 		const row = page.locator(".row").filter({ hasText: title });
+		await page.getByLabel("Show completed").check();
 		await row.getByRole("button", { name: "Mark as done" }).click();
-		await expect(row.locator(".pill")).toHaveText("done");
+		await expect(row.locator(".pill")).toHaveText("Done");
 		await row.getByRole("button", { name: "Mark as to do" }).click();
-		await expect(row.locator(".pill")).toHaveText("todo");
+		await expect(row.locator(".pill")).toHaveText("To do");
 		await page.getByRole("link", { name: title }).click();
 		await page.getByRole("button", { name: "Delete", exact: true }).click();
 		await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
