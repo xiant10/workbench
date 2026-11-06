@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { CheckSquare, Inbox, ListTodo } from "lucide-react";
 import type { WorkbenchModule } from "../types.ts";
 import { eventLabel } from "./events.ts";
-import { HomeRows } from "./HomeRows.tsx";
+import { HomeRows, WaitingRows } from "./HomeRows.tsx";
 import { ListPage, ListsPage } from "./ListsPage.tsx";
 import { ManagerVisibility } from "./ManagerVisibility.tsx";
 import { SendDialog } from "./SendDialog.tsx";
@@ -27,6 +27,7 @@ export const collab: WorkbenchModule = {
 	eventLabel,
 	onNotifications: (client: QueryClient) => void client.invalidateQueries({ queryKey: ["offers"] }),
 	HomeRows,
+	WaitingRows,
 	// Who a manager sees follows the org tree, so it sits beside it.
 	admin: { joins: "organization", Settings: ManagerVisibility },
 	resultAction: { label: "Send as task", icon: Inbox, Dialog: SendDialog },

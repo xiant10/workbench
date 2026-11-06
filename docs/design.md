@@ -34,7 +34,7 @@ Building it changed four things from this design:
 | Design says | Built | Why |
 | --- | --- | --- |
 | The send form states one outcome, from `relation` | It states both outcomes, until `/v1/people` returns `relation`. The result shown is the service's | `relation` doesn't exist yet |
-| Sign-in names no tenant | Someone in several tenants types a tenant ID once | Redeeming a code needs a tenant for them, and their list needs a token. The auth service needs a small change to close this |
+| Sign-in names no tenant | Someone in several tenants picks one on the auth service's hosted page, before a code is issued. A link to a tenant skips that | See [`sign-in-and-landing.md`](../../auth-server/docs/sign-in-and-landing.md) |
 | Sign-out ends the session | It ends the workbench's session, and the page links to the hosted one | `/v1/signout` takes same-origin posts only, so Sign in afterwards won't ask for a password |
 | `cmd/workbench` embeds `web/dist` | `web/web.go` embeds it | Go can't embed a parent directory |
 
@@ -130,7 +130,7 @@ The composer is the emphasis because it carries the state of the work. Send beco
 | Screen | Contents |
 | --- | --- |
 | Sign-in | The auth service's hosted page, reached by redirect |
-| Home | Composer, then Needs you and Waiting on others. A new user sees starters from `skills.list`, and recent conversations |
+| Home | Composer, suggestions, then Needs you and Waiting on others, then recent conversations with finished ones first. See [`first-screen.md`](first-screen.md) |
 | Conversation | Transcript, activity lines, composer, results panel |
 | Live call | A call bar over the same conversation, with state, live caption, mute and end |
 | Search | Conversation titles first. Full-text search needs a transcript index, so it comes later |

@@ -78,14 +78,13 @@ type login struct {
 	State    string    `json:"state"`
 	Verifier string    `json:"verifier"`
 	Next     string    `json:"next"`
-	Tenant   string    `json:"tenant"`
 	Expires  time.Time `json:"expires"`
 }
 
 // Begin stores a new sign-in and returns the address to send the browser to.
 func (m *Manager) Begin(w http.ResponseWriter, next, tenant string) string {
 	l := login{
-		State: randomToken(), Verifier: randomToken(), Next: SafeNext(next), Tenant: tenant,
+		State: randomToken(), Verifier: randomToken(), Next: SafeNext(next),
 		Expires: time.Now().Add(loginLimit),
 	}
 	encoded, _ := json.Marshal(l)
@@ -99,13 +98,11 @@ func (m *Manager) Begin(w http.ResponseWriter, next, tenant string) string {
 		"state": {l.State}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])},
 		"code_challenge_method": {"S256"},
 	}
+	if tenant != "" {
+		query.Set("tenant", tenant)
+	}
 	return m.opts.AuthPublicURL + "/v1/authorize?" + query.Encode()
 }
-
-// TenantNeeded is returned by Complete with where the sign-in was heading.
-type TenantNeeded struct{ Next string }
-
-func (t TenantNeeded) Error() string { return "tenant required" }
 
 // Complete finishes the code flow, sets the session cookie, and returns the
 // path to go back to.
@@ -122,10 +119,7 @@ func (m *Manager) Complete(ctx context.Context, w http.ResponseWriter, r *http.R
 	if denied := q.Get("error"); denied != "" {
 		return "", fmt.Errorf("sign-in refused: %s", denied)
 	}
-	tokens, err := m.opts.Auth.Redeem(ctx, q.Get("code"), m.redirectURI(), l.Verifier, l.Tenant)
-	if errors.Is(err, ErrTenantRequired) {
-		return "", TenantNeeded{Next: l.Next}
-	}
+	tokens, err := m.opts.Auth.Redeem(ctx, q.Get("code"), m.redirectURI(), l.Verifier, "")
 	if err != nil {
 		return "", err
 	}

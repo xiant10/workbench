@@ -170,18 +170,17 @@ test.describe("M1: core conversations", () => {
 		await expect(composer(page)).toBeVisible();
 	});
 
-	test("a person in several tenants names one, then can switch", async ({ page }) => {
+	test("a person in several tenants picks one, then can switch", async ({ page }) => {
 		await page.goto("/");
 		await page.locator("#name").fill("sample-multi");
 		await page.locator("#password").fill(PASSWORD);
 		await page.locator("#password").press("Enter");
 		await expect(page.getByText("You belong to several tenants.")).toBeVisible();
-		await page.getByRole("textbox").fill("ten_sample-acme");
-		await page.getByRole("button", { name: "Continue" }).click();
+		await page.getByRole("link", { name: /Sample Acme/ }).click();
 		await expect(page).toHaveURL(/\/t\/ten_sample-acme\//);
 		await startFromHome(page, "only in acme");
 		await openAccount(page);
-		await page.getByLabel("Tenant").selectOption("ten_sample-globex");
+		await page.getByRole("button", { name: "Sample Globex" }).click();
 		await expect(page).toHaveURL(/\/t\/ten_sample-globex\//);
 		await expect(page.locator(".session").filter({ hasText: "only in acme" })).toHaveCount(0);
 	});

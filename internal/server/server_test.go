@@ -40,6 +40,21 @@ func (f *fakeSessions) Logout(context.Context, http.ResponseWriter, *http.Reques
 
 func newServer(t *testing.T, sessions *fakeSessions, upstream string) http.Handler {
 	t.Helper()
+	return newServerWithAuth(t, sessions, upstream, http.StatusServiceUnavailable, "", "")
+}
+
+// newServerWithAuth has /v1/me/access and /v1/me/homes answer with the given status and bodies.
+func newServerWithAuth(t *testing.T, sessions *fakeSessions, upstream string, status int, access, homes string) http.Handler {
+	t.Helper()
+	auth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		if r.URL.Path == "/v1/me/homes" {
+			_, _ = w.Write([]byte(homes))
+			return
+		}
+		_, _ = w.Write([]byte(access))
+	}))
+	t.Cleanup(auth.Close)
 	cfg := config.Config{
 		PublicURL: "http://127.0.0.1:8083", AuthPublicURL: "http://localhost:8081",
 		LiveKitURL: "ws://localhost:8890", Profiles: []string{"chat"},
@@ -54,7 +69,7 @@ func newServer(t *testing.T, sessions *fakeSessions, upstream string) http.Handl
 		agents = []config.Agent{{Name: "assistant", URL: parsed}}
 	}
 	return New(Deps{
-		Config: cfg, Sessions: sessions, Proxy: proxy.New(agents, nil, nil),
+		Config: cfg, Sessions: sessions, Proxy: proxy.New(agents, nil, nil), Auth: &session.AuthClient{URL: auth.URL, HTTP: auth.Client()},
 		Web: fstest.MapFS{
 			"index.html":    {Data: []byte("<html>app</html>")},
 			"assets/app.js": {Data: []byte("console.log(1)")},
@@ -143,7 +158,6 @@ func TestCallbackOutcomes(t *testing.T) {
 		want string
 	}{
 		"ok":       {nil, "/t/ten_a/"},
-		"tenant":   {session.TenantNeeded{Next: "/x"}, "/choose-tenant?next=%2Fx"},
 		"mfa":      {session.ErrMFARequired, "/signed-out?reason=mfa"},
 		"denied":   {session.ErrTenantDenied, "/signed-out?reason=no_access"},
 		"anything": {errors.New("boom"), "/signed-out?reason=failed"},
@@ -157,6 +171,29 @@ func TestCallbackOutcomes(t *testing.T) {
 	}
 }
 
+func TestConfigPassesOnAccess(t *testing.T) {
+	get := func(status int, access, homes string) string {
+		h := newServerWithAuth(t, &fakeSessions{}, "", status, access, homes)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", "/api/config", nil))
+		return w.Body.String()
+	}
+	member := get(http.StatusOK, `{"modules":[],"module_admin":[]}`, `{"account":{"url":"x"}}`)
+	if !strings.Contains(member, `"access":{"module_admin":[],"modules":[]}`) || strings.Contains(member, "console_url") {
+		t.Errorf("member = %s", member)
+	}
+	holder := get(http.StatusOK, `{"modules":["property"],"module_admin":["property"]}`, `{"console":{"url":"http://console.test"}}`)
+	if !strings.Contains(holder, `"modules":["property"]`) || !strings.Contains(holder, `"console_url":"http://console.test"`) {
+		t.Errorf("holder = %s", holder)
+	}
+	// No answer, or one from before business roles, isn't the same as holding no role.
+	for name, body := range map[string]string{"down": get(http.StatusServiceUnavailable, "", ""), "older": get(http.StatusOK, `{"platform_admin":false}`, `{}`)} {
+		if strings.Contains(body, `"access"`) || strings.Contains(body, "console_url") {
+			t.Errorf("%s = %s", name, body)
+		}
+	}
+}
+
 func TestConfigHidesReplicas(t *testing.T) {
 	h := newServer(t, &fakeSessions{}, "")
 	w := httptest.NewRecorder()
@@ -164,5 +201,13 @@ func TestConfigHidesReplicas(t *testing.T) {
 	body := w.Body.String()
 	if !strings.Contains(body, `"agents":["assistant"]`) || !strings.Contains(body, `"voice":true`) || !strings.Contains(body, `"modules":[]`) {
 		t.Errorf("config = %s", body)
+	}
+}
+
+func TestTenantIn(t *testing.T) {
+	for path, want := range map[string]string{"/t/ten_a/tasks": "ten_a", "/t/ten_a": "ten_a", "/": "", "": "", "/admin": "", "/t/": ""} {
+		if got := tenantIn(path); got != want {
+			t.Errorf("tenantIn(%q) = %q, want %q", path, got, want)
+		}
 	}
 }

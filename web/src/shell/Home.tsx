@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { CalendarDays, FileText, type LucideIcon, Mail, MessageSquare, PartyPopper, Search } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -8,12 +8,12 @@ import { type SessionInfo, startConversation, titleOf } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load } from "../lib/storage.ts";
 import { useModules, useResultAction } from "../modules/index.tsx";
+import { Setup } from "./Setup.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
 
 const FINISHED_WINDOW_MS = 7 * 86_400_000;
-const RECENT = 4;
 /** Finished conversations can run to dozens, which would push everything else off the page. */
-const FINISHED_SHOWN = 3;
+const RECENT = 4;
 
 const STARTERS: { icon: LucideIcon; label: string; prompt: string }[] = [
 	{ icon: FileText, label: "Summarize a document", prompt: "Summarize this document and list the key points:\n\n" },
@@ -40,7 +40,7 @@ function greeting(): string {
 
 export function Home() {
 	const { t, ago, describe } = useI18n();
-	const { agent, agents, setAgent, profile, me, path, signedOut } = useWorkspace();
+	const { agent, agents, setAgent, profile, me, path, signedOut, isAdmin } = useWorkspace();
 	const modules = useModules();
 	const resultAction = useResultAction();
 	const navigate = useNavigate();
@@ -48,8 +48,6 @@ export function Home() {
 	const sessions = useSessions();
 	const [taskFrom, setTaskFrom] = useState<string>();
 	const [suggestion, setSuggestion] = useState<{ text: string; id: number }>();
-	const [showAll, setShowAll] = useState(false);
-	const skills = useQuery({ queryKey: ["skills", agent], queryFn: () => rpc<{ skills: { name: string; description: string }[] }>(agent, "skills.list"), staleTime: 300_000 });
 	const start = useMutation({
 		mutationFn: ({ input, text }: { input: Parameters<typeof startConversation>[2]; text: string }) => startConversation(agent, profile, input, titleOf(text)),
 		onSuccess: (sessionId) => {
@@ -66,7 +64,9 @@ export function Home() {
 	});
 	const done = finished(sessions.data ?? []);
 	const firstRun = sessions.isSuccess && sessions.data?.length === 0;
-	const recent = [...(sessions.data ?? [])].sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, RECENT);
+	const finishedIds = new Set(done.map((session) => session.sessionId));
+	// What finished comes first: it's what a person hasn't seen yet.
+	const recent = [...(sessions.data ?? [])].sort((a, b) => Number(finishedIds.has(b.sessionId)) - Number(finishedIds.has(a.sessionId)) || b.lastActiveAt - a.lastActiveAt).slice(0, RECENT);
 	const firstName = displayName(me).split(/[\s@]/)[0] ?? "";
 	const applyStarter = (text: string) => setSuggestion((previous) => ({ text, id: (previous?.id ?? 0) + 1 }));
 
@@ -106,21 +106,7 @@ export function Home() {
 					</li>
 				))}
 			</ul>
-			{firstRun && (skills.data?.skills.length ?? 0) > 0 && (
-				<section>
-					<h2>{t("What can I do?")}</h2>
-					<ul className="rows">
-						{skills.data?.skills.map((skill) => (
-							<li key={skill.name} className="row">
-								<div className="row-main">
-									<span>{skill.name}</span>
-									<span className="quiet">{skill.description}</span>
-								</div>
-							</li>
-						))}
-					</ul>
-				</section>
-			)}
+			{isAdmin && <Setup />}
 			{(
 				<section className="always">
 					<h2>{t("Needs you")}</h2>
@@ -128,47 +114,36 @@ export function Home() {
 						{sessions.isPending && <li className="row" role="status">{t("Loading…")}</li>}
 						{sessions.isError && <li className="row" role="alert">{t("Couldn't load this. Try again.")} <button type="button" className="link" onClick={() => void sessions.refetch()}>{t("Retry")}</button></li>}
 						{modules.map(({ id, HomeRows }) => HomeRows !== undefined && <HomeRows key={id} />)}
-						{(showAll ? done : done.slice(0, FINISHED_SHOWN)).map((session) => (
-							<li key={session.sessionId} className="row">
-								<span className="row-icon ok">
-									<PartyPopper size={16} aria-hidden="true" />
-								</span>
-								<div className="row-main">
-									<Link to={path(`c/${session.sessionId}`)}>{t("Your agent finished {title}", { title: session.metadata?.title ?? t("New conversation") })}</Link>
-								</div>
-								{resultAction !== undefined && (
-									<div className="row-actions">
-										<button type="button" className="ghost" onClick={() => openTask.mutate(session)}>
-											<resultAction.icon size={15} aria-hidden="true" />
-											{t(resultAction.label)}
-										</button>
-									</div>
-								)}
-							</li>
-						))}
-						{!showAll && done.length > FINISHED_SHOWN && (
-							<li className="row more">
-								<button type="button" className="link" onClick={() => setShowAll(true)}>
-									{t("Show {n} more", { n: done.length - FINISHED_SHOWN })}
-								</button>
-							</li>
-						)}
+						{modules.map(({ id, WaitingRows }) => WaitingRows !== undefined && <WaitingRows key={`${id}-waiting`} />)}
 					</ul>
 				</section>
 			)}
 			{recent.length > 0 && (
 				<section>
 					<h2>{t("Pick up where you left off")}</h2>
-					<ul className="recent-grid">
-						{recent.map((session) => (
-							<li key={session.sessionId}>
-								<Link to={path(`c/${session.sessionId}`)} aria-label={session.metadata?.title ?? t("New conversation")}>
-									<MessageSquare size={15} aria-hidden="true" />
-									<span className="recent-title">{session.metadata?.title ?? t("New conversation")}</span>
-									<span className="quiet">{ago(session.lastActiveAt)}</span>
-								</Link>
-							</li>
-						))}
+					<ul className="rows">
+						{recent.map((session) => {
+							const isFinished = finishedIds.has(session.sessionId);
+							return (
+								<li key={session.sessionId} className="row">
+									<span className={isFinished ? "row-icon ok" : "row-icon"}>
+										{isFinished ? <PartyPopper size={16} aria-hidden="true" /> : <MessageSquare size={16} aria-hidden="true" />}
+									</span>
+									<div className="row-main">
+										<Link to={path(`c/${session.sessionId}`)}>{session.metadata?.title ?? t("New conversation")}</Link>
+										<span className="quiet">{isFinished ? t("Finished {when}", { when: ago(session.lastActiveAt) }) : ago(session.lastActiveAt)}</span>
+									</div>
+									{isFinished && resultAction !== undefined && (
+										<div className="row-actions">
+											<button type="button" className="ghost" onClick={() => openTask.mutate(session)}>
+												<resultAction.icon size={15} aria-hidden="true" />
+												{t(resultAction.label)}
+											</button>
+										</div>
+									)}
+								</li>
+							);
+						})}
 					</ul>
 				</section>
 			)}

@@ -1,14 +1,13 @@
 import { navigateOptions } from "../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, ShieldCheck, Sparkles, Square, Trash2, UserPlus, Users, Wand2 } from "lucide-react";
+import { Building2, History, KeyRound, LockKeyhole, type LucideIcon, Plus, ShieldCheck, Sparkles, Square, Trash2, UserPlus, Users } from "lucide-react";
 import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { CopyButton, Dialog, Empty, Setting, Skeleton, useFeedback } from "../lib/ui.tsx";
-import { useModules } from "../modules/index.tsx";
+import { adminsOf, ModuleGate, useModuleMenu, useModules } from "../modules/index.tsx";
 import type { AdminTab } from "../modules/types.ts";
 import { useWorkspace } from "../shell/workspace.ts";
-import { SkillsLibrary } from "../skills/SkillsPage.tsx";
 import { useFailure, useMemberName } from "./members.ts";
 import { MemberRoles, Roles } from "./RolesTab.tsx";
 import {
@@ -38,7 +37,6 @@ const TABS: Record<AdminTab, { label: string; icon: LucideIcon }> = {
 	organization: { label: "Organization", icon: Building2 },
 	roles: { label: "Roles", icon: ShieldCheck },
 	agents: { label: "Agents", icon: Sparkles },
-	skills: { label: "Skills", icon: Wand2 },
 	security: { label: "Security and policies", icon: LockKeyhole },
 };
 
@@ -48,18 +46,18 @@ const ACTIVITY = { label: "Activity", icon: History };
 export function AdminPage() {
 	const { t } = useI18n();
 	const { isAdmin } = useWorkspace();
-	const modules = useModules();
+	const modules = useModuleMenu();
 	const [params, setParams] = useSearchParams();
+	const ownTabs = modules.flatMap(({ module }) => adminsOf(module).flatMap((admin) => ("label" in admin ? [{ tabId: admin.id ?? module.id, moduleId: module.id, admin }] : [])));
 	// Built-in tabs, then one for each module with settings of its own, then the log.
 	const tabs: { id: string; label: string; icon: LucideIcon }[] = [
 		...Object.entries(TABS).map(([id, item]) => ({ id, ...item })),
-		...modules.flatMap((module) => (module.admin !== undefined && "label" in module.admin && !Object.hasOwn(TABS, module.id) ? [{ id: module.id, label: module.admin.label, icon: module.admin.icon }] : [])),
+		...ownTabs.filter(({ tabId }) => !Object.hasOwn(TABS, tabId)).map(({ tabId, admin }) => ({ id: tabId, label: admin.label, icon: admin.icon })),
 		{ id: "activity", ...ACTIVITY },
 	];
 	const asked = params.get("tab") ?? "";
 	const tab = tabs.some((item) => item.id === asked) ? asked : "people";
-	const found = modules.find((module) => module.id === tab)?.admin;
-	const own = found !== undefined && "label" in found ? found : undefined;
+	const own = ownTabs.find(({ tabId }) => tabId === tab);
 	if (!isAdmin) {
 		return (
 			<div className="page">
@@ -85,12 +83,13 @@ export function AdminPage() {
 			{tab === "organization" && <Organization />}
 			{tab === "roles" && <Roles />}
 			{tab === "agents" && <Agents />}
-			{tab === "skills" && <AdminSkills />}
 			{tab === "security" && <Security />}
 			{tab === "activity" && <Activity />}
 			{own !== undefined && (
 				<section className="admin-section always">
-					<own.Settings />
+					<ModuleGate key={own.tabId} id={own.moduleId}>
+						<own.admin.Settings />
+					</ModuleGate>
 				</section>
 			)}
 		</div>
@@ -393,11 +392,13 @@ function Organization() {
 
 /** The settings of modules that join a built-in tab, above the tab's own content. */
 function JoinedSettings({ tab }: { tab: AdminTab }) {
-	const joined = useModules().filter((module) => module.admin !== undefined && "joins" in module.admin && module.admin.joins === tab);
+	const joined = useModules().flatMap((module) => adminsOf(module).flatMap((admin) => ("joins" in admin && admin.joins === tab ? [{ id: module.id, admin }] : [])));
 	if (joined.length === 0) return null;
 	return (
 		<section className="admin-section always">
-			{joined.map(({ id, admin }) => admin !== undefined && <admin.Settings key={id} />)}
+			{joined.map(({ id, admin }) => (
+				<admin.Settings key={id} />
+			))}
 		</section>
 	);
 }
@@ -503,17 +504,6 @@ function Activity() {
 					</li>
 				))}
 			</ul>
-		</section>
-	);
-}
-
-/** The skills library, inside Administration; the same one as the Skills page. */
-function AdminSkills() {
-	const { agent: current } = useWorkspace();
-	const [agent, setAgent] = useState(current);
-	return (
-		<section className="admin-section always">
-			<SkillsLibrary agent={agent} onAgent={setAgent} />
 		</section>
 	);
 }

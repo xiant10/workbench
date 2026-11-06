@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
-import { ApiError, onSignedOut, postJSON, request } from "../lib/api.ts";
+import { ApiError, onModuleGone, onSignedOut, postJSON, request } from "../lib/api.ts";
 import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
@@ -15,11 +15,7 @@ import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
 import { Settings } from "./Settings.tsx";
 import { Sidebar, signOut } from "./Sidebar.tsx";
-import { type AppConfig, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
-import { ConnectorPage } from "../connectors/ConnectorPage.tsx";
-import { ConnectorsPage } from "../connectors/ConnectorsPage.tsx";
-import { SkillPage } from "../skills/SkillPage.tsx";
-import { SkillsPage } from "../skills/SkillsPage.tsx";
+import { configQuery, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
 
 const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me"), retry: false });
 
@@ -74,10 +70,10 @@ function Root({ page = "" }: { page?: string }) {
 /** Everything here happens in a tenant, and an account can belong to none, such as a platform admin's. */
 function NoTenantPage() {
 	const { t } = useI18n();
-	const config = useQuery({ queryKey: ["config"], queryFn: () => request<AppConfig>("/api/config"), retry: false, staleTime: Infinity });
+	const config = useQuery(configQuery);
 	return (
 		<CenterCard>
-			<p>{t("Your account isn't in any tenant yet. Ask a tenant admin for an invitation link.")}</p>
+			<p>{t(config.data?.console_url === undefined ? "Your account isn't in any tenant yet. Ask a tenant admin for an invitation link." : "You run the platform and aren't in a tenant. Open the platform console.")}</p>
 			{config.data?.console_url !== undefined && (
 				<a className="button primary wide" href={config.data.console_url}>
 					{t("Open the platform console")}
@@ -113,39 +109,12 @@ function SignedOutPage() {
 	);
 }
 
-/** The code flow can't say which tenant a person in several wants, and their list needs a token. */
-function ChooseTenantPage() {
-	const { t } = useI18n();
-	const [params] = useSearchParams();
-	const [tenant, setTenant] = useState("");
-	return (
-		<CenterCard>
-			<h1>{t("Which tenant?")}</h1>
-			<p className="quiet">{t("You belong to several tenants. Enter the ID of the one to open, such as ten_acme.")}</p>
-			{/* Script, not a form action: form-action would also apply to the redirect to the auth service. */}
-			<form
-				className="add-row"
-				onSubmit={(event) => {
-					event.preventDefault();
-					const query = new URLSearchParams({ next: params.get("next") ?? "/", tenant });
-					window.location.assign(`/auth/login?${query}`);
-				}}
-			>
-				<input required value={tenant} aria-label={t("Tenant")} onChange={(event) => setTenant(event.target.value)} />
-				<button type="submit" className="primary">
-					{t("Continue")}
-				</button>
-			</form>
-		</CenterCard>
-	);
-}
-
 function Shell() {
 	const { t } = useI18n();
 	const { tenant = "" } = useParams();
 	const location = useLocation();
 	const me = useMe();
-	const config = useQuery({ queryKey: ["config"], queryFn: () => request<AppConfig>("/api/config"), retry: false, staleTime: Infinity });
+	const config = useQuery(configQuery);
 	const [signedOut, setSignedOut] = useState(false);
 	const [drawer, setDrawer] = useState(false);
 	const menuButton = useRef<HTMLButtonElement>(null);
@@ -155,6 +124,8 @@ function Shell() {
 	const [collapsed, setCollapsed] = useState(load("sidebar") === "hidden");
 	const [searching, setSearching] = useState(false);
 	useEffect(() => onSignedOut(() => setSignedOut(true)), []);
+	const client = useQueryClient();
+	useEffect(() => onModuleGone(() => void client.invalidateQueries({ queryKey: configQuery.queryKey })), [client]);
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -231,7 +202,7 @@ function Shell() {
 			</main>
 		);
 	}
-	if (config.isError) return <LoadError retry={() => void config.refetch()} />;
+	if (config.isError && config.data === undefined) return <LoadError retry={() => void config.refetch()} />;
 	if (workspace === undefined) return <Splash />;
 	const hide = (hidden: boolean) => {
 		setCollapsed(hidden);
@@ -280,18 +251,12 @@ export function App() {
 		<Routes>
 			<Route path="/" element={<Root />} />
 			<Route path="/signed-out" element={<SignedOutPage />} />
-			<Route path="/choose-tenant" element={<ChooseTenantPage />} />
 			<Route path="/t/:tenant" element={<Shell />}>
 				<Route index element={<Home />} />
 				<Route path="c/:sessionId" element={<ConversationPage />} />
 				{moduleRoutes.map(({ path, element }) => (
 					<Route key={path} path={path} element={element} />
 				))}
-				<Route path="skills" element={<SkillsPage />} />
-				<Route path="skills/:agent/:name" element={<SkillPage />} />
-				<Route path="connectors" element={<ConnectorsPage />} />
-				<Route path="connectors/:id" element={<ConnectorPage />} />
-				<Route path="connections" element={<ConnectorsPage />} />
 				{/* The Workflows page became Skills, with each skill's workflow on its own tab. */}
 				<Route path="workflows" element={<Navigate to="../skills" replace />} />
 				<Route path="settings" element={<Settings />} />

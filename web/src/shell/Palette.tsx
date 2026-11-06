@@ -3,7 +3,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { Dialog } from "../lib/ui.tsx";
 import { useI18n } from "../lib/i18n.tsx";
-import { useModules } from "../modules/index.tsx";
+import { useModuleNav } from "../modules/index.tsx";
 import { setTheme, useTheme } from "./theme.ts";
 import { useSessions, useWorkspace } from "./workspace.ts";
 
@@ -17,7 +17,7 @@ type Entry = { key: string; label: string; icon: LucideIcon; hint?: string; run(
 export function Palette({ onClose }: { onClose(): void }) {
 	const { t, ago, language, setLanguage } = useI18n();
 	const { path } = useWorkspace();
-	const modules = useModules();
+	const nav = useModuleNav();
 	const navigate = useNavigate();
 	const theme = useTheme();
 	const sessions = useSessions();
@@ -31,7 +31,7 @@ export function Palette({ onClose }: { onClose(): void }) {
 		const actions: Entry[] = [
 			{ key: "new", label: t("New conversation"), icon: MessageSquarePlus, run: go("") },
 			{ key: "home", label: t("Home"), icon: HomeIcon, run: go("") },
-			...modules.flatMap((module) => module.nav.map((entry) => ({ key: entry.key, label: t(entry.label), icon: entry.icon, run: go(entry.to) }))),
+			...nav.map(({ entry }) => ({ key: entry.key, label: t(entry.label), icon: entry.icon, run: go(entry.to) })),
 			{ key: "settings", label: t("Settings"), icon: SettingsIcon, run: go("settings") },
 			{ key: "theme", label: t(dark ? "Switch to light theme" : "Switch to dark theme"), icon: dark ? Sun : Moon, run: () => setTheme(dark ? "light" : "dark") },
 			{ key: "language", label: language === "zh" ? "Switch to English" : "切换到简体中文", icon: Languages, run: () => setLanguage(language === "zh" ? "en" : "zh") },
@@ -42,7 +42,7 @@ export function Palette({ onClose }: { onClose(): void }) {
 		const needle = query.trim().toLowerCase();
 		const matches = (entry: Entry) => entry.label.toLowerCase().includes(needle);
 		return [...conversations.filter(matches).slice(0, needle === "" ? RECENT_CONVERSATIONS : MAX_CONVERSATIONS), ...actions.filter(matches)];
-	}, [ago, language, modules, navigate, path, query, sessions.data, setLanguage, t, theme]);
+	}, [ago, language, nav, navigate, path, query, sessions.data, setLanguage, t, theme]);
 
 	useEffect(() => setAt(0), [query]);
 	useEffect(() => {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -122,7 +123,7 @@ func TestUnknownModule(t *testing.T) {
 	}
 }
 
-func TestManifestsKeepOnlyModulesThatAnswerAndAreOn(t *testing.T) {
+func TestManifestsSeparateOffFromDown(t *testing.T) {
 	serve := func(id, body string, status int) *httptest.Server {
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/v1/module" || r.Header.Get("Authorization") != "Bearer token" {
@@ -140,9 +141,12 @@ func TestManifestsKeepOnlyModulesThatAnswerAndAreOn(t *testing.T) {
 		{Name: "down", URL: mustURL(t, serve("down", ``, 503).URL)},
 		{Name: "wrong", URL: mustURL(t, serve("wrong", `{"id":"other","api_version":1,"enabled":true}`, 200).URL)},
 	}
-	got := New(nil, modules, nil).Manifests(context.Background(), "token")
+	got, unavailable := New(nil, modules, nil).Manifests(context.Background(), "token")
 	if len(got) != 1 || got[0].ID != "collab" || got[0].APIVersion != 1 {
 		t.Errorf("manifests = %+v", got)
+	}
+	if !slices.Equal(unavailable, []string{"down", "wrong"}) {
+		t.Errorf("unavailable = %v", unavailable)
 	}
 }
 

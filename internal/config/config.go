@@ -45,9 +45,6 @@ type Config struct {
 	LiveKitURL string
 	// OTLPEndpoint is an OTLP/gRPC host:port. Empty turns telemetry off.
 	OTLPEndpoint string
-	// ConsoleURL is the platform console, which platform admins are offered.
-	// Empty leaves the link out.
-	ConsoleURL string
 }
 
 // Load reads and validates the configuration through getenv.
@@ -62,7 +59,6 @@ func Load(getenv func(string) string) (Config, error) {
 		ClientSecret:  getenv("AUTH_CLIENT_SECRET"),
 		LiveKitURL:    strings.TrimRight(getenv("LIVEKIT_URL"), "/"),
 		OTLPEndpoint:  getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
-		ConsoleURL:    strings.TrimRight(getenv("WORKBENCH_CONSOLE_URL"), "/"),
 	}
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = ":8083"

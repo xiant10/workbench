@@ -223,16 +223,15 @@ func TestWrongStateIsRefused(t *testing.T) {
 	}
 }
 
-func TestTenantRequiredKeepsWhereTheyWereGoing(t *testing.T) {
-	m := newManager(t, &fakeAuth{expires: 300, reject: `{"error":"invalid_request","error_description":"name a tenant: this user belongs to several"}`})
-	w := httptest.NewRecorder()
-	parsed, _ := url.Parse(m.Begin(w, "/t/ten_a/tasks", ""))
-	r := httptest.NewRequest("GET", "/auth/callback?code=c&state="+parsed.Query().Get("state"), nil)
-	r.AddCookie(w.Result().Cookies()[0])
-	_, err := m.Complete(context.Background(), httptest.NewRecorder(), r)
-	needed, ok := err.(TenantNeeded)
-	if !ok || needed.Next != "/t/ten_a/tasks" {
-		t.Fatalf("err = %v", err)
+func TestATenantInTheLinkGoesToTheAuthService(t *testing.T) {
+	m := newManager(t, &fakeAuth{expires: 300})
+	parsed, _ := url.Parse(m.Begin(httptest.NewRecorder(), "/t/ten_a/tasks", "ten_a"))
+	if got := parsed.Query().Get("tenant"); got != "ten_a" {
+		t.Errorf("tenant = %q", got)
+	}
+	parsed, _ = url.Parse(m.Begin(httptest.NewRecorder(), "/", ""))
+	if parsed.Query().Has("tenant") {
+		t.Errorf("named a tenant with none to name: %s", parsed)
 	}
 }
 

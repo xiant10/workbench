@@ -1,4 +1,4 @@
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
@@ -75,9 +75,9 @@ export function Settings() {
 					)}
 					{config.console_url !== undefined && (
 						<Setting title={t("Platform console")} hint={t("Every tenant, the agent fleet and model usage. For platform admins.")}>
-							<a className="button ghost" href={config.console_url} target="_blank" rel="noopener noreferrer">
+							<a className="button ghost" href={config.console_url}>
 								{t("Open")}
-								<ExternalLink size={14} aria-hidden="true" />
+								<ChevronRight size={14} aria-hidden="true" />
 							</a>
 						</Setting>
 					)}
@@ -88,7 +88,7 @@ export function Settings() {
 				<Setting title={t("Account security")} hint={t("Password, second factor and signed-in devices.")}>
 					<a className="button ghost" href={config.account_url} target="_blank" rel="noopener noreferrer">
 						{t("Open")}
-						<ExternalLink size={14} aria-hidden="true" />
+						<ChevronRight size={14} aria-hidden="true" />
 					</a>
 				</Setting>
 			</section>

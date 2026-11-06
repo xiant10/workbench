@@ -24,10 +24,19 @@ export function announceSignedOut(): void {
 	for (const listener of signedOutListeners) listener();
 }
 
+const moduleGoneListeners = new Set<Listener>();
+
+/** Called when the backend no longer lists a module this page thinks it has. */
+export function onModuleGone(listener: Listener): () => void {
+	moduleGoneListeners.add(listener);
+	return () => moduleGoneListeners.delete(listener);
+}
+
 async function failure(response: Response): Promise<ApiError> {
 	if (response.status === 401) announceSignedOut();
 	const body = (await response.json().catch(() => undefined)) as { error?: unknown; message?: string } | undefined;
 	const error = body?.error;
+	if (response.status === 404 && error === "unknown_module") for (const listener of moduleGoneListeners) listener();
 	// JSON-RPC errors nest; the sibling services' are flat.
 	if (typeof error === "object" && error !== null) {
 		const nested = error as { message?: string; data?: { code?: string } };

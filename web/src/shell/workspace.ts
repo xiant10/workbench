@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
-import { rpc } from "../lib/api.ts";
+import { request, rpc } from "../lib/api.ts";
 import { usePaged } from "../lib/paged.tsx";
 import type { AgentEntry, SessionInfo } from "../lib/agent.ts";
 
@@ -16,6 +16,10 @@ export type AppConfig = {
 	agents: string[];
 	profiles: string[];
 	modules: { id: string; api_version: number; features: string[] | null }[];
+	/** Modules listed for this deployment that gave no clear answer: down, as opposed to not deployed. */
+	unavailable_modules: string[];
+	/** What the auth service says this person's business roles reach, for what to show. Absent when it didn't say. */
+	access?: { modules: string[]; module_admin: string[] };
 	voice: boolean;
 	account_url: string;
 	/** The platform console, sent only to a platform admin. */
@@ -36,6 +40,9 @@ export type Workspace = {
 	/** Paths in this tenant. */
 	path(rest?: string): string;
 };
+
+/** Deployments and roles change under an open tab, so this refreshes. A failed refresh keeps what it had. */
+export const configQuery = { queryKey: ["config"], queryFn: () => request<AppConfig>("/api/config"), retry: false, staleTime: 60_000, refetchInterval: 300_000 };
 
 export const WorkspaceContext = createContext<Workspace | undefined>(undefined);
 

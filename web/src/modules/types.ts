@@ -14,6 +14,8 @@ export type ModuleNav = {
 	icon: LucideIcon;
 	/** Show the module's unread count beside this entry. */
 	unread?: boolean;
+	/** For tenant admins. The page still checks for itself. */
+	adminOnly?: boolean;
 };
 
 /** Something a person can do with an agent's reply, such as sending it to a teammate. */
@@ -24,13 +26,21 @@ export type ResultAction = {
 };
 
 /** Administration's own tabs that a module's settings can join. Activity is the auth service's log, so nothing joins it. */
-export type AdminTab = "people" | "organization" | "roles" | "agents" | "skills" | "security";
+export type AdminTab = "people" | "organization" | "roles" | "agents" | "security";
 
 /**
  * A module's settings in Administration, for tenant admins. `Settings` renders whole cards. A module with one or two
  * switches joins the built-in tab they belong with; one with more takes a tab of its own, after the built-in ones.
  */
-export type ModuleAdmin = { Settings: ComponentType } & ({ joins: AdminTab } | { label: string; icon: LucideIcon });
+export type ModuleAdmin = { Settings: ComponentType } & ({ joins: AdminTab } | { label: string; icon: LucideIcon; id?: string });
+
+/** Something a new tenant needs from its admin, shown on Home until it's done. `check` asks the module, so it can't drift from what's true. */
+export type SetupStep = {
+	key: string;
+	label: string;
+	to: string;
+	check(tenant: string): Promise<boolean>;
+};
 
 /**
  * Everything the shell knows about a business module. Only this object and the module's own folder know its routes,
@@ -41,6 +51,8 @@ export type WorkbenchModule = {
 	id: string;
 	/** The manifest's major version this code was written for. Any other hides the module. */
 	apiVersion: number;
+	/** "role" hides it from anyone holding no business role in it. Leave it out where every member has some use for it. Only a hint: the module still refuses. */
+	access?: "role";
 	routes: ModuleRoute[];
 	nav: ModuleNav[];
 	/** What a notification's event kind means to a reader. */
@@ -49,7 +61,10 @@ export type WorkbenchModule = {
 	onNotifications?(client: QueryClient): void;
 	/** Rows for Home's "Needs you" list. */
 	HomeRows?: ComponentType;
-	admin?: ModuleAdmin;
+	/** Rows for what this person is waiting on, after every module's `HomeRows`. */
+	WaitingRows?: ComponentType;
+	admin?: ModuleAdmin | ModuleAdmin[];
+	setup?: SetupStep[];
 	resultAction?: ResultAction;
 	/** A chip in a conversation's header, when the conversation came from this module. */
 	SessionChip?: ComponentType<{ session: SessionInfo }>;

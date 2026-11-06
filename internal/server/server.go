@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -130,16 +129,24 @@ func (s *Server) sameOrigin(next http.Handler) http.Handler {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	http.Redirect(w, r, s.Sessions.Begin(w, q.Get("next"), q.Get("tenant")), http.StatusFound)
+	next := r.URL.Query().Get("next")
+	http.Redirect(w, r, s.Sessions.Begin(w, next, tenantIn(next)), http.StatusFound)
+}
+
+// tenantIn reads the tenant from a path under /t/, so a link to one doesn't ask
+// which. The auth service checks it, and asks anyway if it isn't one of theirs.
+func tenantIn(path string) string {
+	rest, ok := strings.CutPrefix(path, "/t/")
+	if !ok {
+		return ""
+	}
+	tenant, _, _ := strings.Cut(rest, "/")
+	return tenant
 }
 
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	next, err := s.Sessions.Complete(r.Context(), w, r)
-	var needed session.TenantNeeded
 	switch {
-	case errors.As(err, &needed):
-		http.Redirect(w, r, "/choose-tenant?next="+url.QueryEscape(needed.Next), http.StatusFound)
 	case errors.Is(err, session.ErrMFARequired):
 		http.Redirect(w, r, "/signed-out?reason=mfa", http.StatusFound)
 	case errors.Is(err, session.ErrTenantDenied):
@@ -183,30 +190,58 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request, id session
 			agents = append(agents, agent.Name)
 		}
 	}
+	modules, unavailable := s.Proxy.Manifests(r.Context(), id.Access)
 	body := map[string]any{
-		"agents":      agents,
-		"profiles":    s.Config.Profiles,
-		"modules":     s.Proxy.Manifests(r.Context(), id.Access),
-		"voice":       s.Config.LiveKitURL != "",
-		"account_url": s.Config.AuthPublicURL + "/v1/account",
+		"agents":              agents,
+		"profiles":            s.Config.Profiles,
+		"modules":             modules,
+		"unavailable_modules": unavailable,
+		"voice":               s.Config.LiveKitURL != "",
+		"account_url":         s.Config.AuthPublicURL + "/v1/account",
 	}
-	if s.Config.ConsoleURL != "" && s.isPlatformAdmin(r, id) {
-		body["console_url"] = s.Config.ConsoleURL
+	if console := s.consoleURL(r, id); console != "" {
+		body["console_url"] = console
+	}
+	access := s.meAccess(r, id)
+	// Left out when unknown, so a client shows modules and lets each refuse.
+	if access.Modules != nil {
+		body["access"] = map[string]any{"modules": access.Modules, "module_admin": access.ModuleAdmin}
 	}
 	writeJSON(w, http.StatusOK, body)
 }
 
-// isPlatformAdmin decides only whether to show a link: the console asks the auth
-// service again itself. Any failure leaves the link out.
-func (s *Server) isPlatformAdmin(r *http.Request, id session.Identity) bool {
-	status, body, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me/access", id.Access, nil)
+// meAccess is what /v1/me/access says, for deciding only what to show: the console
+// and each module ask the auth service again themselves. Any failure returns nothing.
+type meAccess struct {
+	Modules     []string `json:"modules"`
+	ModuleAdmin []string `json:"module_admin"`
+}
+
+// consoleURL is the console's address, which the auth service gives only to a
+// platform admin. Any failure leaves the link out.
+func (s *Server) consoleURL(r *http.Request, id session.Identity) string {
+	status, body, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me/homes", id.Access, nil)
 	if err != nil || status != http.StatusOK {
-		return false
+		return ""
 	}
-	var access struct {
-		PlatformAdmin bool `json:"platform_admin"`
+	var homes struct {
+		Console struct {
+			URL string `json:"url"`
+		} `json:"console"`
 	}
-	return json.Unmarshal(body, &access) == nil && access.PlatformAdmin
+	if json.Unmarshal(body, &homes) != nil {
+		return ""
+	}
+	return homes.Console.URL
+}
+
+func (s *Server) meAccess(r *http.Request, id session.Identity) meAccess {
+	var access meAccess
+	status, body, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me/access", id.Access, nil)
+	if err != nil || status != http.StatusOK || json.Unmarshal(body, &access) != nil {
+		return meAccess{}
+	}
+	return access
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, id session.Identity) {

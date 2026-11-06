@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plug, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound, Wand2 } from "lucide-react";
+import { Archive, ArchiveRestore, Building2, Check, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
@@ -7,7 +7,7 @@ import type { SessionInfo } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
 import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
-import { useModules } from "../modules/index.tsx";
+import { useModuleNav } from "../modules/index.tsx";
 import type { WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
@@ -169,16 +169,15 @@ function Account() {
 			{(close) => (
 				<>
 					{me.tenants.length > 1 && (
-						<label>
-							{t("Tenant")}
-							<select value={tenant} onChange={(event) => void switchTenant(event.target.value)}>
-								{me.tenants.map((option) => (
-									<option key={option.id} value={option.id}>
-										{option.name}
-									</option>
-								))}
-							</select>
-						</label>
+						<>
+							{me.tenants.map((option) => (
+								<button key={option.id} type="button" aria-current={option.id === tenant ? "true" : undefined} onClick={() => (option.id === tenant ? close() : void switchTenant(option.id))}>
+									{option.id === tenant ? <Check size={15} aria-hidden="true" /> : <Building2 size={15} aria-hidden="true" />}
+									{option.name}
+								</button>
+							))}
+							<hr />
+						</>
 					)}
 					{agents.length > 1 && (
 						<label>
@@ -221,19 +220,19 @@ function Account() {
 						<SettingsIcon size={15} aria-hidden="true" />
 						{t("Settings")}
 					</Link>
-					<a href={config.account_url} target="_blank" rel="noopener noreferrer" onClick={close}>
-						<ShieldCheck size={15} aria-hidden="true" />
-						{t("Account security")}
-					</a>
 					{config.console_url !== undefined && (
-						<a href={config.console_url} target="_blank" rel="noopener noreferrer" onClick={close}>
+						<a href={config.console_url} onClick={close}>
 							<MonitorCog size={15} aria-hidden="true" />
 							{t("Platform console")}
 						</a>
 					)}
+					<a href={config.account_url} onClick={close}>
+						<ShieldCheck size={15} aria-hidden="true" />
+						{t("Account")}
+					</a>
 					<button type="button" onClick={() => void signOut(config.account_url)}>
 						<LogOut size={15} aria-hidden="true" />
-						{t("Sign out")}
+						{t("Sign out of Workbench")}
 					</button>
 				</>
 			)}
@@ -249,7 +248,7 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 	const [showArchived, setShowArchived] = useState(false);
 	const sessions = useSessions();
 	const archived = useSessions(true);
-	const modules = useModules();
+	const nav = useModuleNav();
 
 	const all = sessions.data ?? [];
 	const pinned = all.filter((session) => session.metadata?.pinned === true);
@@ -295,25 +294,13 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					<HomeIcon size={16} aria-hidden="true" />
 					{t("Home")}
 				</NavLink>
-				{modules.flatMap((module) =>
-					module.nav.map((entry) => (
-						<NavLink key={entry.key} className="nav-link" to={path(entry.to)} onClick={onClose}>
-							<entry.icon size={16} aria-hidden="true" />
-							{t(entry.label)}
-							{entry.unread === true && <UnreadBadge module={module} />}
-						</NavLink>
-					)),
-				)}
-				{isAdmin && (
-					<NavLink className="nav-link" to={path("skills")} onClick={onClose} data-testid="nav-skills">
-						<Wand2 size={16} aria-hidden="true" />
-						{t("Skills")}
+				{nav.map(({ module, entry, available }) => (
+					<NavLink key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} to={path(entry.to)} onClick={onClose} data-testid={`nav-${entry.key}`}>
+						<entry.icon size={16} aria-hidden="true" />
+						{t(entry.label)}
+						{available && entry.unread === true && <UnreadBadge module={module} />}
 					</NavLink>
-				)}
-				<NavLink className="nav-link" to={path("connectors")} onClick={onClose} data-testid="nav-connectors">
-					<Plug size={16} aria-hidden="true" />
-					{t("Connectors")}
-				</NavLink>
+				))}
 				{isAdmin && (
 					<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
 						<UsersRound size={16} aria-hidden="true" />

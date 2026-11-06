@@ -194,3 +194,10 @@ export function SkillsPage() {
 		</div>
 	);
 }
+
+/** The skills library, inside Administration; the same one as the Skills page. */
+export function AdminSkills() {
+	const { agent: current } = useWorkspace();
+	const [agent, setAgent] = useState(current);
+	return <SkillsLibrary agent={agent} onAgent={setAgent} />;
+}

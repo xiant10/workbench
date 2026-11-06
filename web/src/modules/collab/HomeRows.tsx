@@ -18,7 +18,6 @@ export function HomeRows() {
 	const pending = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "pending");
 	const assigned = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "assigned" && offer.to_user_id === me.user_id);
 	const declined = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "declined");
-	const waiting = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "pending");
 	const due = (Array.isArray(owned.data) ? owned.data : []).filter((item) => item.due_at !== null && dueDay(item.due_at) <= today() && (item.status === "todo" || item.status === "doing"));
 	return (
 		<>
@@ -61,11 +60,21 @@ export function HomeRows() {
 					<span className="quiet">{day(item.due_at as string)}</span>
 				</li>
 			))}
-			{waiting.length > 0 && (
-				<li className="rows-heading">
-					<h2>{t("Waiting on others")}</h2>
-				</li>
-			)}
+		</>
+	);
+}
+
+/** Offers this person sent that nobody has answered. They come last, under their own heading, after every module's rows. */
+export function WaitingRows() {
+	const { t } = useI18n();
+	const sent = useQuery({ queryKey: ["offers", "sent"], queryFn: () => listOffers("sent") });
+	const waiting = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "pending");
+	if (waiting.length === 0) return null;
+	return (
+		<>
+			<li className="rows-heading">
+				<h2>{t("Waiting on others")}</h2>
+			</li>
 			{waiting.map((offer) => (
 				<WaitingRow key={offer.id} offer={offer} />
 			))}

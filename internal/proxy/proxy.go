@@ -136,25 +136,31 @@ type Manifest struct {
 	Enabled    bool     `json:"enabled"`
 }
 
-// Manifests asks every module about itself, and returns those that answer and
-// are on for this person's tenant, in configured order. A module that can't
-// answer is left out, so that it can't stop the app from loading.
-func (p *Proxy) Manifests(ctx context.Context, token string) []Manifest {
+// Manifests asks every module about itself, in configured order. on holds those
+// that answered and are on for this person's tenant. unavailable holds the listed
+// IDs that gave no clear answer: they're deployed but down, which differs from
+// answering that they're off, so a client keeps their place. A module that can't
+// answer can't stop the app from loading.
+func (p *Proxy) Manifests(ctx context.Context, token string) (on []Manifest, unavailable []string) {
 	found := make([]*Manifest, len(p.modules))
 	var wg sync.WaitGroup
 	for i, module := range p.modules {
 		wg.Go(func() { found[i] = p.manifest(ctx, module, token) })
 	}
 	wg.Wait()
-	out := []Manifest{}
-	for _, m := range found {
-		if m != nil && m.Enabled {
-			out = append(out, *m)
+	on, unavailable = []Manifest{}, []string{}
+	for i, m := range found {
+		switch {
+		case m == nil:
+			unavailable = append(unavailable, p.modules[i].Name)
+		case m.Enabled:
+			on = append(on, *m)
 		}
 	}
-	return out
+	return on, unavailable
 }
 
+// manifest returns nil for anything but a clear answer from the module it asked.
 func (p *Proxy) manifest(ctx context.Context, module config.Agent, token string) *Manifest {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, module.URL.JoinPath("v1", "module").String(), nil)
 	if err != nil {

@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { AlarmClock } from "lucide-react";
 import type { WorkbenchModule } from "../types.ts";
 import { AutomationsPage } from "./AutomationsPage.tsx";
+import { HomeRows } from "./HomeRows.tsx";
 
 /** What a notification from an automation means to a reader. */
 const EVENTS: Record<string, string> = {
@@ -25,4 +26,5 @@ export const automations: WorkbenchModule = {
 		void client.invalidateQueries({ queryKey: ["automations"] });
 		void client.invalidateQueries({ queryKey: ["automation"] });
 	},
+	HomeRows,
 };
