@@ -38,7 +38,7 @@ A module is a folder plus one line in `modules/index.tsx`, and the shell needs n
 | Sidebar | 10 entries take 366px. At 1280×720 that leaves 123px for conversations, about three rows | Each entry takes another 36px. Two or three more entries and the list is gone on that screen |
 | Administration tabs | 9 tabs. At 1280 wide they already overflow, 958px in 931px, and scroll sideways | A settings-heavy module adds a tab |
 | JavaScript | One bundle, 1.19 MB (348 KB gzipped), with no code splitting. Module folders plus Skills and Connectors are 44% of the frontend source | Every person downloads it, deployed or not |
-| Translations | All strings live in the shared `lib/zh.ts`. Property's sampled headings aren't there, and its pages don't use `t()` | A module's text stays English in Chinese, or edits a shell file |
+| Translations | All strings live in the shared `lib/zh.ts`. Property's pages all use `t()`, and its own `i18n.test.ts` fails on a string that doesn't | A module's text stays English in Chinese, or edits a shell file |
 | Result action | `useResultAction()` takes the first module that offers one | A second module's action never shows |
 | Deploy config | Module resources sit in `base`, while `MODULE_URLS` and the catalog are per overlay. The base `MODULE_URLS` lists three modules and the local overlay replaces it with five | "Not deployed" means editing several places, and they can disagree |
 

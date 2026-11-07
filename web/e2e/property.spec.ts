@@ -5,7 +5,7 @@ async function login(page:Page,user:string){
  await page.locator("#password").fill("t10-sample-password");
  await page.locator("#password").press("Enter");
  await page.waitForURL(/\/t\//);
- await page.goto("/t/ten_sample-acme/property");
+ await page.goto("/t/ten_sample-acme/property/rooms");
 }
 test("steward browses only assigned rooms, searches and opens details",async({page})=>{
  await login(page,"property-steward");
@@ -21,7 +21,7 @@ test("steward browses only assigned rooms, searches and opens details",async({pa
  await expect(page.getByRole("button",{name:"A-101",exact:true})).toBeVisible();
  await page.locator(".property-page").evaluate(el=>{el.scrollTop=0});
  await page.screenshot({path:"/tmp/t10-property-steward.png",fullPage:true});
- await page.getByRole("tab",{name:"My access"}).click();
+ await page.getByRole("link",{name:"My access"}).click();
  await expect(page.getByText("Record collection contact",{exact:true})).toBeVisible();
  const result=await page.evaluate(async()=>{const r=await fetch('/api/modules/property/registry?building=building_b');return {status:r.status,body:await r.json()}});
  expect(result.status).toBe(200);expect(result.body.rooms).toEqual([]);expect(result.body.total).toBe(0);
@@ -38,7 +38,7 @@ test("finance receives an access explanation and cannot browse registry",async({
  await login(page,"property-finance");
  await expect(page.getByRole("heading",{name:"Registry access is not assigned"})).toBeVisible();
  expect(await page.evaluate(async()=>(await fetch('/api/modules/property/registry')).status)).toBe(403);
- await page.getByRole("tab",{name:"My access"}).click();
+ await page.getByRole("link",{name:"My access"}).click();
  await expect(page.getByText("Post settlements",{exact:true})).toBeVisible();
 });
 

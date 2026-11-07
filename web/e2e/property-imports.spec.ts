@@ -7,7 +7,7 @@ test('receipt workbook validates before posting and exact duplicates stay out of
   const call=async(path:string,body:unknown)=>{const r=await fetch('/api/modules/property/'+path,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});if(!r.ok)throw new Error(path+' '+r.status);return r.json()};
   const c=await call('charge',{name:marker,basis:'fixed',price_fen:String(amount)});const preview=await call('bill-preview',{account_id:'account_101',charge_id:c.id,period_start:'2026-11-01',period_end:'2026-11-30',due_on:'2026-11-01'});return call('bill',preview);
  },{marker,amount});
- await page.goto('/t/ten_sample-acme/property');await page.getByRole('tab',{name:'Receipt imports'}).click();
+ await page.goto('/t/ten_sample-acme/property');await page.getByRole('link',{name:'Receipt imports'}).click();
  const original=await page.evaluate(async()=> (await(await fetch('/api/modules/property/receipt-imports')).json()).imports.length);
  const stamp=new Date(Date.now()-86400000).toISOString().slice(0,19).replace('T',' ');
  await page.getByLabel('Receipt workbook').setInputFiles({name:'invalid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:xlsx([[stamp,yuan,'DEMO-101','transfer'],[stamp,'1.001','DEMO-101','cash']])});await page.getByRole('button',{name:'Validate and preview'}).click();await expect(page.getByText('Nothing was staged.',{exact:false})).toBeVisible();await expect(page.getByText('Row 3:',{exact:false})).toBeVisible();

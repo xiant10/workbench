@@ -29,6 +29,9 @@ const (
 	methodHeader = "Agent-Method"
 	turnHeader   = "X-Turn-ID"
 	traceHeader  = "traceparent"
+	// clientHeader tells a module which client a person is using, for its audit record.
+	clientHeader = "X-T10-Client"
+	clientName   = "workbench"
 	// maxBody matches the agent's maxBodyBytes, because images travel as base64.
 	maxBody = 16 << 20
 	// manifestTimeout keeps a slow module from holding up the app's first load.
@@ -199,6 +202,7 @@ func (p *Proxy) Module(w http.ResponseWriter, r *http.Request, id, path, token s
 		return
 	}
 	headers := pick(r.Header)
+	headers.Set(clientHeader, clientName)
 	telemetry.Inject(r.Context(), headers)
 	p.forward(w, r, p.modules[i].URL.JoinPath("v1", path), headers, token)
 }

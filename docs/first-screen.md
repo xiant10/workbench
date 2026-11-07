@@ -24,7 +24,7 @@ Signed in on the local cluster on Nov 6, at 1280×800.
 | --- | --- | --- |
 | Member, returning: `sample-member` | Agent box, four suggestions, "Needs you", recent conversations | "Needs you" showed three "Your agent finished" rows and "Show 27 more". Automations had a badge of 3, though this person has no automations |
 | New tenant admin: `sample-globex-admin` | The same, plus "What can I do?" | Nothing mentions inviting people or setting anything up. "What can I do?" shows text written for the model: "Use when the user asks about…" |
-| Someone whose job is one module, such as Property | The same as any member | Nothing about Property beyond its sidebar entry |
+| Someone whose job is one module, such as Property | The same as any member | Property's own rows in "Needs you", and its sidebar entry |
 | Platform admin: `sample-platform` | Console Fleet | Works. Two unreachable replicas showed partway down the pools list, and a long Evidence table full of load-test rows followed |
 
 Two things to read into those results:
