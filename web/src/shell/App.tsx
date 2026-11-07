@@ -10,7 +10,7 @@ import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { Dialog, Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
-import { moduleRoutes } from "../modules/index.tsx";
+import { ModuleRedirect, moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
 import { Settings } from "./Settings.tsx";
@@ -259,6 +259,7 @@ export function App() {
 				))}
 				{/* The Workflows page became Skills, with each skill's workflow on its own tab. */}
 				<Route path="workflows" element={<Navigate to="../skills" replace />} />
+				<Route path=":module/*" element={<ModuleRedirect />} />
 				<Route path="settings" element={<Settings />} />
 				<Route path="admin" element={<AdminPage />} />
 			</Route>

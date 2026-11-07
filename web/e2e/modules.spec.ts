@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Which modules a person sees: deployed, down, or held back by business roles. Everything under /api is mocked, so this
 // needs only the page. See docs/module-visibility.md.
-type Config = { modules?: (string | { id: string; api_version: number })[]; unavailable?: string[]; access?: { modules: string[]; module_admin: string[] } };
+type Config = { modules?: (string | { id: string; api_version: number; [key: string]: unknown })[]; unavailable?: string[]; access?: { modules: string[]; module_admin: string[] } };
 type State = Config & { role?: "member" | "admin"; asked: string[]; configFails?: boolean };
 
 const ALL = ["collab", "automations", "knowledge", "property", "agents"];
@@ -27,6 +27,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 			const listed = [...(state.modules ?? ALL).map((entry) => (typeof entry === "string" ? entry : entry.id)), ...(state.unavailable ?? [])];
 			if (!listed.includes(id)) return json({ error: "unknown_module", message: "that module isn't available here" }, 404);
 			if (pathname.endsWith("/notifications")) return json({ notifications: [], cursor: "" });
+			if (pathname === "/api/modules/deals/attention") return json({ open: 2, late: 1 });
 			if (pathname === "/api/modules/knowledge/bases") return json({ bases: [] });
 			if (pathname === "/api/modules/knowledge/admin/collections" || pathname === "/api/modules/knowledge/collections") return json({ collections: [] });
 			return json({ offers: [], items: [], people: [], units: [], approvals: [], automations: [], connectors: [], connections: [], skills: [], drafts: [], documents: [], project: { id: "p" }, scopes: [] });
@@ -224,5 +225,52 @@ test.describe("business roles", () => {
 		state.access = none;
 		await refresh(page);
 		await expect(entry(page, "Property")).toHaveCount(0);
+	});
+});
+
+// A module with its own app has no folder in this build: the shell works from its manifest.
+const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易", icon: "building" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: {} };
+
+test.describe("a module with its own app", () => {
+	test("a role holder gets a link out, and Home rows from its counts", async ({ page }) => {
+		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		await expect(page.getByTestId("nav-deals")).toHaveAttribute("href", "http://deals.test/t/ten_a/");
+		await expect(page.getByRole("link", { name: "Deals waiting: 3" })).toHaveAttribute("href", "http://deals.test/t/ten_a/queue");
+	});
+
+	test("someone with no role sees nothing of it, and a tenant admin does", async ({ page }) => {
+		await open(page, { modules: ["collab", deals], access: { modules: [], module_admin: [] }, asked: [] });
+		await expect(page.getByTestId("nav-tasks")).toBeVisible();
+		await expect(page.getByTestId("nav-deals")).toHaveCount(0);
+		await page.unrouteAll();
+		await open(page, { role: "admin", modules: ["collab", deals], access: { modules: [], module_admin: [] }, asked: [] });
+		await expect(page.getByTestId("nav-deals")).toBeVisible();
+	});
+
+	test("an old link goes to the same place in the app", async ({ page }) => {
+		await page.route("http://deals.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
+		await open(page, { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] }, "/t/ten_a/deals/records/7?x=1");
+		await page.waitForURL("http://deals.test/t/ten_a/records/7?x=1");
+	});
+
+	test("a link to a module nobody knows goes Home", async ({ page }) => {
+		await open(page, { modules: ["collab"], asked: [] }, "/t/ten_a/nothing/here");
+		await expect(page).toHaveURL(/\/t\/ten_a\/?$/);
+	});
+
+	test("it keeps its entry through an outage, once seen", async ({ page }) => {
+		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		await expect(page.getByTestId("nav-deals")).toBeVisible();
+		await page.unrouteAll();
+		await open(page, { modules: ["collab"], unavailable: ["deals"], access: { modules: ["deals"], module_admin: [] }, asked: [] });
+		await expect(page.getByTestId("nav-deals")).toBeVisible();
+	});
+
+	test("an address that isn't http or https gives no link", async ({ page }) => {
+		await open(page, { modules: ["collab", { ...deals, app: { ...deals.app, url: "javascript:alert(1)" } }], access: { modules: ["deals"], module_admin: [] }, asked: [] });
+		await expect(page.getByTestId("nav-tasks")).toBeVisible();
+		await expect(page.getByTestId("nav-deals")).toHaveCount(0);
 	});
 });

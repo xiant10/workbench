@@ -231,6 +231,11 @@ type Manifest struct {
 	APIVersion int      `json:"api_version"`
 	Features   []string `json:"features"`
 	Enabled    bool     `json:"enabled"`
+	// A module with its own web app says where it is and what to show for it. The
+	// client reads these, and this service only passes them on.
+	App       json.RawMessage `json:"app,omitempty"`
+	Attention json.RawMessage `json:"attention,omitempty"`
+	Events    json.RawMessage `json:"events,omitempty"`
 }
 
 // Manifests asks every module about itself, in configured order. on holds those

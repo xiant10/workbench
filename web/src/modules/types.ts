@@ -11,6 +11,8 @@ export type ModuleNav = {
 	/** English, like every string here. The shell translates it. */
 	label: string;
 	to: string;
+	/** Set for a module with its own app: the entry leaves the workbench, and `to` isn't used. */
+	href?: string;
 	icon: LucideIcon;
 	/** Show the module's unread count beside this entry. */
 	unread?: boolean;

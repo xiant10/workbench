@@ -7,6 +7,7 @@ import type { SessionInfo } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { save } from "../lib/storage.ts";
 import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
+import { appHref } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
 import type { WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
@@ -249,6 +250,7 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 	const sessions = useSessions();
 	const archived = useSessions(true);
 	const nav = useModuleNav();
+	const { tenant } = useWorkspace();
 
 	const all = sessions.data ?? [];
 	const pinned = all.filter((session) => session.metadata?.pinned === true);
@@ -294,7 +296,13 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					<HomeIcon size={16} aria-hidden="true" />
 					{t("Home")}
 				</NavLink>
-				{nav.map(({ module, entry, available }) => (
+				{nav.map(({ module, entry, available }) => entry.href !== undefined ? (
+					<a key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} href={appHref(entry.href, tenant)} data-testid={`nav-${entry.key}`}>
+						<entry.icon size={16} aria-hidden="true" />
+						{t(entry.label)}
+						{available && entry.unread === true && <UnreadBadge module={module} />}
+					</a>
+				) : (
 					<NavLink key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} to={path(entry.to)} onClick={onClose} data-testid={`nav-${entry.key}`}>
 						<entry.icon size={16} aria-hidden="true" />
 						{t(entry.label)}
