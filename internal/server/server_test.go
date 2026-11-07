@@ -16,11 +16,12 @@ import (
 )
 
 type fakeSessions struct {
-	identify error
-	complete error
-	next     string
-	switched string
-	loggedIn bool
+	identify  error
+	complete  error
+	next      string
+	switched  string
+	loggedOut bool
+	loggedIn  bool
 }
 
 func (f *fakeSessions) Begin(http.ResponseWriter, string, string) string {
@@ -36,7 +37,10 @@ func (f *fakeSessions) SwitchTenant(_ context.Context, _ *http.Request, tenant s
 	f.switched = tenant
 	return f.identify
 }
-func (f *fakeSessions) Logout(context.Context, http.ResponseWriter, *http.Request) error { return nil }
+func (f *fakeSessions) Logout(context.Context, http.ResponseWriter, *http.Request) error {
+	f.loggedOut = true
+	return nil
+}
 
 func newServer(t *testing.T, sessions *fakeSessions, upstream string) http.Handler {
 	t.Helper()

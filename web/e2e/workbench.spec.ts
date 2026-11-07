@@ -191,20 +191,16 @@ test.describe("M1: core conversations", () => {
 		await expect(page.getByText("You don't have access to that tenant.")).toBeVisible();
 	});
 
-	test("signs out, and says the hosted session stays", async ({ page }) => {
-		await signIn(page, "sample-globex-admin");
-		await openAccount(page);
-		await page.getByRole("button", { name: "Sign out" }).click();
-		await expect(page.getByText("You're still signed in to t10 on this browser")).toBeVisible();
-		await page.getByRole("radio", { name: "简体中文" }).click();
-		await expect(page.getByRole("link", { name: "退出 t10" })).toBeVisible();
-		await page.getByRole("radio", { name: "English" }).click();
-		expect((await page.request.get("/api/me")).status()).toBe(401);
-		await page.getByRole("link", { name: "Sign out of t10" }).click();
-		await page.locator("form[action='/v1/signout'] button").click();
-		await page.goto(`${BASE}/`);
-		await expect(page.locator("#password")).toBeVisible();
-	});
+	test("one sign-out ends Workbench and the hosted browser session", async ({ page }) => {
+  await signIn(page, "sample-globex-admin");
+  await openAccount(page);
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(`${BASE}/signed-out`);
+  await expect(page.getByText("You're signed out.", { exact: true })).toBeVisible();
+  expect((await page.request.get("/api/me")).status()).toBe(401);
+  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await expect(page.locator("#password")).toBeVisible();
+ });
 
 	test("Enter during IME composition doesn't send", async ({ page }) => {
 		await signIn(page, "sample-member");

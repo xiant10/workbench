@@ -1,4 +1,4 @@
-import { Home as HomeIcon, Languages, type LucideIcon, MessageSquare, MessageSquarePlus, Moon, Search, Settings as SettingsIcon, Sun } from "lucide-react";
+import { Home as HomeIcon, Languages, type LucideIcon, MessageSquare, MessageSquarePlus, Moon, Search, Settings as SettingsIcon, Sun, UserRound } from "lucide-react";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog } from "../lib/ui.tsx";
@@ -33,6 +33,7 @@ export function Palette({ onClose }: { onClose(): void }) {
 			{ key: "new", label: t("New conversation"), icon: MessageSquarePlus, run: go("") },
 			{ key: "home", label: t("Home"), icon: HomeIcon, run: go("") },
 			...nav.map(({ entry }) => ({ key: entry.key, label: t(entry.label), icon: entry.icon, run: entry.href === undefined ? go(entry.to) : () => window.location.assign(appHref(entry.href ?? "", tenant)) })),
+			{ key: "profile", label: t("Profile"), icon: UserRound, run: go("profile") },
 			{ key: "settings", label: t("Settings"), icon: SettingsIcon, run: go("settings") },
 			{ key: "theme", label: t(dark ? "Switch to light theme" : "Switch to dark theme"), icon: dark ? Sun : Moon, run: () => setTheme(dark ? "light" : "dark") },
 			{ key: "language", label: language === "zh" ? "Switch to English" : "切换到简体中文", icon: Languages, run: () => setLanguage(language === "zh" ? "en" : "zh") },

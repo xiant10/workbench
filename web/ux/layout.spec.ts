@@ -57,6 +57,8 @@ for (const width of [320, 1024]) test(`results fit at ${width}px and close with 
 	expect(await page.locator(".conversation-main").evaluate(e => e.getBoundingClientRect().width)).toBeGreaterThan(width === 320 ? 300 : 700);
 	await page.getByRole("tab", { name: "Outputs", exact: true }).focus();
 	await page.keyboard.press("ArrowRight");
+	await expect(page.getByRole("tab", { name: "Workflow", exact: true })).toHaveAttribute("aria-selected", "true");
+	await page.keyboard.press("ArrowRight");
 	await expect(page.getByRole("tab", { name: "Background work", exact: true })).toHaveAttribute("aria-selected", "true");
 	await page.keyboard.press("Escape");
 	await expect(page.getByRole("dialog")).toHaveCount(0); await expect(trigger).toBeFocused();

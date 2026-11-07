@@ -3,6 +3,33 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"Signing out…": "正在退出…",
+	"Your personal information and workspace membership.": "你的个人信息和工作空间成员身份。",
+	"One profile across your t10 apps.": "在各个 t10 应用间使用同一份个人资料。",
+	"Personal information": "个人信息",
+	"How you appear to people you work with.": "同事看到的你的个人信息。",
+	"Display name": "显示名称",
+	"Sign-in name": "登录名",
+	"User ID": "用户 ID",
+	"Copy user ID": "复制用户 ID",
+	"Not set": "未设置",
+	"Editing opens your t10 account. Changes apply across your apps.": "编辑将在 t10 账户页面中进行，更改会应用到各个应用。",
+	"Your access in the workspace you are using.": "你在当前工作空间中的访问权限。",
+	"Current workspace": "当前工作空间",
+	"Workspace roles are managed by your administrator.": "工作空间角色由管理员管理。",
+	"Account controls": "账户管理",
+	"Manage your password, second factor and signed-in devices in your t10 account.": "在 t10 账户中管理密码、双重验证和已登录的设备。",
+	"Manage security": "管理安全设置",
+	"Preferences": "偏好设置",
+	"Make Workbench feel right for you with appearance, language and notifications.": "调整外观、语言和通知，让工作台更适合你。",
+	"Customize Workbench": "自定义工作台",
+
+ "Profile": "个人资料",
+ "Edit profile": "编辑个人资料",
+ "Workspace": "工作空间",
+ "Your t10 account": "你的 t10 账户",
+ "Manage account": "管理账户",
+
 	"The test chat stopped working. Close it and open it again.": "测试对话出错了。请关闭后重新打开。",
 	"Ask what a user would ask": "像用户一样提问",
 	"Before publishing:": "发布前请处理：",
@@ -136,7 +163,6 @@ export const ZH: Record<string, string> = {
 	Settings: "设置",
 	Account: "账户",
 	"Sign out": "退出登录",
-	"Sign out of Workbench": "退出 Workbench",
 	"You run the platform and aren't in a tenant. Open the platform console.": "你负责运维平台，不属于任何租户。请打开平台控制台。",
 	"Sign in": "登录",
 	"Sign in again": "重新登录",
@@ -433,9 +459,7 @@ export const ZH: Record<string, string> = {
 
 	// Signing in
 	"You're signed out.": "你已退出登录。",
-	"Sign out of t10": "退出 t10",
-	"You're still signed in to t10 on this browser, so Sign in won't ask for a password. On a shared computer, sign out there too.":
-		"此浏览器仍保持 t10 登录状态，再次登录时不会要求输入密码。在共用电脑上，请同时在那里退出。",
+
 	"That tenant requires a second factor. Set one up, then sign in again.": "该租户要求第二重验证。请先设置，然后重新登录。",
 	"You don't have access to that tenant.": "你无权访问该租户。",
 	"Sign-in didn't finish. Try again.": "登录未完成，请重试。",

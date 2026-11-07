@@ -1,10 +1,11 @@
-import { ChevronRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { LanguageSwitch, Segmented, Setting } from "../lib/ui.tsx";
 import { useModules } from "../modules/index.tsx";
+import { AccountNav } from "./AccountNav.tsx";
 import { SHORTCUT } from "./Sidebar.tsx";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
 import { useWorkspace } from "./workspace.ts";
@@ -15,12 +16,14 @@ export function Settings() {
 	const modules = useModules();
 	const theme = useTheme();
 	const [notify, setNotify] = useState(load("notify") === "on");
-	const blocked = "Notification" in window && window.Notification.permission === "denied";
+	const supported = "Notification" in window;
+	const blocked = supported && window.Notification.permission === "denied";
 	return (
-		<div className="page settings">
+		<div className="page settings account-page">
 			<header className="page-head">
 				<h1>{t("Settings")}</h1>
 			</header>
+			<AccountNav />
 			<section className="card">
 				<h2>{t("Appearance")}</h2>
 				<Setting title={t("Language")}>
@@ -49,7 +52,7 @@ export function Settings() {
 								type="checkbox"
 								role="switch"
 								checked={notify}
-								disabled={blocked}
+								disabled={!supported || blocked}
 								onChange={async (event) => {
 									const wanted = event.target.checked;
 									if (wanted && (await window.Notification.requestPermission()) !== "granted") return;
@@ -86,9 +89,9 @@ export function Settings() {
 			<section className="card">
 				<h2>{t("Account")}</h2>
 				<Setting title={t("Account security")} hint={t("Password, second factor and signed-in devices.")}>
-					<a className="button ghost" href={config.account_url} target="_blank" rel="noopener noreferrer">
-						{t("Open")}
-						<ChevronRight size={14} aria-hidden="true" />
+					<a className="button ghost" href={config.account_url}>
+						{t("Manage account")}
+						<ArrowUpRight size={14} aria-hidden="true" />
 					</a>
 				</Setting>
 			</section>

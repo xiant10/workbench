@@ -43,7 +43,7 @@ type Config struct {
 	// LiveKitURL is empty when calls are off. It goes in the content security
 	// policy, because the browser connects to it directly.
 	LiveKitURL string
-	// OTLPEndpoint is an OTLP/gRPC host:port. Empty turns telemetry off.
+	// OTLPEndpoint is an OTLP/HTTP URL, such as http://collector:4318. Empty turns telemetry off.
 	OTLPEndpoint string
 }
 

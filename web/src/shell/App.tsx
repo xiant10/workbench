@@ -13,8 +13,10 @@ import { Dialog, Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
 import { ModuleRedirect, moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
+import { Profile } from "./Profile.tsx";
+import "./shell.css";
 import { Settings } from "./Settings.tsx";
-import { Sidebar, signOut } from "./Sidebar.tsx";
+import { Sidebar, SignOutButton } from "./Sidebar.tsx";
 import { configQuery, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
 
 const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me"), retry: false });
@@ -80,9 +82,7 @@ function NoTenantPage() {
 				</a>
 			)}
 			{config.data !== undefined && (
-				<button type="button" className="ghost wide" onClick={() => void signOut(config.data.account_url)}>
-					{t("Sign out")}
-				</button>
+				<SignOutButton className="ghost wide" />
 			)}
 		</CenterCard>
 	);
@@ -91,7 +91,6 @@ function NoTenantPage() {
 function SignedOutPage() {
 	const { t } = useI18n();
 	const [params] = useSearchParams();
-	const account = load("account_url");
 	const message = { mfa: "That tenant requires a second factor. Set one up, then sign in again.", no_access: "You don't have access to that tenant.", failed: "Sign-in didn't finish. Try again." }[params.get("reason") ?? ""];
 	return (
 		<CenterCard>
@@ -99,12 +98,7 @@ function SignedOutPage() {
 			<a className="button primary wide" href="/auth/login">
 				{t("Sign in")}
 			</a>
-			{account !== undefined && (
-				<div className="center-note">
-					<p className="quiet">{t("You're still signed in to t10 on this browser, so Sign in won't ask for a password. On a shared computer, sign out there too.")}</p>
-					<a href={account}>{t("Sign out of t10")}</a>
-				</div>
-			)}
+
 		</CenterCard>
 	);
 }
@@ -260,6 +254,7 @@ export function App() {
 				{/* The Workflows page became Skills, with each skill's workflow on its own tab. */}
 				<Route path="workflows" element={<Navigate to="../skills" replace />} />
 				<Route path=":module/*" element={<ModuleRedirect />} />
+				<Route path="profile" element={<Profile />} />
 				<Route path="settings" element={<Settings />} />
 				<Route path="admin" element={<AdminPage />} />
 			</Route>

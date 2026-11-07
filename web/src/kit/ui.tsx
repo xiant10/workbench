@@ -92,7 +92,7 @@ export function CopyButton({ text, label, className = "icon-button" }: { text: s
 	};
 	const Icon = copied ? Check : Copy;
 	return (
-		<button type="button" className={className} aria-label={t(copied ? "Copied" : "Copy")} onClick={() => void copy()}>
+		<button type="button" className={className} aria-label={t(copied ? "Copied" : (label ?? "Copy"))} onClick={() => void copy()}>
 			<Icon size={15} aria-hidden="true" />
 			{label !== undefined && t(copied ? "Copied" : label)}
 		</button>

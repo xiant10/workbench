@@ -218,7 +218,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .drawer-toggle { display: none; position: fixed; top: 0.6rem; left: 0.6rem; z-index: 12; background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-sm); padding: 0.4rem; }
 .shell.collapsed .drawer-toggle { display: inline-flex; }
 .shell.collapsed .sidebar { display: none; }
-.shell.collapsed .conversation-head { padding-left: 3.4rem; }
+.shell.collapsed .conversation-head { padding-left: 3.8rem; }
+.shell.collapsed .content > .page { padding-top: 4.5rem; }
 
 .sidebar { width: 272px; flex: none; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 0.55rem; padding: 0.7rem; height: 100%; }
 .brand { display: flex; align-items: center; justify-content: space-between; padding: 0.1rem 0.15rem 0.2rem; }

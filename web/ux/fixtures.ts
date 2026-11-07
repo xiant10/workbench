@@ -11,7 +11,7 @@ export async function mock(page: Page) {
 			result = { user_id: "u1", display_name: "Felix", active_tenant: "demo", tenants: [{ id: "demo", name: "Demo", role: "member" }] };
 		} else if (url.pathname === "/api/config") {
 			if (state.configFails) return fail();
-			result = { agents: ["assistant"], profiles: ["chat"], modules: [{ id: "collab", api_version: 1 }], voice: false, account_url: "/account" };
+			result = { agents: ["assistant"], profiles: ["chat"], modules: [{ id: "collab", api_version: 1 }], unavailable_modules: [], voice: false, account_url: "/account" };
 		} else if (url.pathname.includes("/agents/")) {
 			if (route.request().method() === "GET") return route.fulfill({ contentType: "text/event-stream", body: 'data: {"params":{"type":"snapshot","busy":false,"inbox":[],"tasks":[]}}\n\n' });
 			const body = route.request().postDataJSON();

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -77,7 +78,8 @@ func (s *Server) Handler() http.Handler {
 		s.Proxy.Agent(w, r, r.PathValue("agent"), id.Access, func() bool { return s.isTenantAdmin(r, id) })
 	}))
 	for _, method := range []string{"GET", "POST", "DELETE"} {
-		handle(method+" /api/agents/{agent}/agent", agent)
+		pattern := method + " /api/agents/{agent}/agent"
+		mux.Handle(pattern, telemetry.WrapTurn(pattern, agent))
 	}
 	handle("/api/modules/{module}/{path...}", s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
 		s.Proxy.Module(w, r, r.PathValue("module"), r.PathValue("path"), id.Access)
@@ -159,13 +161,30 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleLogout ends this client's session. The auth service's own browser
-// session stays, because its sign-out takes same-origin posts only.
+// handleLogout obtains an authorized browser sign-out before clearing the local
+// session. Auth failures remain retryable instead of claiming a complete sign-out.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	identity, err := s.Sessions.Identify(r.Context(), r)
+	if err != nil {
+		proxy.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "Couldn't finish signing out. Try again.")
+		return
+	}
+	status, body, err := s.Auth.Call(r.Context(), http.MethodPost, "/v1/me/browser-logout", identity.Access, map[string]string{
+		"client_id": s.Auth.ClientID, "return_to": s.Config.PublicURL + "/signed-out",
+	})
+	var result struct {
+		Ticket string `json:"ticket"`
+	}
+	if err != nil || status != http.StatusOK || json.Unmarshal(body, &result) != nil || result.Ticket == "" {
+		proxy.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "Couldn't finish signing out. Try again.")
+		return
+	}
 	if err := s.Sessions.Logout(r.Context(), w, r); err != nil {
 		slog.Warn("sign-out incomplete", "error", err)
 	}
-	w.WriteHeader(http.StatusNoContent)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"redirect": s.Config.AuthPublicURL + "/v1/signout/complete?ticket=" + url.QueryEscape(result.Ticket)})
 }
 
 func (s *Server) handleTenant(w http.ResponseWriter, r *http.Request) {

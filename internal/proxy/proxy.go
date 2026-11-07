@@ -102,12 +102,13 @@ func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token strin
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
-		if rpcMethod(body) == "session.get" {
+		method := rpcMethod(body)
+		if method == "session.get" {
 			// A harness may answer as a stream if asked, and that couldn't be filtered.
 			headers.Set("Accept", "application/json")
 			ctx = context.WithValue(ctx, usageGate{}, showUsage)
 		}
-		turnCtx, traceparent, end := telemetry.StartTurn(ctx, r.Header.Get(turnHeader))
+		turnCtx, traceparent, end := telemetry.StartTurn(ctx, r.Header.Get(turnHeader), r.Header.Get(sessionHeader), method)
 		defer end()
 		ctx = turnCtx
 		if traceparent != "" {

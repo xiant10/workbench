@@ -1,11 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Building2, Check, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, ShieldCheck, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, Building2, Check, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
 import type { SessionInfo } from "../lib/agent.ts";
 import { useI18n } from "../lib/i18n.tsx";
-import { save } from "../lib/storage.ts";
 import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { appHref } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
@@ -25,11 +24,22 @@ const WEEK_DAYS = 7;
 
 export const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
 
-export async function signOut(accountUrl: string): Promise<void> {
-	await postJSON("/auth/logout", {});
-	// Kept here rather than in the URL, so a crafted link can't put its own address on the page.
-	save("account_url", accountUrl);
-	window.location.assign("/signed-out");
+export async function signOut(): Promise<void> {
+ const result = await postJSON<{ redirect: string }>("/auth/logout", {});
+ window.location.assign(result.redirect);
+}
+
+export function SignOutButton({ className = "", icon = false }: { className?: string; icon?: boolean }) {
+ const { t, describe } = useI18n();
+ const { toast } = useFeedback();
+ const [busy, setBusy] = useState(false);
+ return <button type="button" className={className} disabled={busy} onClick={async () => {
+  setBusy(true);
+  try { await signOut(); } catch (error) { toast(describe(error instanceof Error ? error : new Error(String(error)))); setBusy(false); }
+ }}>
+  {icon && <LogOut size={15} aria-hidden="true" />}
+  {t(busy ? "Signing out…" : "Sign out")}
+ </button>;
 }
 
 /** Recent conversations by age, newest first. Groups with nothing in them are dropped. */
@@ -227,14 +237,11 @@ function Account() {
 							{t("Platform console")}
 						</a>
 					)}
-					<a href={config.account_url} onClick={close}>
-						<ShieldCheck size={15} aria-hidden="true" />
-						{t("Account")}
-					</a>
-					<button type="button" onClick={() => void signOut(config.account_url)}>
-						<LogOut size={15} aria-hidden="true" />
-						{t("Sign out of Workbench")}
-					</button>
+					<Link to={path("profile")} onClick={close}>
+						<UserRound size={15} aria-hidden="true" />
+						{t("Profile")}
+					</Link>
+					<SignOutButton icon />
 				</>
 			)}
 		</Menu>
