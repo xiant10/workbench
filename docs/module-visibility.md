@@ -2,6 +2,8 @@
 
 Nov 6, 2026 · Status: steps 1 to 3 built and deployed locally, uncommitted. The rest is proposed. Decided Nov 6: a listed module that's down keeps its menu, and business roles decide who sees a role-gated module. Companion to [`design.md`](design.md) and the [module contract](../../contracts/module/README.md).
 
+Property has since moved out: a module with its own web app has no folder here, and this build knows it only from its manifest. See [`proposals/business-module-apps.md`](../../proposals/business-module-apps.md). What follows is the design as written, when Property was compiled in.
+
 ## Summary
 
 Yes, a module's menu can disappear when the module isn't deployed, and for the five registered modules it already does. The mechanism needs no redesign: `/api/config` asks each module in `MODULE_URLS` for its manifest, and every shell surface builds from the answers through `useModules()`.

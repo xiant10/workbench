@@ -79,7 +79,8 @@ export function moduleFromManifest(manifest: ModuleManifest, language: Language)
 		routes: [],
 		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: ICONS[manifest.app.icon ?? ""] ?? AppWindow, unread: true }],
 		eventLabel: (kind) => {
-			const event = manifest.events?.[kind];
+			// `work_order.*` covers a family of kinds with one meaning.
+			const event = manifest.events?.[kind] ?? manifest.events?.[`${kind.split(".")[0]}.*`];
 			return event === undefined ? kind : say(event, language);
 		},
 		...(HomeRows === undefined ? {} : { HomeRows }),

@@ -6,7 +6,7 @@ const manifest: ModuleManifest = {
 	api_version: 1,
 	features: [],
 	app: { url: "https://property.example/", label: "Property", label_zh: "物业", icon: "building" },
-	events: { "work_order.overdue": { label: "A work order is overdue", label_zh: "工单已逾期" } },
+	events: { "work_order.overdue": { label: "A work order is overdue", label_zh: "工单已逾期" }, "work_order.*": { label: "A work order changed", label_zh: "工单有更新" } },
 };
 
 describe("a module described by its manifest", () => {
@@ -16,6 +16,7 @@ describe("a module described by its manifest", () => {
 		expect(module?.routes).toEqual([]);
 		expect(module?.access).toBe("role");
 		expect(module?.eventLabel("work_order.overdue")).toBe("工单已逾期");
+		expect(module?.eventLabel("work_order.transfer")).toBe("工单有更新");
 		expect(module?.eventLabel("something.new")).toBe("something.new");
 	});
 

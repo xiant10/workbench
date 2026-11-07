@@ -2,6 +2,8 @@
 
 Nov 6, 2026 · Status: steps 1, 2 and 4 built and deployed locally, uncommitted. The rest is proposed. Decided Nov 6: everyone lands on Home, including people who work mainly in one module. How a person reaches this screen is in [`sign-in-and-landing.md`](../../auth-server/docs/sign-in-and-landing.md). Which modules a person can see is in [`module-visibility.md`](module-visibility.md).
 
+Property's Home rows now come from its manifest, because it has its own app, and its setup step is one of those rows. Someone with a role in an app also sees a landing page first if they arrive at `auth-server`. Opening `workbench` still lands on Home.
+
 ## Summary
 
 Everyone who signs in to `workbench` lands on the same Home: a greeting, the agent box, four fixed suggestions, and a list called "Needs you". It knows little about the person. Most modules add nothing to it, a new admin gets no help setting up, and "Needs you" is mostly things that don't need anyone.

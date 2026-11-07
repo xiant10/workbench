@@ -5,7 +5,9 @@ import { expect, test, type Page } from "@playwright/test";
 type Config = { modules?: (string | { id: string; api_version: number; [key: string]: unknown })[]; unavailable?: string[]; access?: { modules: string[]; module_admin: string[] } };
 type State = Config & { role?: "member" | "admin"; asked: string[]; configFails?: boolean };
 
-const ALL = ["collab", "automations", "knowledge", "property", "agents"];
+// Property has its own app, so this build knows it only from its manifest.
+const PROPERTY = { id: "property", api_version: 1, app: { url: "http://property.test", label: "Property", label_zh: "物业", icon: "building" } };
+const ALL = ["collab", "automations", "knowledge", PROPERTY, "agents"];
 
 async function open(page: Page, state: State, path = "/t/ten_a/") {
 	await page.clock.install();
@@ -182,10 +184,11 @@ test.describe("business roles", () => {
 		await open(page, state);
 		await expect(entry(page, "Property")).toHaveCount(0);
 		await expect(entry(page, "Knowledge")).toBeVisible();
-		await page.goto("/t/ten_a/property");
-		await expect(page).toHaveURL(/\/property$/);
-		await expect(page.getByText("You don't have access to Property. Ask a tenant admin for a role.")).toBeVisible();
 		expect(state.asked.filter((call) => call.includes("property"))).toEqual([]);
+		// The app is what says so.
+		await page.route("http://property.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
+		await page.goto("/t/ten_a/property");
+		await page.waitForURL("http://property.test/t/ten_a/");
 	});
 
 	test("a role shows it", async ({ page }) => {

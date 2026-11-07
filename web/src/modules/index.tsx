@@ -6,7 +6,6 @@ import { type Language, useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { Empty } from "../lib/ui.tsx";
 import { type AppConfig, configQuery, useWorkspace } from "../shell/workspace.ts";
-import { property } from "./property/module.tsx";
 import { knowledge } from "./knowledge/module.tsx";
 import { agents } from "./agents/module.tsx";
 import { automations } from "./automations/module.tsx";
@@ -15,7 +14,7 @@ import { appHref, appUrl, moduleFromManifest, type ModuleManifest } from "./from
 import type { ModuleAdmin, ModuleNav, ResultAction, WorkbenchModule } from "./types.ts";
 
 /** The modules this build ships, in menu order. A deployment turns them on through `MODULE_URLS`. */
-const compiled: WorkbenchModule[] = [collab, automations, knowledge, property, agents];
+const compiled: WorkbenchModule[] = [collab, automations, knowledge, agents];
 
 /** Every route a module could own. A tenant without the module falls back to Home. */
 export const moduleRoutes = compiled.flatMap((module) => module.routes.map((route) => ({ ...route, element: <ModuleGate id={module.id}>{route.element}</ModuleGate> })));

@@ -35,7 +35,6 @@ async function open(page: Page, { sessions = [], approvals = [], automations = [
 			if (pathname.endsWith("/roles")) return json({ roles: Array.from({ length: roles }, (_, i) => ({ id: `r${i}` })) });
 		}
 		if (pathname === "/api/modules/knowledge/admin/documents") return json({ documents: Array.from({ length: documents }, (_, i) => ({ id: `d${i}` })) });
-		if (pathname === "/api/modules/property/settings") return json({ project: project ? { id: "p1" } : null, scopes: [] });
 		if (pathname === "/api/modules/agents/approvals") return typeof approvals === "number" ? json({ error: "unavailable" }, approvals) : json({ approvals });
 		if (pathname === "/api/modules/automations/automations") return json({ automations });
 		if (pathname.startsWith("/api/modules/collab/offers")) return json({ offers: searchParams.get("box") === "sent" ? waiting : [] });
@@ -116,11 +115,10 @@ test("the new rows are translated", async ({ page }) => {
 const setup = (page: Page) => page.locator("section", { has: page.getByRole("heading", { name: "Set up Acme" }) });
 
 test("a new admin sees what's left, worked out from each module", async ({ page }) => {
-	await open(page, { role: "admin", modules: ["knowledge", "property"], catalog: ["property"], documents: 1 });
+	await open(page, { role: "admin", modules: ["knowledge"], catalog: ["knowledge"], documents: 1 });
 	const list = setup(page);
-	await expect(list).toContainText("1 of 4 done");
+	await expect(list).toContainText("1 of 3 done");
 	await expect(list.getByRole("link", { name: "Invite your team" })).toHaveAttribute("href", "/t/ten_a/admin?tab=people");
-	await expect(list.getByRole("link", { name: "Create your property project" })).toHaveAttribute("href", "/t/ten_a/admin?tab=property");
 	await expect(list.getByRole("link", { name: "Create roles for your team" })).toHaveAttribute("href", "/t/ten_a/admin?tab=roles");
 	await expect(list.getByText("Add your first document")).toBeVisible();
 	await expect(list.getByRole("link", { name: "Add your first document" })).toHaveCount(0);
@@ -130,14 +128,14 @@ test("a new admin sees what's left, worked out from each module", async ({ page 
 
 test("a member sees no setup, and nothing is asked on their behalf", async ({ page }) => {
 	const asked: string[] = [];
-	await open(page, { role: "member", modules: ["knowledge", "property"], asked });
+	await open(page, { role: "member", modules: ["knowledge"], asked });
 	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
 	await expect(setup(page)).toHaveCount(0);
 	expect(asked).toEqual([]);
 });
 
 test("setup goes away when everything is done", async ({ page }) => {
-	await open(page, { role: "admin", modules: ["knowledge", "property"], catalog: ["property"], members: 2, roles: 1, documents: 1, project: true });
+	await open(page, { role: "admin", modules: ["knowledge"], catalog: ["knowledge"], members: 2, roles: 1, documents: 1 });
 	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
 	await expect(setup(page)).toHaveCount(0);
 });
@@ -156,15 +154,15 @@ test("roles are asked for only when a module here uses them", async ({ page }) =
 });
 
 test("hidden setup stays hidden, until a new step needs attention", async ({ page }) => {
-	await open(page, { role: "admin", modules: ["knowledge"], documents: 1 });
+	await open(page, { role: "admin", modules: [] });
 	await setup(page).getByRole("button", { name: "Hide setup" }).click();
 	await expect(setup(page)).toHaveCount(0);
 	await page.reload();
 	await expect(page.getByRole("heading", { name: "Needs you" })).toBeVisible();
 	await expect(setup(page)).toHaveCount(0);
 	await page.unrouteAll();
-	await open(page, { role: "admin", modules: ["knowledge", "property"], documents: 1 });
-	await expect(setup(page).getByRole("link", { name: "Create your property project" })).toBeVisible();
+	await open(page, { role: "admin", modules: ["knowledge"] });
+	await expect(setup(page).getByText("Add your first document")).toBeVisible();
 });
 
 test("setup is translated", async ({ page }) => {
