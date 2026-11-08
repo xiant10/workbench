@@ -3,6 +3,10 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"Notifications: {count} unread": "通知：{count} 条未读",
+	"Nothing new.": "没有新通知。",
+	"Mark all read": "全部标为已读",
+	"App": "应用",
 	"More": "更多",
 	"Show {name}'s sections": "展开{name}的栏目",
 	"Hide {name}'s sections": "收起{name}的栏目",
@@ -147,7 +151,7 @@ export const ZH: Record<string, string> = {
 	"Overdue": "已逾期",
 	"Any due date": "所有截止日期",
 	"Search tasks": "搜索任务",
-	"Searches open conversation titles and actions.": "搜索未归档对话的标题和操作。",
+	"Searches open conversation titles, actions, and your apps' sections.": "搜索未归档对话的标题、操作和你的应用栏目。",
 	"Sending…": "正在发送…",
 	"Couldn't read {name}. Try attaching it again.": "无法读取 {name}。请重新添加附件。",
 	"{name} isn't an image. Paste document text into the message instead.": "{name} 不是图片。请将文档文字粘贴到消息中。",

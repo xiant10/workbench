@@ -12,3 +12,7 @@ auth service's homes, so no app names another in its code. Its strings, such as 
 "Theme" and "Sign out", go in each app's catalog. An app's sections are data too: a
 `NavSection` list from its `GET /v1/me/nav`, put in order by `groupSections`. An Apps entry
 with `Sections` opens them under it, and `SectionLinks` draws another app's as links.
+
+`command.tsx` is search and notifications in the same frame: `Palette` (⌘K, from
+`useSearchShortcut` or `SearchButton`) shows what each app says it can reach, and `Bell`
+lists unread notifications, each a link to where it happened, in whichever app sent it.

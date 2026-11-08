@@ -28,6 +28,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 			const id = pathname.split("/")[3] ?? "";
 			const listed = [...(state.modules ?? ALL).map((entry) => (typeof entry === "string" ? entry : entry.id)), ...(state.unavailable ?? [])];
 			if (!listed.includes(id)) return json({ error: "unknown_module", message: "that module isn't available here" }, 404);
+			if (pathname === "/api/modules/deals/notifications") return json({ notifications: dealsNotifications, cursor: "c1" });
 			if (pathname.endsWith("/notifications")) return json({ notifications: [], cursor: "" });
 			if (pathname === "/api/modules/deals/attention") return json({ open: 2, late: 1 });
 			if (pathname === "/api/modules/deals/me/nav") return json({ sections: dealsSections });
@@ -57,7 +58,7 @@ test.describe("not deployed", () => {
 	test("the palette offers only what's deployed", async ({ page }) => {
 		await open(page, { role: "admin", asked: [], modules: ["collab"] });
 		await page.locator(".search-button").click();
-		await page.getByRole("combobox", { name: "Search conversations" }).fill("Skills");
+		await page.getByRole("combobox", { name: "Search", exact: true }).fill("Skills");
 		await expect(page.locator("#palette-list").getByRole("option")).toHaveCount(0);
 	});
 
@@ -89,7 +90,7 @@ test.describe("deployed", () => {
 		await expect(page.getByTestId("nav-skills")).toBeVisible();
 		await expect(page.getByTestId("nav-connectors")).toBeVisible();
 		await page.locator(".search-button").click();
-		await page.getByRole("combobox", { name: "Search conversations" }).fill("Skills");
+		await page.getByRole("combobox", { name: "Search", exact: true }).fill("Skills");
 		await expect(page.locator("#palette-list").getByRole("option", { name: "Skills" })).toBeVisible();
 		await page.goto("/t/ten_a/admin?tab=skills");
 		await expect(page.getByRole("tab", { name: "Skills" })).toHaveAttribute("aria-selected", "true");
@@ -99,7 +100,7 @@ test.describe("deployed", () => {
 		await expect(member.getByTestId("nav-connectors")).toBeVisible();
 		await expect(member.getByTestId("nav-skills")).toHaveCount(0);
 		await member.locator(".search-button").click();
-		await member.getByRole("combobox", { name: "Search conversations" }).fill("Skills");
+		await member.getByRole("combobox", { name: "Search", exact: true }).fill("Skills");
 		await expect(member.locator("#palette-list").getByRole("option")).toHaveCount(0);
 	});
 
@@ -240,8 +241,14 @@ const dealsSections = [
 	{ key: "broken", label: "No address" },
 ];
 
+// What Deals has to say. `to` is where each leads in its app.
+const dealsNotifications = [
+	{ id: "n1", read_at: null, target: "deals:deal:7", to: "records/7", event: { kind: "deal.won" } },
+	{ id: "n2", read_at: null, target: "deals:deal:7", to: "records/7", event: { kind: "deal.won" } },
+];
+
 // A module with its own app has no folder in this build: the shell works from its manifest.
-const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: {} };
+const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: { "deal.won": { label: "A deal was won", label_zh: "赢得一笔交易" } } };
 
 test.describe("a module with its own app", () => {
 	test("a role holder gets a link out, and Home rows from its counts", async ({ page }) => {
@@ -283,6 +290,45 @@ test.describe("a module with its own app", () => {
 		await expect(page.getByTestId("section-admin")).toHaveCount(0);
 		await page.reload();
 		await expect(page.getByTestId("section-queue")).toBeVisible();
+	});
+
+	test("the bell lists its notifications, leads where each happened, and marks them read there", async ({ page }) => {
+		await page.route("http://deals.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
+		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		await expect(page.getByTestId("bell-count")).toHaveText("2");
+		const bell = page.getByRole("button", { name: "Notifications: 2 unread" });
+		await bell.click();
+		await expect(page.getByTestId("bell-item")).toHaveCount(2);
+		await page.keyboard.press("Escape");
+		await expect(page.getByTestId("bell-item")).toHaveCount(0);
+		await expect(bell).toBeFocused();
+		await bell.click();
+		await page.keyboard.press("ControlOrMeta+k");
+		await expect(page.getByRole("combobox", { name: "Search", exact: true })).toBeFocused();
+		await expect(page.getByTestId("bell-item")).toHaveCount(0);
+		await page.keyboard.press("Escape");
+		await bell.click();
+		await expect(page.getByTestId("bell-item").first()).toContainText("A deal was won");
+		await expect(page.getByTestId("bell-item").first()).toContainText("Deals");
+		await expect(page.getByTestId("bell-item").first()).toHaveAttribute("href", "http://deals.test/t/ten_a/records/7");
+		const read = page.waitForRequest((request) => request.url().endsWith("/api/modules/deals/notifications/read"));
+		await page.getByTestId("bell-item").first().click();
+		expect((await read).postDataJSON()).toEqual({ ids: ["n1", "n2"] });
+		await page.waitForURL("http://deals.test/t/ten_a/records/7");
+	});
+
+	test("search finds another app's sections by name, and opens them there", async ({ page }) => {
+		await page.route("http://deals.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
+		const withNav = { ...deals, app: { ...deals.app, nav: dealsSections.slice(0, 3) } };
+		await open(page, { modules: ["collab", withNav], access: { modules: ["deals"], module_admin: [] }, asked: [] });
+		await page.locator(".search-button").click();
+		await expect(page.locator("#palette-list").getByRole("option", { name: /Pipeline/ })).toHaveCount(0);
+		await page.getByRole("combobox", { name: "Search", exact: true }).fill("pipe");
+		const option = page.locator("#palette-list").getByRole("option", { name: /Pipeline/ });
+		await expect(option).toContainText("Deals");
+		await option.click();
+		await page.waitForURL("http://deals.test/t/ten_a/pipeline");
 	});
 
 	test("an app whose manifest lists no sections has nothing to open", async ({ page }) => {

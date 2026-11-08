@@ -1,12 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
 import type { SessionInfo } from "../lib/agent.ts";
 import { signOut } from "../kit/session.ts";
 import { useI18n } from "../lib/i18n.tsx";
+import { SearchButton } from "../kit/command.tsx";
 import { AccountMenu, Rail, type RailApp, WORKBENCH_APP } from "../kit/frame.tsx";
+import { WorkbenchBell } from "./Bell.tsx";
 import { Logo, Menu, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { appHref } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
@@ -22,8 +24,6 @@ function UnreadBadge({ module }: { module: WorkbenchModule }) {
 
 const DAY_MS = 86_400_000;
 const WEEK_DAYS = 7;
-
-export const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
 
 export function SignOutButton({ className = "", icon = false }: { className?: string; icon?: boolean }) {
  const { t, describe } = useI18n();
@@ -250,17 +250,14 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					</Link>
 				),
 			}}
+			bell={<WorkbenchBell />}
 			top={
 				<>
 					<Link className="button primary wide" to={path()} onClick={onClose}>
 						<Plus size={16} aria-hidden="true" />
 						{t("New conversation")}
 					</Link>
-					<button type="button" className="search-button" onClick={onSearch}>
-						<Search size={15} aria-hidden="true" />
-						<span>{t("Search")}</span>
-						<kbd>{SHORTCUT}</kbd>
-					</button>
+					<SearchButton onClick={onSearch} />
 				</>
 			}
 			sections={

@@ -87,16 +87,26 @@ function wellFormed(value: unknown): value is NavSection {
 	return typeof section?.key === "string" && typeof section.to === "string" && typeof section.label === "string" && typeof section.label_zh === "string" && typeof section.group === "string";
 }
 
+/** This person's sections in a module's app, read through the module proxy. Only well-formed ones come back. */
+export function navQuery(module: string, tenant: string) {
+	return {
+		queryKey: [module, tenant, "nav"],
+		queryFn: () => request<{ sections: unknown[] }>(`/api/modules/${module}/me/nav`).then((nav) => (Array.isArray(nav.sections) ? nav.sections.filter(wellFormed) : [])),
+		retry: false,
+		staleTime: 60_000,
+	};
+}
+
 function sectionsFor(manifest: ModuleManifest, url: string) {
 	if ((manifest.app?.nav ?? []).length === 0) return undefined;
 	return function AppSections() {
 		const { tenant } = useWorkspace();
-		const nav = useQuery({ queryKey: [manifest.id, tenant, "nav"], queryFn: () => request<{ sections: unknown[] }>(`/api/modules/${manifest.id}/me/nav`), retry: false, staleTime: 60_000 });
+		const nav = useQuery(navQuery(manifest.id, tenant));
 		// The same read as Home's rows, so opening the sections costs no second one.
 		const attention = useQuery({ queryKey: [manifest.id, tenant, "attention"], queryFn: () => request<Record<string, number>>(`/api/modules/${manifest.id}/attention`), retry: false });
 		// Refused or down: the entry above still opens the app, which says why.
-		if (!Array.isArray(nav.data?.sections)) return null;
-		return <SectionLinks sections={nav.data.sections.filter(wellFormed)} href={(to) => appHref(url, tenant, to)} counts={attention.data} />;
+		if (nav.data === undefined) return null;
+		return <SectionLinks sections={nav.data} href={(to) => appHref(url, tenant, to)} counts={attention.data} />;
 	};
 }
 

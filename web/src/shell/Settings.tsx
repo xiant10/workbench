@@ -6,7 +6,7 @@ import { load, save } from "../lib/storage.ts";
 import { LanguageSwitch, Segmented, Setting } from "../lib/ui.tsx";
 import { useModules } from "../modules/index.tsx";
 import { AccountNav } from "./AccountNav.tsx";
-import { SHORTCUT } from "./Sidebar.tsx";
+import { SHORTCUT } from "../kit/command.tsx";
 import { setTheme, type Theme, useTheme } from "./theme.ts";
 import { useWorkspace } from "./workspace.ts";
 

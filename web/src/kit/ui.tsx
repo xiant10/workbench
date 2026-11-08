@@ -163,17 +163,35 @@ export function Menu({ label, trigger, triggerClass, onOpen, panelClass = "", ch
 			left: Math.max(MENU_GAP, Math.min(anchor.left, window.innerWidth - width - MENU_GAP)),
 		});
 	}, [open]);
+	// Into the panel once it's placed: a hidden one can't take focus.
+	const placed = place !== undefined;
+	useEffect(() => {
+		if (open && placed) panel.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+	}, [open, placed]);
 	useEffect(() => {
 		if (!open) return;
-		panel.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+		const outside = (target: EventTarget | null) => !panel.current?.contains(target as Node) && !button.current?.contains(target as Node);
 		const onDown = (event: MouseEvent) => {
-			const target = event.target as Node;
-			if (!panel.current?.contains(target) && !button.current?.contains(target)) close();
+			if (outside(event.target)) close();
+		};
+		// Focus moving elsewhere, such as into search, leaves the menu.
+		const onFocus = (event: FocusEvent) => {
+			if (outside(event.target)) close();
+		};
+		// Escape works wherever focus is, including on the button that opened it.
+		const onKey = (event: globalThis.KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			close();
+			button.current?.focus();
 		};
 		document.addEventListener("mousedown", onDown);
+		document.addEventListener("focusin", onFocus);
+		document.addEventListener("keydown", onKey);
 		window.addEventListener("resize", close);
 		return () => {
 			document.removeEventListener("mousedown", onDown);
+			document.removeEventListener("focusin", onFocus);
+			document.removeEventListener("keydown", onKey);
 			window.removeEventListener("resize", close);
 		};
 	}, [open, close]);
@@ -200,11 +218,6 @@ export function Menu({ label, trigger, triggerClass, onOpen, panelClass = "", ch
 						ref={panel}
 						className={`menu ${panelClass}`}
 						style={place ?? { visibility: "hidden", top: 0, left: 0 }}
-						onKeyDown={(event) => {
-							if (event.key !== "Escape") return;
-							close();
-							button.current?.focus();
-						}}
 					>
 						{children(close)}
 					</div>,

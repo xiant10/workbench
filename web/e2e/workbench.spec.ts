@@ -506,7 +506,7 @@ test.describe("getting around", () => {
 		await startFromHome(page, "palette target");
 		await page.getByRole("link", { name: "Tasks" }).click();
 		await page.keyboard.press("ControlOrMeta+k");
-		await page.getByRole("combobox", { name: "Search conversations" }).fill("palette target");
+		await page.getByRole("combobox", { name: "Search", exact: true }).fill("palette target");
 		await page.keyboard.press("Enter");
 		await page.waitForURL(/\/c\//);
 		await expect(page.locator(".conversation-head h1")).toHaveText("palette target");

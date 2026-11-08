@@ -90,6 +90,8 @@ type RailProps = {
 	current: { id: string; label: string; home: ReactNode };
 	/** What the app puts above its sections, such as New conversation and Search. */
 	top?: ReactNode;
+	/** Beside the app's name: the notifications bell. */
+	bell?: ReactNode;
 	/** The app's own sections, as `nav-link`s. */
 	sections: ReactNode;
 	apps: RailApp[];
@@ -101,7 +103,7 @@ type RailProps = {
 };
 
 /** The left rail every t10 web app draws, so moving between apps changes the page and not the frame. */
-export function Rail({ current, top, sections, apps, children, account, open = false, onCollapse }: RailProps) {
+export function Rail({ current, top, bell, sections, apps, children, account, open = false, onCollapse }: RailProps) {
 	const { t } = useI18n();
 	// Which apps' sections are open, kept per browser so the rail looks the same after a move between apps.
 	const [opened, setOpened] = useState(() => (load("rail-open") ?? "").split(",").filter(Boolean));
@@ -114,6 +116,7 @@ export function Rail({ current, top, sections, apps, children, account, open = f
 		<nav className={open ? "sidebar open" : "sidebar"} aria-label={current.label}>
 			<div className="brand">
 				{current.home}
+				{bell}
 				<button type="button" className="icon-button" aria-label={t("Hide sidebar")} onClick={onCollapse}>
 					<PanelLeftClose size={17} aria-hidden="true" />
 				</button>
