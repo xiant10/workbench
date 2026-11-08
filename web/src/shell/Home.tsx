@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { CalendarDays, FileText, type LucideIcon, Mail, MessageSquare, PartyPopper, Search } from "lucide-react";
+import { signIn } from "../kit/session.ts";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Composer } from "../conversation/Composer.tsx";
@@ -89,7 +90,7 @@ export function Home() {
 				placeholder={t("Ask your agent")}
 				autoFocus
 				onSend={async (input, text) => { await start.mutateAsync({ input, text: text || t("New conversation") }); }}
-				onSignIn={() => window.location.assign("/auth/login")}
+				onSignIn={() => signIn(undefined, "ended")}
 			/>
 			{start.isError && (
 				<p className="inline-error" role="alert">

@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -31,7 +30,8 @@ type Sessions interface {
 	Complete(ctx context.Context, w http.ResponseWriter, r *http.Request) (string, error)
 	Identify(ctx context.Context, r *http.Request) (session.Identity, error)
 	SwitchTenant(ctx context.Context, r *http.Request, tenant string) error
-	Logout(ctx context.Context, w http.ResponseWriter, r *http.Request) error
+	SignOut(ctx context.Context, w http.ResponseWriter, r *http.Request) string
+	Alive(ctx context.Context, r *http.Request) error
 }
 
 // Deps is what the server needs.
@@ -69,6 +69,10 @@ func (s *Server) Handler() http.Handler {
 	handle("GET /auth/login", http.HandlerFunc(s.handleLogin))
 	handle("GET /auth/callback", http.HandlerFunc(s.handleCallback))
 	handle("POST /auth/logout", s.sameOrigin(http.HandlerFunc(s.handleLogout)))
+	handle("GET /auth/session", http.HandlerFunc(s.handleSessionAlive))
+	handle("GET /auth/leave", http.HandlerFunc(s.handleLeave))
+	handle("GET /auth/account", http.HandlerFunc(s.handleAccount))
+	handle("GET /signed-out", http.HandlerFunc(s.handleSignedOut))
 	handle("POST /auth/tenant", s.sameOrigin(http.HandlerFunc(s.handleTenant)))
 
 	handle("GET /api/config", s.user(s.handleConfig))
@@ -131,8 +135,9 @@ func (s *Server) sameOrigin(next http.Handler) http.Handler {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	next := r.URL.Query().Get("next")
-	http.Redirect(w, r, s.Sessions.Begin(w, next, tenantIn(next)), http.StatusFound)
+	q := r.URL.Query()
+	next := q.Get("next")
+	http.Redirect(w, r, session.SignInHints(s.Sessions.Begin(w, next, tenantIn(next)), q.Get("reason"), q.Get("lang")), http.StatusFound)
 }
 
 // tenantIn reads the tenant from a path under /t/, so a link to one doesn't ask
@@ -148,6 +153,10 @@ func tenantIn(path string) string {
 
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	next, err := s.Sessions.Complete(r.Context(), w, r)
+	// The page reads this once, so a language chosen at sign-in carries over.
+	if lang := r.URL.Query().Get("lang"); lang == "en" || lang == "zh-Hans" {
+		http.SetCookie(w, &http.Cookie{Name: "t10_lang", Value: lang, Path: "/", MaxAge: 60, Secure: strings.HasPrefix(s.Config.PublicURL, "https://"), SameSite: http.SameSiteLaxMode})
+	}
 	switch {
 	case errors.Is(err, session.ErrMFARequired):
 		http.Redirect(w, r, "/signed-out?reason=mfa", http.StatusFound)
@@ -161,30 +170,41 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleLogout obtains an authorized browser sign-out before clearing the local
-// session. Auth failures remain retryable instead of claiming a complete sign-out.
+// handleLogout ends this session, then hands the browser on to end the rest. A
+// failure further on never leaves anyone signed in to this app.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	identity, err := s.Sessions.Identify(r.Context(), r)
-	if err != nil {
-		proxy.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "Couldn't finish signing out. Try again.")
-		return
-	}
-	status, body, err := s.Auth.Call(r.Context(), http.MethodPost, "/v1/me/browser-logout", identity.Access, map[string]string{
-		"client_id": s.Auth.ClientID, "return_to": s.Config.PublicURL + "/signed-out",
-	})
-	var result struct {
-		Ticket string `json:"ticket"`
-	}
-	if err != nil || status != http.StatusOK || json.Unmarshal(body, &result) != nil || result.Ticket == "" {
-		proxy.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "Couldn't finish signing out. Try again.")
-		return
-	}
-	if err := s.Sessions.Logout(r.Context(), w, r); err != nil {
-		slog.Warn("sign-out incomplete", "error", err)
-	}
+	target := s.Sessions.SignOut(r.Context(), w, r)
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"redirect": s.Config.AuthPublicURL + "/v1/signout/complete?ticket=" + url.QueryEscape(result.Ticket)})
+	writeJSON(w, http.StatusOK, map[string]string{"redirect": target})
+}
+
+// handleSessionAlive lets an open tab find out that someone signed out elsewhere.
+func (s *Server) handleSessionAlive(w http.ResponseWriter, r *http.Request) {
+	if err := s.Sessions.Alive(r.Context(), r); err != nil {
+		writeSessionError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSignedOut is where a finished sign-out lands: the sign-in page, saying what
+// happened. The app's own page is for sign-ins that were refused.
+func (s *Server) handleSignedOut(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("reason") != "" {
+		s.handleApp(w, r)
+		return
+	}
+	http.Redirect(w, r, "/auth/login?reason=signedout", http.StatusFound)
+}
+
+// handleLeave and handleAccount are the app's links to auth-server's pages, for
+// pages with no signed-in session to read the address from.
+func (s *Server) handleLeave(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, s.Config.AuthPublicURL+"/v1/signout", http.StatusFound)
+}
+
+func (s *Server) handleAccount(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, s.Config.AuthPublicURL+"/v1/account", http.StatusFound)
 }
 
 func (s *Server) handleTenant(w http.ResponseWriter, r *http.Request) {

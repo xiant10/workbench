@@ -36,7 +36,17 @@ function failureText(error: Error): string {
 
 const I18n = createContext<Context | undefined>(undefined);
 
+/** A language chosen on the sign-in page arrives in a short-lived cookie, once. */
+function languageFromSignIn(): Language | undefined {
+	const match = /(?:^|; )t10_lang=([^;]*)/.exec(document.cookie);
+	if (match === null) return undefined;
+	document.cookie = "t10_lang=; Max-Age=0; Path=/";
+	return match[1] === "zh-Hans" ? "zh" : match[1] === "en" ? "en" : undefined;
+}
+
 function initialLanguage(): Language {
+	const signedIn = languageFromSignIn();
+	if (signedIn !== undefined) save("language", signedIn);
 	const saved = load("language");
 	if (saved === "en" || saved === "zh") return saved;
 	return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
