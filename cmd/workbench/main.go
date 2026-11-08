@@ -24,6 +24,8 @@ import (
 const (
 	authTimeout   = 10 * time.Second
 	pruneInterval = time.Hour
+	// moduleInterval is a fraction of the minute or so a mounted ConfigMap takes to change.
+	moduleInterval = 10 * time.Second
 )
 
 func main() {
@@ -79,9 +81,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	modules, _ := cfg.AllModules()
+	upstream := proxy.New(cfg.Agents, modules, authURL)
+	if cfg.ModulesDir != "" {
+		go watchModules(ctx, cfg, upstream)
+	}
 	api := server.New(server.Deps{
 		Config: cfg, Pool: pool, Sessions: sessions, Auth: auth,
-		Proxy: proxy.New(cfg.Agents, cfg.Modules, authURL), Web: web.Dist(),
+		Proxy: upstream, Web: web.Dist(),
 	})
 	// No write timeout: the event stream stays open for as long as a tab does.
 	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
@@ -101,6 +108,27 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// watchModules rereads MODULES_DIR, so a module's menu follows its deployment. An
+// unreadable entry is logged and left out until it's fixed.
+func watchModules(ctx context.Context, cfg config.Config, upstream *proxy.Proxy) {
+	ticker := time.NewTicker(moduleInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			modules, err := cfg.AllModules()
+			if err != nil {
+				slog.Warn("read modules", "error", err)
+			}
+			if added, removed := upstream.SetModules(modules); len(added)+len(removed) > 0 {
+				slog.Info("modules changed", "added", added, "removed", removed)
+			}
+		}
+	}
 }
 
 func prune(ctx context.Context, sessions *session.Manager) {

@@ -4,6 +4,8 @@ Nov 6, 2026 · Status: steps 1 to 3 built and deployed locally, uncommitted. The
 
 Property has since moved out: a module with its own web app has no folder here, and this build knows it only from its manifest. See [`proposals/business-module-apps.md`](../../proposals/business-module-apps.md). What follows is the design as written, when Property was compiled in.
 
+Nov 7: section 6 changed. A module is now added by a key in a mounted folder that the workbench rereads while running, and a module with its own app also brings its icon and who may see it in its manifest. So adding a business app needs no workbench change, setting or restart. Built on branch `feat/module-dir` and tried on a test namespace, not yet in any overlay.
+
 ## Summary
 
 Yes, a module's menu can disappear when the module isn't deployed, and for the five registered modules it already does. The mechanism needs no redesign: `/api/config` asks each module in `MODULE_URLS` for its manifest, and every shell surface builds from the answers through `useModules()`.
@@ -123,6 +125,28 @@ People, Organization, Roles, Agents, Security and Activity stay built in, becaus
 
 ### 6. One line per module in an overlay
 
+Revised Nov 7, and the workbench half built: see "A module's own folder key" below. The original proposal follows it.
+
+#### A module's own folder key
+
+`MODULES_DIR` names a folder with one file per module, named by the module's ID and holding its address. It's meant to be a mounted ConfigMap, `workbench-modules`, with no hash suffix, so a change reaches the running pod instead of restarting it. The workbench rereads the folder every 10 seconds and logs `modules changed added=[...] removed=[...]`. `MODULE_URLS` still works, and its entries come first. Folder entries follow, in ID order, and an ID in both keeps its `MODULE_URLS` address. A bad entry stops the service at startup, as a bad `MODULE_URLS` does, but while it runs the bad entry is logged and left out, so one module's typo can't take the others' menus down.
+
+A module with its own app then needs nothing from this repo. Its manifest's `app` block carries what the menu shows:
+
+| Field | Meaning |
+| --- | --- |
+| `url`, `label`, `label_zh` | Where the app is, and its name |
+| `icon_svg` | Its menu icon, a 24 by 24 SVG of at most 8 KB. The client uses it only as a CSS mask over the text colour, never as markup, so it follows the theme and can't run anything. `icon` names one of the few icons this build has, and is the fallback |
+| `access` | `member` when every member has some use for the app. Leave it out, or say `role`, to show it only to people holding a role in it and to tenant admins |
+
+A module with screens compiled here still needs its folder and a line in `modules/index.tsx`, because its screens are code. That's the capability modules, which stay compiled in by the Nov 6 decision.
+
+Tried on Nov 7 in a test namespace with a made-up `facilities` app, a small Node server that isn't in any repo: adding its key put Facilities in the menu of an open Workbench, with its own icon and a Home row from its counts, for a member with no role, since it says `access: member`. Removing the key took it out again. The ConfigMap took about 80 seconds to reach the pod, and the workbench noticed within its 10-second check. The pod never restarted.
+
+What's still separate for a business app, outside this repo: auth-server's catalog entry and `AUTH_APP_URLS` for the landing page, its OAuth client in `clients.yaml`, and `ai-gateway`'s settings for agent tools. See the module contract's "Adding a module".
+
+#### As first proposed
+
 Give each module one kustomize component, `deploy/k8s/modules/<id>/`, holding its Deployment and Service, its route, its permission catalog and its workbench entry. An overlay lists what it deploys:
 
 ```yaml
@@ -234,7 +258,7 @@ So Administration stays tenant-admin only until Property adopts `property:admin`
 | 1 | Built: move Skills and Connectors into `agents` (5) | `workbench` | Menus on any deployment without `t10-agent-control`, such as this repo's Compose default, which lists only `collab` |
 | 2 | Built: three states and fresh config (1 to 4) | `workbench` | Menus vanishing on a blip, stale tabs |
 | 3 | Built: menus by business role (9) | `workbench` | Members seeing modules they can't use |
-| 4 | Module components (6) | workspace `deploy/`, `workbench` config | "Not deployed" becomes one line |
+| 4 | Module components (6). The workbench half, `MODULES_DIR` and manifest icons and access, is built on `feat/module-dir` | workspace `deploy/`, `workbench` config | "Not deployed" becomes one line |
 | 5 | Sidebar room (8) | `workbench` | Conversations squeezed out |
 | 6 | Pages on demand (7) | `workbench` | Bundle size |
 | Later | Administration for module admins (9), with Property adopting `property:admin` | `t10-property`, `workbench` | Module admins who aren't tenant admins |

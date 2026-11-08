@@ -42,7 +42,7 @@ docker compose up -d --build      # the app is on http://127.0.0.1:8083
 
 Compose has working defaults, and `.env.example` is for running the binary on the host: its `localhost` addresses would point the container at itself.
 
-Set `MODULE_URLS`, as `id=url,id=url`, to show business modules such as tasks (`collab`) and agent settings (`agents`, served by `t10-agent-control`), and `LIVEKIT_URL` to show calls. Use `127.0.0.1`, not `localhost`: the redirect in `clients.yaml` matches exactly.
+Set `MODULE_URLS`, as `id=url,id=url`, to show business modules such as tasks (`collab`) and agent settings (`agents`, served by `t10-agent-control`), and `LIVEKIT_URL` to show calls. `MODULES_DIR` adds modules from a folder with one file per module, named by its ID and holding its address, such as a mounted ConfigMap. It's reread while running, so a module with its own app appears or goes without a restart. See [`docs/module-visibility.md`](docs/module-visibility.md), section 6. Use `127.0.0.1`, not `localhost`: the redirect in `clients.yaml` matches exactly.
 
 For the frontend alone, run the backend and then `npm run dev` in `web/`.
 

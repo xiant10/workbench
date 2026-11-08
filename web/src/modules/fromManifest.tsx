@@ -3,7 +3,7 @@ import { AppWindow, Building2, type LucideIcon } from "lucide-react";
 import { request } from "../lib/api.ts";
 import type { Language } from "../lib/i18n.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
-import type { WorkbenchModule } from "./types.ts";
+import type { Icon, WorkbenchModule } from "./types.ts";
 
 /** A label in each language a module answers in, because the shell's catalog doesn't hold a module it doesn't ship. */
 export type Labelled = { label: string; label_zh: string };
@@ -13,13 +13,35 @@ export type ModuleManifest = {
 	id: string;
 	api_version: number;
 	features: string[] | null;
-	/** A module with its own web app. The shell links to it, and ships none of its screens. */
-	app?: Labelled & { url: string; icon?: string };
+	/**
+	 * A module with its own web app. The shell links to it, and ships none of its screens. `icon_svg` is the menu icon,
+	 * drawn on a 24 by 24 grid and used only as a mask, so its colour follows the menu's. `access` is "member" when every
+	 * member has some use for the app; otherwise only people holding a role in it see it.
+	 */
+	app?: Labelled & { url: string; icon?: string; icon_svg?: string; access?: "role" | "member" };
 	attention?: AttentionRow[];
 	events?: Record<string, Labelled>;
 };
 
 const ICONS: Record<string, LucideIcon> = { building: Building2 };
+
+/** Larger than any icon needs, so a manifest can't make every menu render heavy. */
+const MAX_ICON_SVG = 8192;
+
+/** A module's own icon, as a mask over the text colour. Never put in the page as markup, so it can't run anything. */
+function maskIcon(svg: string): Icon {
+	const image = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+	return function ModuleIcon({ size = 16 }) {
+		return <span className="module-icon" aria-hidden="true" style={{ width: size, height: size, maskImage: image, WebkitMaskImage: image }} />;
+	};
+}
+
+/** The manifest's own drawing, else a named icon this build has, else a generic one. */
+export function iconOf(app: NonNullable<ModuleManifest["app"]>): Icon {
+	const svg = app.icon_svg?.trim();
+	if (svg !== undefined && svg.startsWith("<svg") && svg.length <= MAX_ICON_SVG) return maskIcon(svg);
+	return ICONS[app.icon ?? ""] ?? AppWindow;
+}
 
 const say = (labelled: Labelled, language: Language) => (language === "zh" ? labelled.label_zh : labelled.label);
 
@@ -49,7 +71,7 @@ function rowsFor(manifest: ModuleManifest, url: string, language: Language) {
 		const attention = useQuery({ queryKey: [manifest.id, tenant, "attention"], queryFn: () => request<Record<string, number>>(`/api/modules/${manifest.id}/attention`), retry: false });
 		const counts = attention.data;
 		if (counts === undefined) return null;
-		const Icon = ICONS[manifest.app?.icon ?? ""] ?? AppWindow;
+		const RowIcon = manifest.app === undefined ? AppWindow : iconOf(manifest.app);
 		return (
 			<>
 				{rows.map((row) => {
@@ -57,7 +79,7 @@ function rowsFor(manifest: ModuleManifest, url: string, language: Language) {
 					if (count === 0) return null;
 					return (
 						<li key={row.keys.join()} className="row">
-							<span className="row-icon accent"><Icon size={16} aria-hidden="true" /></span>
+							<span className="row-icon accent"><RowIcon size={16} aria-hidden="true" /></span>
 							<div className="row-main"><a href={appHref(url, tenant, row.to)}>{say(row, language).replace("{count}", String(count))}</a></div>
 						</li>
 					);
@@ -75,9 +97,9 @@ export function moduleFromManifest(manifest: ModuleManifest, language: Language)
 	return {
 		id: manifest.id,
 		apiVersion: manifest.api_version,
-		access: "role",
+		...(manifest.app.access === "member" ? {} : { access: "role" as const }),
 		routes: [],
-		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: ICONS[manifest.app.icon ?? ""] ?? AppWindow, unread: true }],
+		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: iconOf(manifest.app), unread: true }],
 		eventLabel: (kind) => {
 			// `work_order.*` covers a family of kinds with one meaning.
 			const event = manifest.events?.[kind] ?? manifest.events?.[`${kind.split(".")[0]}.*`];

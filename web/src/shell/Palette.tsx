@@ -1,10 +1,11 @@
-import { Home as HomeIcon, Languages, type LucideIcon, MessageSquare, MessageSquarePlus, Moon, Search, Settings as SettingsIcon, Sun, UserRound } from "lucide-react";
+import { Home as HomeIcon, Languages, MessageSquare, MessageSquarePlus, Moon, Search, Settings as SettingsIcon, Sun, UserRound } from "lucide-react";
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog } from "../lib/ui.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { appHref } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
+import type { Icon } from "../modules/types.ts";
 import { setTheme, useTheme } from "./theme.ts";
 import { useSessions, useWorkspace } from "./workspace.ts";
 
@@ -12,7 +13,7 @@ const MAX_CONVERSATIONS = 8;
 /** With nothing typed, few enough that the actions show too. */
 const RECENT_CONVERSATIONS = 4;
 
-type Entry = { key: string; label: string; icon: LucideIcon; hint?: string; run(): void };
+type Entry = { key: string; label: string; icon: Icon; hint?: string; run(): void };
 
 /** One place to jump anywhere, from the keyboard or a tap on Search. */
 export function Palette({ onClose }: { onClose(): void }) {

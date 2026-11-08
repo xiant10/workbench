@@ -48,7 +48,9 @@ var orgRoutes = []string{"", "members", "invitations", "units", "grants", "audit
 
 // Proxy forwards to one kind of upstream.
 type Proxy struct {
-	agents  map[string]*url.URL
+	agents map[string]*url.URL
+	// modules changes while serving, when the deployment adds or removes one.
+	mu      sync.RWMutex
 	modules []config.Agent
 	auth    *url.URL
 	rp      *httputil.ReverseProxy
@@ -74,6 +76,34 @@ func New(agents, modules []config.Agent, auth *url.URL) *Proxy {
 		},
 	}
 	return p
+}
+
+// SetModules replaces the business modules, and says which IDs came and went.
+func (p *Proxy) SetModules(modules []config.Agent) (added, removed []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	was := map[string]string{}
+	for _, m := range p.modules {
+		was[m.Name] = m.URL.String()
+	}
+	for _, m := range modules {
+		if address, ok := was[m.Name]; !ok || address != m.URL.String() {
+			added = append(added, m.Name)
+		}
+		delete(was, m.Name)
+	}
+	for id := range was {
+		removed = append(removed, id)
+	}
+	slices.Sort(removed)
+	p.modules = modules
+	return added, removed
+}
+
+func (p *Proxy) moduleList() []config.Agent {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.modules
 }
 
 // Agent passes one call to an agent's /agent endpoint, which is ai-gateway-agent
@@ -197,7 +227,8 @@ func withoutUsage(body []byte) (stripped []byte, found bool, err error) {
 // Module passes one call to a business module, mapping
 // /api/modules/<id>/x to /v1/x.
 func (p *Proxy) Module(w http.ResponseWriter, r *http.Request, id, path, token string) {
-	i := slices.IndexFunc(p.modules, func(m config.Agent) bool { return m.Name == id })
+	modules := p.moduleList()
+	i := slices.IndexFunc(modules, func(m config.Agent) bool { return m.Name == id })
 	if i < 0 {
 		WriteError(w, http.StatusNotFound, "unknown_module", "that module isn't available here")
 		return
@@ -205,7 +236,7 @@ func (p *Proxy) Module(w http.ResponseWriter, r *http.Request, id, path, token s
 	headers := pick(r.Header)
 	headers.Set(clientHeader, clientName)
 	telemetry.Inject(r.Context(), headers)
-	p.forward(w, r, p.modules[i].URL.JoinPath("v1", path), headers, token)
+	p.forward(w, r, modules[i].URL.JoinPath("v1", path), headers, token)
 }
 
 // Org passes one call from the admin pages to the auth service, mapping
@@ -245,9 +276,10 @@ type Manifest struct {
 // answering that they're off, so a client keeps their place. A module that can't
 // answer can't stop the app from loading.
 func (p *Proxy) Manifests(ctx context.Context, token string) (on []Manifest, unavailable []string) {
-	found := make([]*Manifest, len(p.modules))
+	modules := p.moduleList()
+	found := make([]*Manifest, len(modules))
 	var wg sync.WaitGroup
-	for i, module := range p.modules {
+	for i, module := range modules {
 		wg.Go(func() { found[i] = p.manifest(ctx, module, token) })
 	}
 	wg.Wait()
@@ -255,7 +287,7 @@ func (p *Proxy) Manifests(ctx context.Context, token string) (on []Manifest, una
 	for i, m := range found {
 		switch {
 		case m == nil:
-			unavailable = append(unavailable, p.modules[i].Name)
+			unavailable = append(unavailable, modules[i].Name)
 		case m.Enabled:
 			on = append(on, *m)
 		}

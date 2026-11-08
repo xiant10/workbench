@@ -2,6 +2,8 @@ package config
 
 import (
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -57,5 +59,66 @@ func TestLoadRefuses(t *testing.T) {
 		} else if strings.Contains(err.Error(), "secret-value") {
 			t.Errorf("%s: error repeats a secret", name)
 		}
+	}
+}
+
+// mountedModules lays files out as a mounted ConfigMap does: each key a link into
+// a dated folder, through ..data.
+func mountedModules(t *testing.T, keys map[string]string) string {
+	t.Helper()
+	dir := t.TempDir()
+	dated := filepath.Join(dir, "..2026_11_07")
+	if err := os.Mkdir(dated, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range keys {
+		if err := os.WriteFile(filepath.Join(dated, key), []byte(value), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join("..data", key), filepath.Join(dir, key)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("..2026_11_07", filepath.Join(dir, "..data")); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestModulesDirAddsToModuleURLs(t *testing.T) {
+	dir := mountedModules(t, map[string]string{"property": "http://property:18075\n", "facilities": "http://facilities:18077", "collab": "http://elsewhere:1"})
+	cfg, err := Load(env(map[string]string{"MODULE_URLS": "collab=http://collab:18040", "MODULES_DIR": dir}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	modules, err := cfg.AllModules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range modules {
+		got = append(got, m.Name+"="+m.URL.String())
+	}
+	want := "collab=http://collab:18040 facilities=http://facilities:18077 property=http://property:18075"
+	if strings.Join(got, " ") != want {
+		t.Errorf("modules = %v, want %s", got, want)
+	}
+}
+
+func TestModulesDirKeepsGoodEntriesWhenOneIsWrong(t *testing.T) {
+	dir := mountedModules(t, map[string]string{"property": "http://property:18075"})
+	cfg, err := Load(env(map[string]string{"MODULES_DIR": dir}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "broken"), []byte("nowhere"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modules, err := cfg.AllModules()
+	if err == nil || len(modules) != 1 || modules[0].Name != "property" {
+		t.Errorf("modules = %v, err = %v", modules, err)
+	}
+	if _, err := Load(env(map[string]string{"MODULES_DIR": dir})); err == nil {
+		t.Error("started with a bad entry")
 	}
 }

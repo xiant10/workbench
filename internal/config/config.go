@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -38,8 +40,14 @@ type Config struct {
 	// Profiles are what a person can pick at a new conversation, because
 	// agent-pi has no method for it.
 	Profiles []string
-	// Modules lists deployed business modules, with Name as the module ID.
+	// Modules lists deployed business modules, with Name as the module ID, from
+	// MODULE_URLS. ModulesDir adds to them while the service runs.
 	Modules []Agent
+	// ModulesDir is MODULES_DIR, a folder with one file per module, named by its
+	// ID and holding its address. It's meant to be a mounted ConfigMap that each
+	// module's deploy files add their own key to, so a module comes and goes with
+	// no change to this service's settings and no restart.
+	ModulesDir string
 	// LiveKitURL is empty when calls are off. It goes in the content security
 	// policy, because the browser connects to it directly.
 	LiveKitURL string
@@ -58,6 +66,7 @@ func Load(getenv func(string) string) (Config, error) {
 		ClientID:      getenv("AUTH_CLIENT_ID"),
 		ClientSecret:  getenv("AUTH_CLIENT_SECRET"),
 		LiveKitURL:    strings.TrimRight(getenv("LIVEKIT_URL"), "/"),
+		ModulesDir:    getenv("MODULES_DIR"),
 		OTLPEndpoint:  getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
 	if cfg.ListenAddr == "" {
@@ -103,7 +112,54 @@ func Load(getenv func(string) string) (Config, error) {
 			}
 		}
 	}
+	// A bad entry at startup is a deploy mistake to fix, as in MODULE_URLS.
+	if _, err := cfg.AllModules(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// AllModules is MODULE_URLS, then ModulesDir's modules in ID order. An ID in both
+// keeps its MODULE_URLS address. It returns what it could read along with any
+// error, so a running service keeps the good entries when one is wrong.
+func (c Config) AllModules() ([]Agent, error) {
+	modules := append([]Agent{}, c.Modules...)
+	if c.ModulesDir == "" {
+		return modules, nil
+	}
+	entries, err := os.ReadDir(c.ModulesDir)
+	if err != nil {
+		return modules, fmt.Errorf("MODULES_DIR: %w", err)
+	}
+	var errs []error
+	for _, entry := range entries {
+		// A mounted ConfigMap also holds ..data and a dated folder.
+		id := entry.Name()
+		if !moduleID.MatchString(id) || entry.IsDir() || containsModule(modules, id) {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(c.ModulesDir, id))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("MODULES_DIR: %w", err))
+			continue
+		}
+		address, err := baseURL(strings.TrimSpace(string(raw)))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("MODULES_DIR: %s: %w", id, err))
+			continue
+		}
+		modules = append(modules, Agent{Name: id, URL: address})
+	}
+	return modules, errors.Join(errs...)
+}
+
+func containsModule(modules []Agent, id string) bool {
+	for _, module := range modules {
+		if module.Name == id {
+			return true
+		}
+	}
+	return false
 }
 
 // Secure reports whether the public address is https, which decides the

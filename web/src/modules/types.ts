@@ -3,6 +3,9 @@ import type { LucideIcon } from "lucide-react";
 import type { ComponentType, ReactElement } from "react";
 import type { SessionInfo } from "../lib/agent.ts";
 
+/** A menu icon: one of lucide's, or one a module drew in its manifest. */
+export type Icon = ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false" }>;
+
 /** A page under `/t/:tenant/`. */
 export type ModuleRoute = { path: string; element: ReactElement };
 
@@ -13,7 +16,7 @@ export type ModuleNav = {
 	to: string;
 	/** Set for a module with its own app: the entry leaves the workbench, and `to` isn't used. */
 	href?: string;
-	icon: LucideIcon;
+	icon: Icon;
 	/** Show the module's unread count beside this entry. */
 	unread?: boolean;
 	/** For tenant admins. The page still checks for itself. */

@@ -123,6 +123,29 @@ func TestUnknownModule(t *testing.T) {
 	}
 }
 
+func TestSetModulesAddsAndRemovesWhileServing(t *testing.T) {
+	var got string
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { got = r.URL.Path }))
+	defer upstream.Close()
+	p := New(nil, module(t, "collab", upstream.URL), nil)
+	added, removed := p.SetModules(append(module(t, "collab", upstream.URL), module(t, "facilities", upstream.URL)...))
+	if !slices.Equal(added, []string{"facilities"}) || len(removed) != 0 {
+		t.Errorf("added %v removed %v", added, removed)
+	}
+	p.Module(httptest.NewRecorder(), httptest.NewRequest("GET", "/api/modules/facilities/attention", nil), "facilities", "attention", "token")
+	if got != "/v1/attention" {
+		t.Errorf("upstream got %q", got)
+	}
+	if added, removed = p.SetModules(module(t, "facilities", upstream.URL)); len(added) != 0 || !slices.Equal(removed, []string{"collab"}) {
+		t.Errorf("added %v removed %v", added, removed)
+	}
+	w := httptest.NewRecorder()
+	p.Module(w, httptest.NewRequest("GET", "/api/modules/collab/offers", nil), "collab", "offers", "token")
+	if w.Code != http.StatusNotFound {
+		t.Errorf("removed module answered %d", w.Code)
+	}
+}
+
 func TestManifestsSeparateOffFromDown(t *testing.T) {
 	serve := func(id, body string, status int) *httptest.Server {
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
