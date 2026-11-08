@@ -136,7 +136,7 @@ A module with its own app then needs nothing from this repo. Its manifest's `app
 | Field | Meaning |
 | --- | --- |
 | `url`, `label`, `label_zh` | Where the app is, and its name |
-| `icon_svg` | Its menu icon, a 24 by 24 SVG of at most 8 KB. The client uses it only as a CSS mask over the text colour, never as markup, so it follows the theme and can't run anything. `icon` names one of the few icons this build has, and is the fallback |
+| `icon_svg` | Its menu icon, a 24 by 24 SVG of at most 8 KB. The client uses it only as a CSS mask over the text colour, never as markup, so it follows the theme and can't run anything. Without one the menu shows a generic icon: this build names no module's icon |
 | `access` | `member` when every member has some use for the app. Leave it out, or say `role`, to show it only to people holding a role in it and to tenant admins |
 
 A module with screens compiled here still needs its folder and a line in `modules/index.tsx`, because its screens are code. That's the capability modules, which stay compiled in by the Nov 6 decision.

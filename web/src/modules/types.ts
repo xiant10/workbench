@@ -4,7 +4,8 @@ import type { ComponentType, ReactElement } from "react";
 import type { SessionInfo } from "../lib/agent.ts";
 
 /** A menu icon: one of lucide's, or one a module drew in its manifest. */
-export type Icon = ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false" }>;
+export type { Icon } from "../kit/frame.tsx";
+import type { Icon } from "../kit/frame.tsx";
 
 /** A page under `/t/:tenant/`. */
 export type ModuleRoute = { path: string; element: ReactElement };

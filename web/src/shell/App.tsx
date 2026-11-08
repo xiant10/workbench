@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, LockKeyhole, PanelLeftOpen } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CircleAlert, LockKeyhole } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
@@ -10,7 +10,8 @@ import { ApiError, onModuleGone, onSignedOut, postJSON, request } from "../lib/a
 import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
-import { Dialog, Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
+import { focusMenuButton, Frame } from "../kit/frame.tsx";
+import { Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
 import { ModuleRedirect, moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
@@ -119,12 +120,8 @@ function Shell() {
 	const me = useMe();
 	const config = useQuery(configQuery);
 	const [signedOut, setSignedOut] = useState(false);
-	const [drawer, setDrawer] = useState(false);
-	const menuButton = useRef<HTMLButtonElement>(null);
 	const mobile = useMedia("(max-width: 600px)");
-	useEffect(() => setDrawer(false), [location.pathname, mobile]);
 	const [denied, setDenied] = useState(false);
-	const [collapsed, setCollapsed] = useState(load("sidebar") === "hidden");
 	const [searching, setSearching] = useState(false);
 	useEffect(() => onSignedOut(() => setSignedOut(true)), []);
 	useEffect(watchSession, []);
@@ -211,44 +208,23 @@ function Shell() {
 	}
 	if (config.isError && config.data === undefined) return <LoadError retry={() => void config.refetch()} />;
 	if (workspace === undefined) return <Splash />;
-	const hide = (hidden: boolean) => {
-		setCollapsed(hidden);
-		save("sidebar", hidden ? "hidden" : undefined);
-	};
 	return (
 		<WorkspaceContext.Provider value={workspace}>
-			<div className={collapsed ? "shell collapsed" : "shell"}>
-				<button
-					type="button"
-					ref={menuButton}
-					className="drawer-toggle icon-button"
-					aria-label={t("Menu")}
-					aria-expanded={drawer}
-					onClick={() => {
-						hide(false);
-						setDrawer(!drawer);
-					}}
-				>
-					<PanelLeftOpen size={18} aria-hidden="true" />
-				</button>
-				{mobile ? drawer && (
-					<Dialog label={t("Menu")} onClose={() => setDrawer(false)} className="sidebar-dialog" backdropClassName="sidebar-backdrop">
-						<Sidebar open onClose={() => setDrawer(false)} onCollapse={() => setDrawer(false)} onSearch={() => { setDrawer(false); setSearching(true); }} />
-					</Dialog>
-				) : <Sidebar open={false} onClose={() => setDrawer(false)} onCollapse={() => hide(true)} onSearch={() => setSearching(true)} />}
-				<main className="content">
-					{signedOut && (
-						<div className="banner" role="alert">
-							{t("You've been signed out. What you typed is kept.")}{" "}
-							<button type="button" className="link" onClick={() => signIn(location.pathname, "ended")}>
-								{t("Sign in again")}
-							</button>
-						</div>
-					)}
-					<Outlet />
-				</main>
-				{searching && <Palette onClose={() => { setSearching(false); if (mobile) requestAnimationFrame(() => menuButton.current?.focus()); }} />}
-			</div>
+			<Frame
+				place={location.pathname}
+				rail={({ open, close, collapse }) => <Sidebar open={open} onClose={close} onCollapse={collapse} onSearch={() => { close(); setSearching(true); }} />}
+			>
+				{signedOut && (
+					<div className="banner" role="alert">
+						{t("You've been signed out. What you typed is kept.")}{" "}
+						<button type="button" className="link" onClick={() => signIn(location.pathname, "ended")}>
+							{t("Sign in again")}
+						</button>
+					</div>
+				)}
+				<Outlet />
+			</Frame>
+			{searching && <Palette onClose={() => { setSearching(false); if (mobile) focusMenuButton(); }} />}
 		</WorkspaceContext.Provider>
 	);
 }

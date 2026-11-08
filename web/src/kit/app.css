@@ -250,6 +250,12 @@ button:disabled { opacity: 0.45; cursor: default; }
 .archive-toggle svg { transition: transform 0.12s; }
 .archive-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
 .sidebar-foot { border-top: 1px solid var(--line); padding-top: 0.5rem; }
+/* The same Apps list in every app's rail, so moving between them keeps the frame. */
+.rail-apps { border-top: 1px solid var(--line); padding-top: 0.55rem; }
+.nav-links > h2 { padding: 0 0.55rem; margin: 0.45rem 0 0.15rem; }
+.rail-apps > h2 { margin-top: 0; }
+/* A module's own icon from its manifest: the drawing is a mask, the colour is the text's. */
+.module-icon { display: inline-block; flex: none; background-color: currentColor; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
 .account { width: 100%; background: none; color: var(--text); justify-content: flex-start; gap: 0.55rem; padding: 0.3rem 0.4rem; text-align: left; font-weight: 500; }
 .account:hover, .account[aria-expanded="true"] { background: var(--hover); }
 .account > svg { color: var(--muted); }

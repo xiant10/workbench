@@ -5,9 +5,9 @@ import { expect, test, type Page } from "@playwright/test";
 type Config = { modules?: (string | { id: string; api_version: number; [key: string]: unknown })[]; unavailable?: string[]; access?: { modules: string[]; module_admin: string[] } };
 type State = Config & { role?: "member" | "admin"; asked: string[]; configFails?: boolean };
 
-// Property has its own app, so this build knows it only from its manifest.
-const PROPERTY = { id: "property", api_version: 1, app: { url: "http://property.test", label: "Property", label_zh: "物业", icon: "building" } };
-const ALL = ["collab", "automations", "knowledge", PROPERTY, "agents"];
+// Facilities, a made-up app, has its own app, so this build knows it only from its manifest.
+const FACILITIES = { id: "facilities", api_version: 1, app: { url: "http://facilities.test", label: "Facilities", label_zh: "设施" } };
+const ALL = ["collab", "automations", "knowledge", FACILITIES, "agents"];
 
 async function open(page: Page, state: State, path = "/t/ten_a/") {
 	await page.clock.install();
@@ -48,7 +48,7 @@ const entry = (page: Page, name: string) => page.locator(".nav-links .nav-link",
 test.describe("not deployed", () => {
 	test("Skills and Connectors go with the agents module", async ({ page }) => {
 		await open(page, { role: "admin", asked: [], modules: ["collab"] });
-		for (const name of ["Skills", "Connectors", "Approvals", "Automations", "Knowledge", "Property"]) await expect(entry(page, name)).toHaveCount(0);
+		for (const name of ["Skills", "Connectors", "Approvals", "Automations", "Knowledge", "Facilities"]) await expect(entry(page, name)).toHaveCount(0);
 		await expect(entry(page, "Tasks")).toBeVisible();
 		await expect(entry(page, "Administration")).toBeVisible();
 	});
@@ -73,7 +73,7 @@ test.describe("not deployed", () => {
 		await open(page, { role: "admin", asked: [], modules: ["collab"] }, "/t/ten_a/admin?tab=skills");
 		await expect(page.getByRole("tab", { name: "People" })).toHaveAttribute("aria-selected", "true");
 		await expect(page.getByRole("tab", { name: "Skills" })).toHaveCount(0);
-		await expect(page.getByRole("tab", { name: "Property" })).toHaveCount(0);
+		await expect(page.getByRole("tab", { name: "Facilities" })).toHaveCount(0);
 	});
 
 	test("a version this build doesn't know is hidden", async ({ page }) => {
@@ -177,43 +177,43 @@ test.describe("an open tab keeps up", () => {
 
 test.describe("business roles", () => {
 	const none = { modules: [], module_admin: [] };
-	const holds = { modules: ["property"], module_admin: [] };
+	const holds = { modules: ["facilities"], module_admin: [] };
 
 	test("no role: no menu entry, and a direct link explains", async ({ page }) => {
 		const state: State = { asked: [], access: none };
 		await open(page, state);
-		await expect(entry(page, "Property")).toHaveCount(0);
+		await expect(entry(page, "Facilities")).toHaveCount(0);
 		await expect(entry(page, "Knowledge")).toBeVisible();
-		expect(state.asked.filter((call) => call.includes("property"))).toEqual([]);
+		expect(state.asked.filter((call) => call.includes("facilities"))).toEqual([]);
 		// The app is what says so.
-		await page.route("http://property.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
-		await page.goto("/t/ten_a/property");
-		await page.waitForURL("http://property.test/t/ten_a/");
+		await page.route("http://facilities.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
+		await page.goto("/t/ten_a/facilities");
+		await page.waitForURL("http://facilities.test/t/ten_a/");
 	});
 
 	test("a role shows it", async ({ page }) => {
 		await open(page, { asked: [], access: holds });
-		await expect(entry(page, "Property")).toBeVisible();
+		await expect(entry(page, "Facilities")).toBeVisible();
 	});
 
 	test("a tenant admin always sees it", async ({ page }) => {
 		await open(page, { role: "admin", asked: [], access: none });
-		await expect(entry(page, "Property")).toBeVisible();
+		await expect(entry(page, "Facilities")).toBeVisible();
 	});
 
 	test("when access isn't known, the module is shown, and it refuses for itself", async ({ page }) => {
 		await open(page, { asked: [] });
-		await expect(entry(page, "Property")).toBeVisible();
+		await expect(entry(page, "Facilities")).toBeVisible();
 	});
 
 	test("a role doesn't bring back a module that isn't deployed", async ({ page }) => {
 		await open(page, { asked: [], access: holds, modules: ["collab"] });
-		await expect(entry(page, "Property")).toHaveCount(0);
+		await expect(entry(page, "Facilities")).toHaveCount(0);
 	});
 
 	test("no role and down: still hidden", async ({ page }) => {
-		await open(page, { asked: [], access: none, unavailable: ["property"], modules: ["collab"] });
-		await expect(entry(page, "Property")).toHaveCount(0);
+		await open(page, { asked: [], access: none, unavailable: ["facilities"], modules: ["collab"] });
+		await expect(entry(page, "Facilities")).toHaveCount(0);
 	});
 
 	test("modules without roles stay with every member", async ({ page }) => {
@@ -224,31 +224,31 @@ test.describe("business roles", () => {
 	test("a role lost while the tab is open leaves the menu", async ({ page }) => {
 		const state: State = { asked: [], access: holds };
 		await open(page, state);
-		await expect(entry(page, "Property")).toBeVisible();
+		await expect(entry(page, "Facilities")).toBeVisible();
 		state.access = none;
 		await refresh(page);
-		await expect(entry(page, "Property")).toHaveCount(0);
+		await expect(entry(page, "Facilities")).toHaveCount(0);
 	});
 });
 
 // A module with its own app has no folder in this build: the shell works from its manifest.
-const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易", icon: "building" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: {} };
+const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: {} };
 
 test.describe("a module with its own app", () => {
 	test("a role holder gets a link out, and Home rows from its counts", async ({ page }) => {
 		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
 		await open(page, state);
-		await expect(page.getByTestId("nav-deals")).toHaveAttribute("href", "http://deals.test/t/ten_a/");
+		await expect(page.getByTestId("app-deals")).toHaveAttribute("href", "http://deals.test/t/ten_a/");
 		await expect(page.getByRole("link", { name: "Deals waiting: 3" })).toHaveAttribute("href", "http://deals.test/t/ten_a/queue");
 	});
 
 	test("someone with no role sees nothing of it, and a tenant admin does", async ({ page }) => {
 		await open(page, { modules: ["collab", deals], access: { modules: [], module_admin: [] }, asked: [] });
 		await expect(page.getByTestId("nav-tasks")).toBeVisible();
-		await expect(page.getByTestId("nav-deals")).toHaveCount(0);
+		await expect(page.getByTestId("app-deals")).toHaveCount(0);
 		await page.unrouteAll();
 		await open(page, { role: "admin", modules: ["collab", deals], access: { modules: [], module_admin: [] }, asked: [] });
-		await expect(page.getByTestId("nav-deals")).toBeVisible();
+		await expect(page.getByTestId("app-deals")).toBeVisible();
 	});
 
 	test("an old link goes to the same place in the app", async ({ page }) => {
@@ -265,15 +265,15 @@ test.describe("a module with its own app", () => {
 	test("it keeps its entry through an outage, once seen", async ({ page }) => {
 		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
 		await open(page, state);
-		await expect(page.getByTestId("nav-deals")).toBeVisible();
+		await expect(page.getByTestId("app-deals")).toBeVisible();
 		await page.unrouteAll();
 		await open(page, { modules: ["collab"], unavailable: ["deals"], access: { modules: ["deals"], module_admin: [] }, asked: [] });
-		await expect(page.getByTestId("nav-deals")).toBeVisible();
+		await expect(page.getByTestId("app-deals")).toBeVisible();
 	});
 
 	test("an address that isn't http or https gives no link", async ({ page }) => {
 		await open(page, { modules: ["collab", { ...deals, app: { ...deals.app, url: "javascript:alert(1)" } }], access: { modules: ["deals"], module_admin: [] }, asked: [] });
 		await expect(page.getByTestId("nav-tasks")).toBeVisible();
-		await expect(page.getByTestId("nav-deals")).toHaveCount(0);
+		await expect(page.getByTestId("app-deals")).toHaveCount(0);
 	});
 });

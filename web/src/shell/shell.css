@@ -47,16 +47,3 @@
  .profile-details > div { grid-template-columns: minmax(0, 1fr); gap: .3rem; }
  .profile-card-head .button { width: 100%; }
 }
-
-/* A module's own icon from its manifest: the drawing is a mask, the colour is the text's. */
-.module-icon {
-	display: inline-block;
-	flex: none;
-	background-color: currentColor;
-	mask-size: contain;
-	mask-repeat: no-repeat;
-	mask-position: center;
-	-webkit-mask-size: contain;
-	-webkit-mask-repeat: no-repeat;
-	-webkit-mask-position: center;
-}

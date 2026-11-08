@@ -1,17 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Building2, Check, ChevronRight, ChevronsUpDown, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, Pencil, Pin, PinOff, Plus, Search, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
 import type { SessionInfo } from "../lib/agent.ts";
 import { signOut } from "../kit/session.ts";
 import { useI18n } from "../lib/i18n.tsx";
-import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
+import { AccountMenu, Rail, type RailApp, WORKBENCH_APP } from "../kit/frame.tsx";
+import { Logo, Menu, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { appHref } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
 import type { WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
-import { setTheme, type Theme, useTheme } from "./theme.ts";
 import { LoadMore } from "../lib/paged.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
 
@@ -144,48 +144,21 @@ function Row({ session, onDone }: { session: SessionInfo; onDone(): void }) {
 	);
 }
 
+/** Workbench's own items in the shared account menu. */
 function Account() {
 	const { t } = useI18n();
 	const { me, tenant, config, path, agent, agents, setAgent } = useWorkspace();
 	const client = useQueryClient();
 	const navigate = useNavigate();
-	const theme = useTheme();
-	const name = displayName(me);
-	const tenantName = me.tenants.find((option) => option.id === tenant)?.name;
 	const switchTenant = async (next: string) => {
 		await postJSON("/auth/tenant", { tenant: next });
 		client.clear();
 		window.location.assign(`/t/${next}/`);
 	};
 	return (
-		<Menu
-			label={t("Account")}
-			triggerClass="account"
-			panelClass="account-menu"
-			trigger={
-				<>
-					<Avatar name={name} size={32} />
-					<span className="account-text">
-						<span className="who">{name}</span>
-						<span className="quiet">{tenantName}</span>
-					</span>
-					<ChevronsUpDown size={15} aria-hidden="true" />
-				</>
-			}
-		>
+		<AccountMenu name={displayName(me)} tenant={tenant} tenants={me.tenants} onSwitch={(next) => void switchTenant(next)} signOut={signOut}>
 			{(close) => (
 				<>
-					{me.tenants.length > 1 && (
-						<>
-							{me.tenants.map((option) => (
-								<button key={option.id} type="button" aria-current={option.id === tenant ? "true" : undefined} onClick={() => (option.id === tenant ? close() : void switchTenant(option.id))}>
-									{option.id === tenant ? <Check size={15} aria-hidden="true" /> : <Building2 size={15} aria-hidden="true" />}
-									{option.name}
-								</button>
-							))}
-							<hr />
-						</>
-					)}
 					{agents.length > 1 && (
 						<label>
 							{t("Agent")}
@@ -205,24 +178,6 @@ function Account() {
 							</select>
 						</label>
 					)}
-					<div className="menu-field">
-						<span>{t("Language")}</span>
-						<LanguageSwitch />
-					</div>
-					<div className="menu-field">
-						<span>{t("Theme")}</span>
-						<Segmented<Theme>
-							label={t("Theme")}
-							value={theme}
-							options={[
-								{ value: "system", label: t("System") },
-								{ value: "light", label: t("Light") },
-								{ value: "dark", label: t("Dark") },
-							]}
-							onChange={setTheme}
-						/>
-					</div>
-					<hr />
 					<Link to={path("settings")} onClick={close}>
 						<SettingsIcon size={15} aria-hidden="true" />
 						{t("Settings")}
@@ -237,23 +192,22 @@ function Account() {
 						<UserRound size={15} aria-hidden="true" />
 						{t("Profile")}
 					</Link>
-					<SignOutButton icon />
 				</>
 			)}
-		</Menu>
+		</AccountMenu>
 	);
 }
 
 type Props = { open: boolean; onClose(): void; onCollapse(): void; onSearch(): void };
 
+/** Workbench in the shared rail: its own sections and conversations, and every app this person has, from manifests. */
 export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 	const { t } = useI18n();
-	const { path, isAdmin } = useWorkspace();
+	const { path, isAdmin, tenant } = useWorkspace();
 	const [showArchived, setShowArchived] = useState(false);
 	const sessions = useSessions();
 	const archived = useSessions(true);
 	const nav = useModuleNav();
-	const { tenant } = useWorkspace();
 
 	const all = sessions.data ?? [];
 	const pinned = all.filter((session) => session.metadata?.pinned === true);
@@ -265,91 +219,99 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 			))}
 		</ul>
 	);
+	// A module with its own app is a place of its own, listed with Workbench, not one of Workbench's sections.
+	const apps: RailApp[] = [
+		{ id: WORKBENCH_APP, label: t("Workbench"), href: path() },
+		...nav.flatMap(({ module, entry, available }) => entry.href === undefined ? [] : [{
+			id: module.id,
+			label: t(entry.label),
+			href: appHref(entry.href, tenant),
+			icon: entry.icon,
+			unavailable: !available,
+			badge: available && entry.unread === true ? <UnreadBadge module={module} /> : undefined,
+		}]),
+	];
 
 	return (
-		<nav className={open ? "sidebar open" : "sidebar"} aria-label={t("Workbench")}>
-			<div className="brand">
-				<Link to={path()} className="brand-link" onClick={onClose}>
-					<Logo size={26} />
-					<span>{t("Workbench")}</span>
-				</Link>
-				<button
-					type="button"
-					className="icon-button"
-					aria-label={t("Hide sidebar")}
-					onClick={() => {
-						onClose();
-						onCollapse();
-					}}
-				>
-					<PanelLeftClose size={17} aria-hidden="true" />
-				</button>
-			</div>
-			<Link className="button primary wide" to={path()} onClick={onClose}>
-				<Plus size={16} aria-hidden="true" />
-				{t("New conversation")}
-			</Link>
-			<button type="button" className="search-button" onClick={onSearch}>
-				<Search size={15} aria-hidden="true" />
-				<span>{t("Search")}</span>
-				<kbd>{SHORTCUT}</kbd>
-			</button>
-			<div className="nav-links">
-				<NavLink className="nav-link" to={path()} end onClick={onClose}>
-					<HomeIcon size={16} aria-hidden="true" />
-					{t("Home")}
-				</NavLink>
-				{nav.map(({ module, entry, available }) => entry.href !== undefined ? (
-					<a key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} href={appHref(entry.href, tenant)} data-testid={`nav-${entry.key}`}>
-						<entry.icon size={16} aria-hidden="true" />
-						{t(entry.label)}
-						{available && entry.unread === true && <UnreadBadge module={module} />}
-					</a>
-				) : (
-					<NavLink key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} to={path(entry.to)} onClick={onClose} data-testid={`nav-${entry.key}`}>
-						<entry.icon size={16} aria-hidden="true" />
-						{t(entry.label)}
-						{available && entry.unread === true && <UnreadBadge module={module} />}
+		<Rail
+			open={open}
+			onCollapse={() => {
+				onClose();
+				onCollapse();
+			}}
+			current={{
+				id: WORKBENCH_APP,
+				label: t("Workbench"),
+				home: (
+					<Link to={path()} className="brand-link" onClick={onClose}>
+						<Logo size={26} />
+						<span>{t("Workbench")}</span>
+					</Link>
+				),
+			}}
+			top={
+				<>
+					<Link className="button primary wide" to={path()} onClick={onClose}>
+						<Plus size={16} aria-hidden="true" />
+						{t("New conversation")}
+					</Link>
+					<button type="button" className="search-button" onClick={onSearch}>
+						<Search size={15} aria-hidden="true" />
+						<span>{t("Search")}</span>
+						<kbd>{SHORTCUT}</kbd>
+					</button>
+				</>
+			}
+			sections={
+				<>
+					<NavLink className="nav-link" to={path()} end onClick={onClose}>
+						<HomeIcon size={16} aria-hidden="true" />
+						{t("Home")}
 					</NavLink>
-				))}
-				{isAdmin && (
-					<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
-						<UsersRound size={16} aria-hidden="true" />
-						{t("Administration")}
-					</NavLink>
-				)}
-			</div>
-			<div className="session-scroll">
-				{sessions.isPending && <Skeleton rows={5} />}
-				{pinned.length > 0 && (
-					<>
-						<h2>{t("Pinned")}</h2>
-						{rows(pinned)}
-					</>
-				)}
-				{recent.map((group) => (
-					<div key={group.label}>
-						<h2>{t(group.label)}</h2>
-						{rows(group.sessions)}
-					</div>
-				))}
-				{sessions.isSuccess && all.length === 0 && <p className="sidebar-hint">{t("Your conversations will appear here.")}</p>}
-				<LoadMore list={sessions} label="Show older conversations" className="link sidebar-more" />
-				{(archived.data?.length ?? 0) > 0 && (
-					<>
-						<button type="button" className="archive-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
-							<ChevronRight size={14} aria-hidden="true" />
-							{t("Archived")} ({archived.data?.length}
-							{archived.hasMore ? "+" : ""})
-						</button>
-						{showArchived && rows(archived.data ?? [])}
-						{showArchived && <LoadMore list={archived} label="Show older conversations" className="link sidebar-more" />}
-					</>
-				)}
-			</div>
-			<footer className="sidebar-foot">
-				<Account />
-			</footer>
-		</nav>
+					{nav.map(({ module, entry, available }) => entry.href === undefined && (
+						<NavLink key={entry.key} className={available ? "nav-link" : "nav-link unavailable"} to={path(entry.to)} onClick={onClose} data-testid={`nav-${entry.key}`}>
+							<entry.icon size={16} aria-hidden="true" />
+							{t(entry.label)}
+							{available && entry.unread === true && <UnreadBadge module={module} />}
+						</NavLink>
+					))}
+					{isAdmin && (
+						<NavLink className="nav-link" to={path("admin")} onClick={onClose}>
+							<UsersRound size={16} aria-hidden="true" />
+							{t("Administration")}
+						</NavLink>
+					)}
+				</>
+			}
+			apps={apps}
+			account={<Account />}
+		>
+			{sessions.isPending && <Skeleton rows={5} />}
+			{pinned.length > 0 && (
+				<>
+					<h2>{t("Pinned")}</h2>
+					{rows(pinned)}
+				</>
+			)}
+			{recent.map((group) => (
+				<div key={group.label}>
+					<h2>{t(group.label)}</h2>
+					{rows(group.sessions)}
+				</div>
+			))}
+			{sessions.isSuccess && all.length === 0 && <p className="sidebar-hint">{t("Your conversations will appear here.")}</p>}
+			<LoadMore list={sessions} label="Show older conversations" className="link sidebar-more" />
+			{(archived.data?.length ?? 0) > 0 && (
+				<>
+					<button type="button" className="archive-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
+						<ChevronRight size={14} aria-hidden="true" />
+						{t("Archived")} ({archived.data?.length}
+						{archived.hasMore ? "+" : ""})
+					</button>
+					{showArchived && rows(archived.data ?? [])}
+					{showArchived && <LoadMore list={archived} label="Show older conversations" className="link sidebar-more" />}
+				</>
+			)}
+		</Rail>
 	);
 }

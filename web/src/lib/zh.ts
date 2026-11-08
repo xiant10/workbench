@@ -159,6 +159,7 @@ export const ZH: Record<string, string> = {
 	Tasks: "任务",
 	"Shared lists": "共享列表",
 	Menu: "菜单",
+	Apps: "应用",
 	"Hide sidebar": "隐藏侧边栏",
 	Settings: "设置",
 	Account: "账户",

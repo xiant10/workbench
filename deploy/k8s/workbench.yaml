@@ -43,6 +43,10 @@ spec:
               value: assistant=http://ai-gateway-agent.t10.svc.cluster.local:18090
             - name: MODULE_URLS
               value: collab=http://t10-collab.t10.svc.cluster.local:18040,agents=http://t10-agent-control.t10.svc.cluster.local:18010,knowledge=http://t10-knowledge.t10.svc.cluster.local:18050
+            # Business apps: one key per module in workbench-modules, added by
+            # each module's own component. Reread while running.
+            - name: MODULES_DIR
+              value: /etc/workbench/modules
           envFrom:
             - secretRef:
                 name: workbench
@@ -54,11 +58,27 @@ spec:
             httpGet:
               path: /healthz
               port: 18060
+          volumeMounts:
+            - name: modules
+              mountPath: /etc/workbench/modules
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: modules
+          configMap:
+            name: workbench-modules
+---
+# Empty here: a business module's component merges in a key named by its ID,
+# holding its address. No hash suffix, so a change reaches running pods.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workbench-modules
+  namespace: t10
 ---
 apiVersion: v1
 kind: Service

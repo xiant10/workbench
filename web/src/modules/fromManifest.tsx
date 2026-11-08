@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { AppWindow, Building2, type LucideIcon } from "lucide-react";
+import { AppWindow } from "lucide-react";
 import { request } from "../lib/api.ts";
 import type { Language } from "../lib/i18n.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
+import { maskIcon } from "../kit/frame.tsx";
 import type { Icon, WorkbenchModule } from "./types.ts";
 
 /** A label in each language a module answers in, because the shell's catalog doesn't hold a module it doesn't ship. */
@@ -18,29 +19,19 @@ export type ModuleManifest = {
 	 * drawn on a 24 by 24 grid and used only as a mask, so its colour follows the menu's. `access` is "member" when every
 	 * member has some use for the app; otherwise only people holding a role in it see it.
 	 */
-	app?: Labelled & { url: string; icon?: string; icon_svg?: string; access?: "role" | "member" };
+	app?: Labelled & { url: string; icon_svg?: string; access?: "role" | "member" };
 	attention?: AttentionRow[];
 	events?: Record<string, Labelled>;
 };
 
-const ICONS: Record<string, LucideIcon> = { building: Building2 };
-
 /** Larger than any icon needs, so a manifest can't make every menu render heavy. */
 const MAX_ICON_SVG = 8192;
 
-/** A module's own icon, as a mask over the text colour. Never put in the page as markup, so it can't run anything. */
-function maskIcon(svg: string): Icon {
-	const image = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-	return function ModuleIcon({ size = 16 }) {
-		return <span className="module-icon" aria-hidden="true" style={{ width: size, height: size, maskImage: image, WebkitMaskImage: image }} />;
-	};
-}
-
-/** The manifest's own drawing, else a named icon this build has, else a generic one. */
+/** The manifest's own drawing, else a generic one. This build names no module's icon. */
 export function iconOf(app: NonNullable<ModuleManifest["app"]>): Icon {
 	const svg = app.icon_svg?.trim();
 	if (svg !== undefined && svg.startsWith("<svg") && svg.length <= MAX_ICON_SVG) return maskIcon(svg);
-	return ICONS[app.icon ?? ""] ?? AppWindow;
+	return AppWindow;
 }
 
 const say = (labelled: Labelled, language: Language) => (language === "zh" ? labelled.label_zh : labelled.label);
