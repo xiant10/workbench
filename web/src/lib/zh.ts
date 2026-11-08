@@ -3,6 +3,16 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"Conversation in {app}": "{app}中的对话",
+	"Ask about this page, or anything in your work.": "可以问这个页面，或工作中的任何事。",
+	"Ask the assistant": "问助手",
+	"Assistant": "助手",
+	"Don't include {what}": "不附带{what}",
+	"Looking this up": "正在查询",
+	"Message": "消息",
+	"Tell the assistant": "说一句",
+	"The assistant is unavailable. What you typed is still here.": "助手暂时不可用。你输入的内容仍在这里。",
+	"The assistant stopped. What you typed is still here.": "助手已停止。你输入的内容仍在这里。",
 	"Notifications: {count} unread": "通知：{count} 条未读",
 	"Nothing new.": "没有新通知。",
 	"Mark all read": "全部标为已读",

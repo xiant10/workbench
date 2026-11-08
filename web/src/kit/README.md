@@ -16,3 +16,7 @@ with `Sections` opens them under it, and `SectionLinks` draws another app's as l
 `command.tsx` is search and notifications in the same frame: `Palette` (⌘K, from
 `useSearchShortcut` or `SearchButton`) shows what each app says it can reach, and `Bell`
 lists unread notifications, each a link to where it happened, in whichever app sent it.
+
+`ask.tsx` is the assistant in the same frame: `AskPanel`, inline in a page or as a panel
+beside any page. It reaches the assistant only through the app's own `AskTransport`, so an
+app that checks consent or removes identifiers before a turn leaves it keeps doing so.

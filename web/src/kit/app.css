@@ -1403,3 +1403,22 @@ label > input, label > select, label > textarea { color: var(--text); font-size:
 	gap: 0.5rem;
 }
 .line.user .queued-note { margin: 2px 4px 0; font-size: 12px; color: var(--muted, #6b7280); text-align: right; }
+
+/* The assistant, the same in every app: a line in a page, or a panel beside any page. */
+.ask { display: flex; flex-direction: column; gap: 0.6rem; }
+.ask-inline { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 1rem; }
+.ask-side { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); z-index: 25; background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-lg); padding: 0.75rem 1rem 1rem; animation: rise 0.12s ease-out; }
+.ask-head { display: flex; align-items: center; gap: 0.25rem; }
+.ask-head h2 { flex: 1; display: flex; align-items: center; gap: 0.45rem; font-size: 1rem; margin: 0; }
+.ask-messages { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
+.ask-message { margin: 0; padding: 0.55rem 0.75rem; border-radius: 12px; white-space: pre-wrap; max-width: 92%; }
+.ask-user { align-self: flex-end; background: var(--user); }
+.ask-assistant { align-self: flex-start; background: var(--sunken); }
+.ask-form label { display: flex; flex-direction: column; gap: 0.4rem; font-weight: 600; }
+.ask-form label span { display: flex; align-items: center; gap: 0.4rem; }
+.ask-form textarea { width: 100%; resize: vertical; font-weight: 400; }
+.ask-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
+.ask-context { margin-right: auto; display: inline-flex; align-items: center; gap: 0.25rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0.15rem 0.3rem 0.15rem 0.6rem; font-size: 0.8rem; }
+.ask-context button { background: none; border: 0; padding: 0.1rem; color: inherit; display: inline-flex; }
+.ask-answer { white-space: pre-wrap; margin: 0; }
+.ask-error { color: var(--danger); margin: 0; }

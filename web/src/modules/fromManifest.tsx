@@ -87,6 +87,27 @@ function wellFormed(value: unknown): value is NavSection {
 	return typeof section?.key === "string" && typeof section.to === "string" && typeof section.label === "string" && typeof section.label_zh === "string" && typeof section.group === "string";
 }
 
+/**
+ * One of this person's conversations in a module's app, from its `GET /v1/me/conversations`: when it was used, where it
+ * continues, and a title only if the app has a safe one.
+ */
+export type AppConversation = { id: string; last_used_at: string; to: string; title?: string };
+
+function isConversation(value: unknown): value is AppConversation {
+	const item = value as Partial<AppConversation> | null;
+	return typeof item?.id === "string" && typeof item.to === "string" && typeof item.last_used_at === "string" && !Number.isNaN(Date.parse(item.last_used_at)) && (item.title === undefined || typeof item.title === "string");
+}
+
+/** A module's conversations, for the list beside Workbench's own. A module that can't answer just adds none. */
+export function conversationsQuery(module: string, tenant: string) {
+	return {
+		queryKey: [module, tenant, "conversations"],
+		queryFn: () => request<{ conversations: unknown[] }>(`/api/modules/${module}/me/conversations`).then((list) => (Array.isArray(list.conversations) ? list.conversations.filter(isConversation) : [])),
+		retry: false,
+		staleTime: 30_000,
+	};
+}
+
 /** This person's sections in a module's app, read through the module proxy. Only well-formed ones come back. */
 export function navQuery(module: string, tenant: string) {
 	return {
@@ -121,7 +142,7 @@ export function moduleFromManifest(manifest: ModuleManifest, language: Language)
 		apiVersion: manifest.api_version,
 		...(manifest.app.access === "member" ? {} : { access: "role" as const }),
 		routes: [],
-		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: iconOf(manifest.app), unread: true, ...(Sections === undefined ? {} : { Sections }) }],
+		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: iconOf(manifest.app), unread: true, ...(Sections === undefined ? {} : { Sections }), ...(manifest.features?.includes("conversations") === true ? { conversations: true } : {}) }],
 		eventLabel: (kind) => {
 			// `work_order.*` covers a family of kinds with one meaning.
 			const event = manifest.events?.[kind] ?? manifest.events?.[`${kind.split(".")[0]}.*`];

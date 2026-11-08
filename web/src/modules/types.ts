@@ -20,6 +20,8 @@ export type ModuleNav = {
 	icon: Icon;
 	/** For a module with its own app: its sections for this person, shown under its entry when they open them. */
 	Sections?: ComponentType;
+	/** For a module with its own app: it lists this person's conversations there, shown with Workbench's own. */
+	conversations?: boolean;
 	/** Show the module's unread count beside this entry. */
 	unread?: boolean;
 	/** For tenant admins. The page still checks for itself. */

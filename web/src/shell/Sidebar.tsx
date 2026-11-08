@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
@@ -10,9 +10,9 @@ import { SearchButton } from "../kit/command.tsx";
 import { AccountMenu, Rail, type RailApp, WORKBENCH_APP } from "../kit/frame.tsx";
 import { WorkbenchBell } from "./Bell.tsx";
 import { Logo, Menu, Skeleton, useFeedback } from "../lib/ui.tsx";
-import { appHref } from "../modules/fromManifest.tsx";
+import { type AppConversation, appHref, conversationsQuery } from "../modules/fromManifest.tsx";
 import { useModuleNav } from "../modules/index.tsx";
-import type { WorkbenchModule } from "../modules/types.ts";
+import type { Icon, WorkbenchModule } from "../modules/types.ts";
 import { useNotifications } from "../modules/useNotifications.ts";
 import { LoadMore } from "../lib/paged.tsx";
 import { displayName, useRefreshSessions, useSessions, useWorkspace } from "./workspace.ts";
@@ -38,8 +38,11 @@ export function SignOutButton({ className = "", icon = false }: { className?: st
  </button>;
 }
 
+/** A conversation in the list: one of Workbench's own, or one in another app, which opens there. */
+type Listed = { kind: "session"; session: SessionInfo; at: number } | { kind: "app"; conversation: AppConversation; app: { id: string; label: string; href: string; icon: Icon }; at: number };
+
 /** Recent conversations by age, newest first. Groups with nothing in them are dropped. */
-function byAge(sessions: SessionInfo[]): { label: string; sessions: SessionInfo[] }[] {
+function byAge(sessions: Listed[]): { label: string; sessions: Listed[] }[] {
 	const midnight = new Date().setHours(0, 0, 0, 0);
 	const groups = [
 		{ label: "Today", since: midnight },
@@ -47,13 +50,39 @@ function byAge(sessions: SessionInfo[]): { label: string; sessions: SessionInfo[
 		{ label: "Previous 7 days", since: midnight - WEEK_DAYS * DAY_MS },
 		{ label: "Older", since: 0 },
 	];
-	const sorted = [...sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+	const sorted = [...sessions].sort((a, b) => b.at - a.at);
 	return groups
 		.map((group, index) => ({
 			label: group.label,
-			sessions: sorted.filter((session) => session.lastActiveAt >= group.since && session.lastActiveAt < (groups[index - 1]?.since ?? Infinity)),
+			sessions: sorted.filter((session) => session.at >= group.since && session.at < (groups[index - 1]?.since ?? Infinity)),
 		}))
 		.filter((group) => group.sessions.length > 0);
+}
+
+/** A conversation in another app. Only that app shows what was said, so the row says where it is. */
+function AppRow({ conversation, app, at }: Extract<Listed, { kind: "app" }>) {
+	const { t, ago } = useI18n();
+	const { tenant } = useWorkspace();
+	return (
+		<li className="session">
+			<a className="app-conversation" href={appHref(app.href, tenant, conversation.to)} data-testid={`conversation-${app.id}`}>
+				<app.icon size={14} aria-hidden="true" />
+				<span className="session-title">{conversation.title ?? t("Conversation in {app}", { app: app.label })}</span>
+				<span className="session-when">{ago(at)}</span>
+			</a>
+		</li>
+	);
+}
+
+/** Every app's conversations that list them, beside Workbench's own. */
+function useAppConversations(): Listed[] {
+	const { t } = useI18n();
+	const { tenant } = useWorkspace();
+	const apps = useModuleNav().filter(({ entry, available }) => available && entry.href !== undefined && entry.conversations === true);
+	const lists = useQueries({ queries: apps.map(({ module }) => conversationsQuery(module.id, tenant)) });
+	return apps.flatMap(({ module, entry }, index) =>
+		(lists[index]?.data ?? []).map((conversation) => ({ kind: "app" as const, conversation, app: { id: module.id, label: t(entry.label), href: entry.href ?? "", icon: entry.icon }, at: Date.parse(conversation.last_used_at) })),
+	);
 }
 
 function Row({ session, onDone }: { session: SessionInfo; onDone(): void }) {
@@ -211,12 +240,15 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 
 	const all = sessions.data ?? [];
 	const pinned = all.filter((session) => session.metadata?.pinned === true);
-	const recent = byAge(all.filter((session) => session.metadata?.pinned !== true));
-	const rows = (list: SessionInfo[]) => (
+	const elsewhere = useAppConversations();
+	const recent = byAge([...all.filter((session) => session.metadata?.pinned !== true).map((session) => ({ kind: "session" as const, session, at: session.lastActiveAt })), ...elsewhere]);
+	const rows = (list: (SessionInfo | Listed)[]) => (
 		<ul>
-			{list.map((session) => (
-				<Row key={session.sessionId} session={session} onDone={onClose} />
-			))}
+			{list.map((item) => {
+				if (!("kind" in item)) return <Row key={item.sessionId} session={item} onDone={onClose} />;
+				if (item.kind === "session") return <Row key={item.session.sessionId} session={item.session} onDone={onClose} />;
+				return <AppRow key={`${item.app.id}:${item.conversation.id}`} {...item} />;
+			})}
 		</ul>
 	);
 	// A module with its own app is a place of its own, listed with Workbench, not one of Workbench's sections.
@@ -297,7 +329,7 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 					{rows(group.sessions)}
 				</div>
 			))}
-			{sessions.isSuccess && all.length === 0 && <p className="sidebar-hint">{t("Your conversations will appear here.")}</p>}
+			{sessions.isSuccess && all.length === 0 && elsewhere.length === 0 && <p className="sidebar-hint">{t("Your conversations will appear here.")}</p>}
 			<LoadMore list={sessions} label="Show older conversations" className="link sidebar-more" />
 			{(archived.data?.length ?? 0) > 0 && (
 				<>

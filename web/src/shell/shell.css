@@ -47,3 +47,7 @@
  .profile-details > div { grid-template-columns: minmax(0, 1fr); gap: .3rem; }
  .profile-card-head .button { width: 100%; }
 }
+
+/* A conversation in another app: its icon says where it opens. */
+.session > a.app-conversation > svg { flex: none; color: var(--muted); }
+.session > a.app-conversation .session-when { margin-left: auto; flex: none; color: var(--muted); font-size: 0.78rem; }

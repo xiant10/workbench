@@ -19,7 +19,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 			if (state.configFails === true) return json({ error: "unavailable" }, 503);
 			return json({
 				agents: ["assistant"], profiles: ["chat"], voice: false, account_url: "http://auth.test/v1/account", unavailable_modules: state.unavailable ?? [],
-				modules: (state.modules ?? ALL).map((entry) => (typeof entry === "string" ? { id: entry, api_version: 1, features: [] } : { ...entry, features: [] })),
+				modules: (state.modules ?? ALL).map((entry) => (typeof entry === "string" ? { id: entry, api_version: 1, features: [] } : { features: [], ...entry })),
 				...(state.access === undefined ? {} : { access: state.access }),
 			});
 		}
@@ -32,6 +32,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 			if (pathname.endsWith("/notifications")) return json({ notifications: [], cursor: "" });
 			if (pathname === "/api/modules/deals/attention") return json({ open: 2, late: 1 });
 			if (pathname === "/api/modules/deals/me/nav") return json({ sections: dealsSections });
+			if (pathname === "/api/modules/deals/me/conversations") return json({ conversations: [{ id: "c1", last_used_at: new Date().toISOString(), to: "?ask=c1" }, { id: "broken", to: "?ask=broken" }] });
 			if (pathname === "/api/modules/knowledge/bases") return json({ bases: [] });
 			if (pathname === "/api/modules/knowledge/admin/collections" || pathname === "/api/modules/knowledge/collections") return json({ collections: [] });
 			return json({ offers: [], items: [], people: [], units: [], approvals: [], automations: [], connectors: [], connections: [], skills: [], drafts: [], documents: [], project: { id: "p" }, scopes: [] });
@@ -329,6 +330,24 @@ test.describe("a module with its own app", () => {
 		await expect(option).toContainText("Deals");
 		await option.click();
 		await page.waitForURL("http://deals.test/t/ten_a/pipeline");
+	});
+
+	test("its conversations join Workbench's list, and open in the app", async ({ page }) => {
+		const talking = { ...deals, features: ["conversations"] };
+		const state: State = { modules: ["collab", talking], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		const rows = page.getByTestId("conversation-deals");
+		await expect(rows).toHaveCount(1);
+		await expect(rows).toContainText("Conversation in Deals");
+		await expect(rows).toHaveAttribute("href", "http://deals.test/t/ten_a/?ask=c1");
+		await expect(page.getByText("Your conversations will appear here.")).toHaveCount(0);
+	});
+
+	test("an app that doesn't list conversations isn't asked", async ({ page }) => {
+		const state: State = { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		await expect(page.getByTestId("app-deals")).toBeVisible();
+		expect(state.asked).not.toContain("/api/modules/deals/me/conversations");
 	});
 
 	test("an app whose manifest lists no sections has nothing to open", async ({ page }) => {
