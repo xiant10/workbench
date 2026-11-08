@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
 import type { SessionInfo } from "../lib/agent.ts";
+import { signOut } from "../kit/session.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { Avatar, LanguageSwitch, Logo, Menu, Segmented, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { appHref } from "../modules/fromManifest.tsx";
@@ -23,11 +24,6 @@ const DAY_MS = 86_400_000;
 const WEEK_DAYS = 7;
 
 export const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
-
-export async function signOut(): Promise<void> {
- const result = await postJSON<{ redirect: string }>("/auth/logout", {});
- window.location.assign(result.redirect);
-}
 
 export function SignOutButton({ className = "", icon = false }: { className?: string; icon?: boolean }) {
  const { t, describe } = useI18n();

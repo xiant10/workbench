@@ -460,8 +460,12 @@ export const ZH: Record<string, string> = {
 	// Signing in
 	"You're signed out.": "你已退出登录。",
 
-	"That tenant requires a second factor. Set one up, then sign in again.": "该租户要求第二重验证。请先设置，然后重新登录。",
-	"You don't have access to that tenant.": "你无权访问该租户。",
+	"That workspace requires a second factor. Set one up, then sign in again.": "该工作空间要求第二重验证。请先设置，然后重新登录。",
+	"You don't have access to that workspace.": "你无权访问该工作空间。",
+	"You've signed out of Workbench, but t10's sign-in service didn't answer, so your other apps may still be signed in. Try again in a moment.": "你已退出工作台，但 t10 登录服务没有响应，其他应用可能仍处于登录状态。请稍后重试。",
+	"Finish signing out": "完成退出",
+	"Set up a second factor": "设置第二重验证",
+	"Use a different account": "使用其他账户",
 	"Sign-in didn't finish. Try again.": "登录未完成，请重试。",
 	"Your account isn't in any tenant yet. Ask a tenant admin for an invitation link.": "你的账号还不属于任何租户。请向租户管理员索取邀请链接。",
 	"Open the platform console": "打开平台控制台",

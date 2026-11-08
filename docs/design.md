@@ -35,7 +35,7 @@ Building it changed four things from this design:
 | --- | --- | --- |
 | The send form states one outcome, from `relation` | It states both outcomes, until `/v1/people` returns `relation`. The result shown is the service's | `relation` doesn't exist yet |
 | Sign-in names no tenant | Someone in several tenants picks one on the auth service's hosted page, before a code is issued. A link to a tenant skips that | See [`sign-in-and-landing.md`](../../auth-server/docs/sign-in-and-landing.md) |
-| Sign-out ends the session | It ends the workbench's session, and the page links to the hosted one | `/v1/signout` takes same-origin posts only, so Sign in afterwards won't ask for a password |
+| Sign-out ends the session | It ends every t10 web app in the browser, and the browser's sign-in, through a one-minute ticket from `auth-server` | See "One sign-out" in [`auth-server/docs/sign-in-and-landing.md`](../../auth-server/docs/sign-in-and-landing.md) |
 | `cmd/workbench` embeds `web/dist` | `web/web.go` embeds it | Go can't embed a parent directory |
 
 `session.messages` also leaves out image data and tool results, so a reopened conversation shows how many images a message had, and each tool's name.
@@ -164,7 +164,7 @@ A module places its settings with `admin` in its `WorkbenchModule`: `joins` puts
 | Waiting, no events for 60 seconds | Stays enabled | Retry |
 | In a call | Typed text still joins the conversation | End call |
 | Reconnecting | Keeps the draft, and sending is paused | Disabled, with a status line |
-| Signed out or no access | Keeps the draft | Sign in again |
+| Signed out or no access | Keeps the draft, unless another account signs in here | Sign in again |
 
 ### Rules
 
@@ -400,6 +400,9 @@ web/src/modules/agents/  a tenant's agent settings, from t10-agent-control
 | Route | Purpose |
 | --- | --- |
 | `GET /auth/login`, `GET /auth/callback`, `POST /auth/logout` | Code flow with PKCE, and sign-out |
+| `GET /auth/session` | 204 while the sign-in behind this session stands, 401 once it's ended anywhere. Open pages ask it |
+| `GET /signed-out` | With no reason, on to the sign-in page. With `mfa`, `no_access`, `failed` or `incomplete`, the app's page saying why |
+| `GET /auth/leave`, `GET /auth/account` | On to `auth-server`'s sign-out and account pages |
 | `POST /auth/tenant` | Switch tenant through `tenant` on a token refresh |
 | `GET /api/me` | Account and tenants, from `GET /v1/me` |
 | `GET`, `POST`, `DELETE /api/agents/{agent}/agent` | Passes through to that agent's `/agent`, adding the bearer token and trace headers |

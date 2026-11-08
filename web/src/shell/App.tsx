@@ -5,6 +5,7 @@ import { Navigate, Outlet, Route, Routes, useLocation, useParams, useSearchParam
 import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
+import { keepDraftsFor, signIn, watchSession } from "../kit/session.ts";
 import { ApiError, onModuleGone, onSignedOut, postJSON, request } from "../lib/api.ts";
 import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -19,11 +20,8 @@ import { Settings } from "./Settings.tsx";
 import { Sidebar, SignOutButton } from "./Sidebar.tsx";
 import { configQuery, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
 
-const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me"), retry: false });
-
-function login(next: string): void {
-	window.location.assign(`/auth/login?next=${encodeURIComponent(next)}`);
-}
+/** Drafts belong to whoever wrote them, so another person signing in here starts clean. */
+const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me").then((me) => { keepDraftsFor(me.user_id); return me; }), retry: false });
 
 function Splash() {
 	return (
@@ -61,7 +59,7 @@ function Root({ page = "" }: { page?: string }) {
 	const me = useMe();
 	const location = useLocation();
 	useEffect(() => {
-		if (me.error instanceof ApiError && me.error.status === 401) login(location.pathname);
+		if (me.error instanceof ApiError && me.error.status === 401) signIn(location.pathname);
 	}, [me.error, location.pathname]);
 	if (me.isError && !(me.error instanceof ApiError && me.error.status === 401)) return <LoadError retry={() => void me.refetch()} />;
 	if (me.data?.active_tenant === "") return <NoTenantPage />;
@@ -88,17 +86,28 @@ function NoTenantPage() {
 	);
 }
 
+/** A sign-in that was refused, or a sign-out that couldn't finish. A sign-out that did
+ * finish goes straight to the sign-in page, which says so. */
 function SignedOutPage() {
 	const { t } = useI18n();
 	const [params] = useSearchParams();
-	const message = { mfa: "That tenant requires a second factor. Set one up, then sign in again.", no_access: "You don't have access to that tenant.", failed: "Sign-in didn't finish. Try again." }[params.get("reason") ?? ""];
+	const reason = params.get("reason") ?? "";
+	const message = {
+		mfa: "That workspace requires a second factor. Set one up, then sign in again.",
+		no_access: "You don't have access to that workspace.",
+		failed: "Sign-in didn't finish. Try again.",
+		incomplete: "You've signed out of Workbench, but t10's sign-in service didn't answer, so your other apps may still be signed in. Try again in a moment.",
+	}[reason];
 	return (
 		<CenterCard>
 			<p>{t(message ?? "You're signed out.")}</p>
-			<a className="button primary wide" href="/auth/login">
-				{t("Sign in")}
-			</a>
-
+			{reason === "incomplete" ? (
+				<a className="button primary wide" href="/auth/leave">{t("Finish signing out")}</a>
+			) : (
+				<button type="button" className="primary wide" onClick={() => signIn("/")}>{t("Sign in")}</button>
+			)}
+			{reason === "mfa" && <a className="button ghost wide" href="/auth/account">{t("Set up a second factor")}</a>}
+			{reason === "no_access" && <a className="button ghost wide" href="/auth/leave">{t("Use a different account")}</a>}
 		</CenterCard>
 	);
 }
@@ -118,6 +127,7 @@ function Shell() {
 	const [collapsed, setCollapsed] = useState(load("sidebar") === "hidden");
 	const [searching, setSearching] = useState(false);
 	useEffect(() => onSignedOut(() => setSignedOut(true)), []);
+	useEffect(watchSession, []);
 	const client = useQueryClient();
 	useEffect(() => onModuleGone(() => void client.invalidateQueries({ queryKey: configQuery.queryKey })), [client]);
 	useEffect(() => {
@@ -141,7 +151,7 @@ function Shell() {
 		);
 	}, [active, tenant]);
 	useEffect(() => {
-		if (me.error instanceof ApiError && me.error.status === 401) login(location.pathname + location.search);
+		if (me.error instanceof ApiError && me.error.status === 401) signIn(location.pathname + location.search);
 	}, [me.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const agentList = useQuery({
@@ -177,9 +187,12 @@ function Shell() {
 	if (denied) {
 		return (
 			<main className="center-page">
-				<Empty icon={LockKeyhole} title={t("You don't have access to that tenant.")}>
+				<Empty icon={LockKeyhole} title={t("You don't have access to that workspace.")}>
 					<a className="button primary" href="/">
 						{t("Home")}
+					</a>
+					<a className="button ghost" href="/auth/leave">
+						{t("Use a different account")}
 					</a>
 				</Empty>
 			</main>
@@ -227,7 +240,7 @@ function Shell() {
 					{signedOut && (
 						<div className="banner" role="alert">
 							{t("You've been signed out. What you typed is kept.")}{" "}
-							<button type="button" className="link" onClick={() => login(location.pathname)}>
+							<button type="button" className="link" onClick={() => signIn(location.pathname, "ended")}>
 								{t("Sign in again")}
 							</button>
 						</div>

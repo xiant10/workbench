@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Archive, CircleAlert, GitBranch, MessageSquareOff, PanelRight, Phone, PhoneOff } from "lucide-react";
+import { signIn } from "../kit/session.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CallBar } from "../call/CallBar.tsx";
@@ -207,7 +208,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						{...(supports(session, "interrupt") ? { onStopAndSend: (input: PromptInput, text: string, images: number) => void stopAndSend(input, text, images) } : {})}
 						{...(stalled === undefined ? {} : { onRetry: () => void retry(stalled) })}
 						onEndCall={call.end}
-						onSignIn={() => window.location.assign(`/auth/login?next=${encodeURIComponent(path(`c/${sessionId}`))}`)}
+						onSignIn={() => signIn(path(`c/${sessionId}`), "ended")}
 					/>
 				)}
 			</div>

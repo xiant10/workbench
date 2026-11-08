@@ -175,7 +175,7 @@ test.describe("M1: core conversations", () => {
 		await page.locator("#name").fill("sample-multi");
 		await page.locator("#password").fill(PASSWORD);
 		await page.locator("#password").press("Enter");
-		await expect(page.getByText("You belong to several tenants.")).toBeVisible();
+		await expect(page.getByText("You belong to several workspaces.", { exact: false })).toBeVisible();
 		await page.getByRole("link", { name: /Sample Acme/ }).click();
 		await expect(page).toHaveURL(/\/t\/ten_sample-acme\//);
 		await startFromHome(page, "only in acme");
@@ -188,17 +188,19 @@ test.describe("M1: core conversations", () => {
 	test("a link into another tenant is refused for a non-member", async ({ page }) => {
 		await signIn(page, "sample-member");
 		await page.goto("/t/ten_sample-globex/");
-		await expect(page.getByText("You don't have access to that tenant.")).toBeVisible();
+		await expect(page.getByText("You don't have access to that workspace.")).toBeVisible();
 	});
 
 	test("one sign-out ends Workbench and the hosted browser session", async ({ page }) => {
   await signIn(page, "sample-globex-admin");
   await openAccount(page);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await expect(page).toHaveURL(`${BASE}/signed-out`);
-  await expect(page.getByText("You're signed out.", { exact: true })).toBeVisible();
+  // It lands on the sign-in page, which says every t10 app on this browser is signed out.
+  await expect(page).toHaveURL(/\/v1\/signin\?.*reason=signedout/);
+  await expect(page.getByText("You've signed out of all t10 apps on this browser.")).toBeVisible();
   expect((await page.request.get("/api/me")).status()).toBe(401);
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  // The browser's sign-in ended too, so opening the app asks for a password again.
+  await page.goto("/");
   await expect(page.locator("#password")).toBeVisible();
  });
 
