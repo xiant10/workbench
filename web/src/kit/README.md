@@ -9,4 +9,6 @@ here. It holds no app's strings: each app passes its own catalog to `I18nProvide
 `Rail` (the app's own sections, then the same Apps list everywhere) and `AccountMenu`
 (tenants, language, theme, one Sign out). The Apps list is data, from manifests or the
 auth service's homes, so no app names another in its code. Its strings, such as "Apps",
-"Theme" and "Sign out", go in each app's catalog.
+"Theme" and "Sign out", go in each app's catalog. An app's sections are data too: a
+`NavSection` list from its `GET /v1/me/nav`, put in order by `groupSections`. An Apps entry
+with `Sections` opens them under it, and `SectionLinks` draws another app's as links.

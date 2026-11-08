@@ -1,6 +1,6 @@
 # Workbench and business apps as one system
 
-Nov 7, 2026 · Status: steps 1 and 2 built and merged to `main` on Nov 8 (workbench, workspace, t10-property, t10-modkit), with one sign-out (`feat/one-sign-out`) merged in each app first, and running on the local cluster's t10 namespace. Reviews the move between `workbench` and business apps such as `t10-property`, and proposes one frame that every t10 web app draws from shared data, with no business module named in `workbench`'s code.
+Nov 7, 2026 · Status: steps 1 and 2 built and merged to `main` on Nov 8 (workbench, workspace, t10-property, t10-modkit), with one sign-out (`feat/one-sign-out`) merged in each app first. Step 3 built on Nov 8. All of it runs on the local cluster's t10 namespace. Reviews the move between `workbench` and business apps such as `t10-property`, and proposes one frame that every t10 web app draws from shared data, with no business module named in `workbench`'s code.
 
 ## Summary
 
@@ -146,7 +146,10 @@ Steps 1 to 3 give the "one system" feel on their own.
 Built so far:
 
 - Step 1. `feat/module-dir` is merged. Workbench's code names no business module: the compiled `building` icon is gone, an app without `icon_svg` gets a generic icon, and the tests use made-up apps. Property sends its own `icon_svg`. In deploy, a business app reaches Workbench through a key its own component adds to `workbench-modules` (`deploy/k8s/catalog/property`), not through Workbench's `MODULE_URLS`. Leave the component out and Property is gone from Workbench, with no Workbench change.
-- Step 2. `t10-modkit/web/frame.tsx` holds `Frame`, `Rail` and `AccountMenu`, and `theme.ts` moved into the kit. Workbench's sidebar and Property's top bar and tab strip both became the rail. Property's sections sit in three groups (daily, Records, Setup) and are still listed in its own code until step 3. Its Apps list comes from `/v1/me/homes`, and Workbench's from manifests. Tenant switching in Property stays in Property when the person has it in the other tenant, and goes to that tenant's Workbench otherwise. Property gains the theme setting. 4 and 5 make it work like one.
+- Step 2. `t10-modkit/web/frame.tsx` holds `Frame`, `Rail` and `AccountMenu`, and `theme.ts` moved into the kit. Workbench's sidebar and Property's top bar and tab strip both became the rail. Property's sections sit in three groups (daily, Records, Setup) and are still listed in its own code until step 3. Its Apps list comes from `/v1/me/homes`, and Workbench's from manifests. Tenant switching in Property stays in Property when the person has it in the other tenant, and goes to that tenant's Workbench otherwise. Property gains the theme setting.
+- Step 3. Property's manifest lists its sections as `app.nav`, and `GET /v1/me/nav` answers with this person's, tested on the server with the same permissions the pages had. Property's rail draws from that read, with a badge from the attention counts each section names; Property keeps only an icon per section key. In Workbench, an app whose manifest has `nav` gets an arrow beside its Apps entry. Opening it reads the app's `/v1/me/nav` through the module proxy and shows daily sections, with records and setup behind More. Which apps are open is kept per browser. Workbench names no section of any app.
+
+Steps 4 and 5 make it work like one.
 
 ## Testing
 

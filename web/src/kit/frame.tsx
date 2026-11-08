@@ -1,5 +1,5 @@
-import { AppWindow, Building2, Check, ChevronsUpDown, LayoutGrid, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";
+import { AppWindow, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, LayoutGrid, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { type ComponentType, Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "./i18n.tsx";
 import { useMedia } from "./layout.ts";
 import { load, save } from "./storage.ts";
@@ -13,7 +13,67 @@ export type Icon = ComponentType<{ size?: number | string; "aria-hidden"?: boole
  * A place in the Apps list. Every app shows the same list, Workbench first, so a person finds the same places wherever
  * they are. It comes from data, never from an app's code: a manifest, or the auth service's list of homes.
  */
-export type RailApp = { id: string; label: string; href: string; icon?: Icon; badge?: ReactNode; unavailable?: boolean };
+export type RailApp = {
+	id: string;
+	label: string;
+	href: string;
+	icon?: Icon;
+	badge?: ReactNode;
+	unavailable?: boolean;
+	/** The app's sections for this person, read only once they open them under its entry. */
+	Sections?: ComponentType;
+};
+
+export type NavGroup = "daily" | "records" | "setup";
+
+/**
+ * One of an app's sections, as its `GET /v1/me/nav` answers: only those this person can use, in menu order. `to` is a
+ * path under the app's `/t/<tenant>/`. `group` is one of three fixed words, so every app sorts the same way, and `keys`
+ * name the attention counts that add up to its badge.
+ */
+export type NavSection = { key: string; to: string; label: string; label_zh: string; group: NavGroup; keys?: string[] };
+
+/** The groups in menu order, with the heading each shows under. Daily work needs none. */
+export const NAV_GROUPS: { id: NavGroup; label?: string }[] = [{ id: "daily" }, { id: "records", label: "Records" }, { id: "setup", label: "Setup" }];
+
+/** Sections in their groups, in the fixed order. A group word this build doesn't know shows with records, not nowhere. */
+export function groupSections<T extends { group: string }>(sections: T[]): { id: NavGroup; label?: string; sections: T[] }[] {
+	const known = (group: string) => NAV_GROUPS.some(({ id }) => id === group);
+	return NAV_GROUPS.map((group) => ({ ...group, sections: sections.filter((section) => section.group === group.id || (group.id === "records" && !known(section.group))) })).filter((group) => group.sections.length > 0);
+}
+
+/** A section's badge: the sum of its attention counts. */
+export function sectionCount(section: { keys?: string[] }, counts: Record<string, number> | undefined): number {
+	return (section.keys ?? []).reduce((sum, key) => sum + (counts?.[key] ?? 0), 0);
+}
+
+/** Another app's sections under its entry in the Apps list: daily work, then the rest behind More. Plain links, since each app is its own site. */
+export function SectionLinks({ sections, href, counts }: { sections: NavSection[]; href(to: string): string; counts?: Record<string, number> }) {
+	const { t, language } = useI18n();
+	const [more, setMore] = useState(false);
+	const daily = sections.filter((section) => section.group === "daily");
+	const rest = sections.filter((section) => section.group !== "daily");
+	const link = (section: NavSection) => {
+		const count = sectionCount(section, counts);
+		return (
+			<a key={section.key} className="nav-link" href={href(section.to)} data-testid={`section-${section.key}`}>
+				{language === "zh" ? section.label_zh : section.label}
+				{count > 0 && <span className="badge">{count}</span>}
+			</a>
+		);
+	};
+	return (
+		<>
+			{daily.map(link)}
+			{more && rest.map(link)}
+			{rest.length > 0 && (
+				<button type="button" className="nav-link rail-more" aria-expanded={more} onClick={() => setMore(!more)}>
+					{t(more ? "Show fewer" : "More")}
+				</button>
+			)}
+		</>
+	);
+}
 
 export const WORKBENCH_APP = "workbench";
 
@@ -43,6 +103,13 @@ type RailProps = {
 /** The left rail every t10 web app draws, so moving between apps changes the page and not the frame. */
 export function Rail({ current, top, sections, apps, children, account, open = false, onCollapse }: RailProps) {
 	const { t } = useI18n();
+	// Which apps' sections are open, kept per browser so the rail looks the same after a move between apps.
+	const [opened, setOpened] = useState(() => (load("rail-open") ?? "").split(",").filter(Boolean));
+	const toggle = (id: string) => {
+		const next = opened.includes(id) ? opened.filter((other) => other !== id) : [...opened, id];
+		setOpened(next);
+		save("rail-open", next.join(","));
+	};
 	return (
 		<nav className={open ? "sidebar open" : "sidebar"} aria-label={current.label}>
 			<div className="brand">
@@ -59,12 +126,28 @@ export function Rail({ current, top, sections, apps, children, account, open = f
 					{apps.map((app) => {
 						const AppIcon = app.icon ?? (app.id === WORKBENCH_APP ? LayoutGrid : AppWindow);
 						const here = app.id === current.id;
+						const expandable = app.Sections !== undefined && !here && app.unavailable !== true;
+						const expanded = expandable && opened.includes(app.id);
 						return (
-							<a key={app.id} className={["nav-link", here ? "active" : "", app.unavailable === true ? "unavailable" : ""].join(" ").trim()} href={app.href} aria-current={here ? "page" : undefined} data-testid={`app-${app.id}`}>
-								<AppIcon size={16} aria-hidden="true" />
-								{app.label}
-								{!here && app.badge}
-							</a>
+							<Fragment key={app.id}>
+								<div className="rail-app">
+									<a className={["nav-link", here ? "active" : "", app.unavailable === true ? "unavailable" : ""].join(" ").trim()} href={app.href} aria-current={here ? "page" : undefined} data-testid={`app-${app.id}`}>
+										<AppIcon size={16} aria-hidden="true" />
+										{app.label}
+										{!here && app.badge}
+									</a>
+									{expandable && (
+										<button type="button" className="icon-button rail-toggle" aria-expanded={expanded} aria-label={t(expanded ? "Hide {name}'s sections" : "Show {name}'s sections", { name: app.label })} data-testid={`app-${app.id}-toggle`} onClick={() => toggle(app.id)}>
+											{expanded ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
+										</button>
+									)}
+								</div>
+								{expanded && app.Sections !== undefined && (
+									<div className="rail-sections" data-testid={`app-${app.id}-sections`}>
+										<app.Sections />
+									</div>
+								)}
+							</Fragment>
 						);
 					})}
 				</div>

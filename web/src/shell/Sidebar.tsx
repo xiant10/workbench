@@ -229,6 +229,7 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 			icon: entry.icon,
 			unavailable: !available,
 			badge: available && entry.unread === true ? <UnreadBadge module={module} /> : undefined,
+			...(entry.Sections === undefined ? {} : { Sections: entry.Sections }),
 		}]),
 	];
 

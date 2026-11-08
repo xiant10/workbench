@@ -3,6 +3,11 @@
  * only, and an agent's is 后台工作. i18n.test.ts fails on a string missing here, or on one nothing uses.
  */
 export const ZH: Record<string, string> = {
+	"More": "更多",
+	"Show {name}'s sections": "展开{name}的栏目",
+	"Hide {name}'s sections": "收起{name}的栏目",
+	"Records": "档案",
+	"Setup": "设置",
 	"Signing out…": "正在退出…",
 	"Your personal information and workspace membership.": "你的个人信息和工作空间成员身份。",
 	"One profile across your t10 apps.": "在各个 t10 应用间使用同一份个人资料。",

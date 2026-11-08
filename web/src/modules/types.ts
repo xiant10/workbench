@@ -18,6 +18,8 @@ export type ModuleNav = {
 	/** Set for a module with its own app: the entry leaves the workbench, and `to` isn't used. */
 	href?: string;
 	icon: Icon;
+	/** For a module with its own app: its sections for this person, shown under its entry when they open them. */
+	Sections?: ComponentType;
 	/** Show the module's unread count beside this entry. */
 	unread?: boolean;
 	/** For tenant admins. The page still checks for itself. */

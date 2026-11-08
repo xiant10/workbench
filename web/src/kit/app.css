@@ -254,6 +254,12 @@ button:disabled { opacity: 0.45; cursor: default; }
 .rail-apps { border-top: 1px solid var(--line); padding-top: 0.55rem; }
 .nav-links > h2 { padding: 0 0.55rem; margin: 0.45rem 0 0.15rem; }
 .rail-apps > h2 { margin-top: 0; }
+.rail-app { display: flex; align-items: center; gap: 0.15rem; }
+.rail-app > .nav-link { flex: 1; min-width: 0; }
+.rail-toggle { flex: none; width: 1.75rem; height: 1.75rem; }
+.rail-sections { display: flex; flex-direction: column; padding-left: 1.6rem; }
+.rail-sections .nav-link { font-size: 0.86rem; padding-block: 0.3rem; }
+.rail-more { border: 0; background: none; width: 100%; color: var(--muted); font: inherit; font-size: 0.86rem; cursor: pointer; text-align: left; justify-content: flex-start; }
 /* A module's own icon from its manifest: the drawing is a mask, the colour is the text's. */
 .module-icon { display: inline-block; flex: none; background-color: currentColor; mask-size: contain; mask-repeat: no-repeat; mask-position: center; -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
 .account { width: 100%; background: none; color: var(--text); justify-content: flex-start; gap: 0.55rem; padding: 0.3rem 0.4rem; text-align: left; font-weight: 500; }

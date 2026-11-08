@@ -41,6 +41,12 @@ describe("a module described by its manifest", () => {
 		expect(moduleFromManifest({ ...manifest, app: { url: "https://f.example", label: "F", label_zh: "F", access: "role" } }, "en")?.access).toBe("role");
 	});
 
+	it("offers its sections only when the manifest lists some", () => {
+		expect(moduleFromManifest(manifest, "en")?.nav[0]?.Sections).toBeUndefined();
+		const nav = [{ key: "jobs", to: "jobs", label: "Jobs", label_zh: "任务", group: "daily" as const }];
+		expect(moduleFromManifest({ ...manifest, app: { ...manifest.app!, nav } }, "en")?.nav[0]?.Sections).toBeDefined();
+	});
+
 	it("keeps a tenant in the address it links to", () => {
 		expect(appHref("https://p.example", "ten a", "/work-orders?mine=1")).toBe("https://p.example/t/ten%20a/work-orders?mine=1");
 	});

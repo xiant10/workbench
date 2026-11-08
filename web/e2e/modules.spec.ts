@@ -30,6 +30,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 			if (!listed.includes(id)) return json({ error: "unknown_module", message: "that module isn't available here" }, 404);
 			if (pathname.endsWith("/notifications")) return json({ notifications: [], cursor: "" });
 			if (pathname === "/api/modules/deals/attention") return json({ open: 2, late: 1 });
+			if (pathname === "/api/modules/deals/me/nav") return json({ sections: dealsSections });
 			if (pathname === "/api/modules/knowledge/bases") return json({ bases: [] });
 			if (pathname === "/api/modules/knowledge/admin/collections" || pathname === "/api/modules/knowledge/collections") return json({ collections: [] });
 			return json({ offers: [], items: [], people: [], units: [], approvals: [], automations: [], connectors: [], connections: [], skills: [], drafts: [], documents: [], project: { id: "p" }, scopes: [] });
@@ -231,6 +232,14 @@ test.describe("business roles", () => {
 	});
 });
 
+// What Deals says this person can use: its manifest lists more, and the per-person read narrows them.
+const dealsSections = [
+	{ key: "queue", to: "queue", label: "Queue", label_zh: "队列", group: "daily", keys: ["open", "late"] },
+	{ key: "pipeline", to: "pipeline", label: "Pipeline", label_zh: "管道", group: "daily" },
+	{ key: "terms", to: "settings/terms", label: "Terms", label_zh: "条款", group: "setup" },
+	{ key: "broken", label: "No address" },
+];
+
 // A module with its own app has no folder in this build: the shell works from its manifest.
 const deals = { id: "deals", api_version: 1, app: { url: "http://deals.test", label: "Deals", label_zh: "交易" }, attention: [{ keys: ["open", "late"], label: "Deals waiting: {count}", label_zh: "待处理交易：{count}", to: "queue" }], events: {} };
 
@@ -255,6 +264,31 @@ test.describe("a module with its own app", () => {
 		await page.route("http://deals.test/**", (route) => route.fulfill({ contentType: "text/html", body: "<h1>the app</h1>" }));
 		await open(page, { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] }, "/t/ten_a/deals/records/7?x=1");
 		await page.waitForURL("http://deals.test/t/ten_a/records/7?x=1");
+	});
+
+	test("its sections open under its entry, from the per-person read, and stay open", async ({ page }) => {
+		const withNav = { ...deals, app: { ...deals.app, nav: [...dealsSections.slice(0, 3), { key: "admin", to: "admin", label: "Admin", label_zh: "管理", group: "setup" }] } };
+		const state: State = { modules: ["collab", withNav], access: { modules: ["deals"], module_admin: [] }, asked: [] };
+		await open(page, state);
+		await expect(page.getByTestId("app-deals-sections")).toHaveCount(0);
+		expect(state.asked).not.toContain("/api/modules/deals/me/nav");
+		await page.getByTestId("app-deals-toggle").click();
+		await expect(page.getByTestId("section-queue")).toHaveAttribute("href", "http://deals.test/t/ten_a/queue");
+		await expect(page.getByTestId("section-queue")).toContainText("3");
+		await expect(page.getByTestId("section-pipeline")).toBeVisible();
+		await expect(page.getByTestId("section-terms")).toHaveCount(0);
+		await expect(page.getByTestId("section-broken")).toHaveCount(0);
+		await page.getByRole("button", { name: "More" }).click();
+		await expect(page.getByTestId("section-terms")).toHaveAttribute("href", "http://deals.test/t/ten_a/settings/terms");
+		await expect(page.getByTestId("section-admin")).toHaveCount(0);
+		await page.reload();
+		await expect(page.getByTestId("section-queue")).toBeVisible();
+	});
+
+	test("an app whose manifest lists no sections has nothing to open", async ({ page }) => {
+		await open(page, { modules: ["collab", deals], access: { modules: ["deals"], module_admin: [] }, asked: [] });
+		await expect(page.getByTestId("app-deals")).toBeVisible();
+		await expect(page.getByTestId("app-deals-toggle")).toHaveCount(0);
 	});
 
 	test("a link to a module nobody knows goes Home", async ({ page }) => {

@@ -3,7 +3,7 @@ import { AppWindow } from "lucide-react";
 import { request } from "../lib/api.ts";
 import type { Language } from "../lib/i18n.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
-import { maskIcon } from "../kit/frame.tsx";
+import { maskIcon, type NavSection, SectionLinks } from "../kit/frame.tsx";
 import type { Icon, WorkbenchModule } from "./types.ts";
 
 /** A label in each language a module answers in, because the shell's catalog doesn't hold a module it doesn't ship. */
@@ -17,9 +17,10 @@ export type ModuleManifest = {
 	/**
 	 * A module with its own web app. The shell links to it, and ships none of its screens. `icon_svg` is the menu icon,
 	 * drawn on a 24 by 24 grid and used only as a mask, so its colour follows the menu's. `access` is "member" when every
-	 * member has some use for the app; otherwise only people holding a role in it see it.
+	 * member has some use for the app; otherwise only people holding a role in it see it. `nav` lists every section the
+	 * app has; a person's own come from the module's `GET /v1/me/nav`.
 	 */
-	app?: Labelled & { url: string; icon_svg?: string; access?: "role" | "member" };
+	app?: Labelled & { url: string; icon_svg?: string; access?: "role" | "member"; nav?: NavSection[] };
 	attention?: AttentionRow[];
 	events?: Record<string, Labelled>;
 };
@@ -80,17 +81,37 @@ function rowsFor(manifest: ModuleManifest, url: string, language: Language) {
 	};
 }
 
+/** A module's answer is data from elsewhere, so only well-formed sections get a link. */
+function wellFormed(value: unknown): value is NavSection {
+	const section = value as Partial<NavSection> | null;
+	return typeof section?.key === "string" && typeof section.to === "string" && typeof section.label === "string" && typeof section.label_zh === "string" && typeof section.group === "string";
+}
+
+function sectionsFor(manifest: ModuleManifest, url: string) {
+	if ((manifest.app?.nav ?? []).length === 0) return undefined;
+	return function AppSections() {
+		const { tenant } = useWorkspace();
+		const nav = useQuery({ queryKey: [manifest.id, tenant, "nav"], queryFn: () => request<{ sections: unknown[] }>(`/api/modules/${manifest.id}/me/nav`), retry: false, staleTime: 60_000 });
+		// The same read as Home's rows, so opening the sections costs no second one.
+		const attention = useQuery({ queryKey: [manifest.id, tenant, "attention"], queryFn: () => request<Record<string, number>>(`/api/modules/${manifest.id}/attention`), retry: false });
+		// Refused or down: the entry above still opens the app, which says why.
+		if (!Array.isArray(nav.data?.sections)) return null;
+		return <SectionLinks sections={nav.data.sections.filter(wellFormed)} href={(to) => appHref(url, tenant, to)} counts={attention.data} />;
+	};
+}
+
 /** The shell's view of a module with its own app, built from what the module says about itself. */
 export function moduleFromManifest(manifest: ModuleManifest, language: Language): WorkbenchModule | undefined {
 	const url = appUrl(manifest);
 	if (url === undefined || manifest.app === undefined) return undefined;
 	const HomeRows = rowsFor(manifest, url, language);
+	const Sections = sectionsFor(manifest, url);
 	return {
 		id: manifest.id,
 		apiVersion: manifest.api_version,
 		...(manifest.app.access === "member" ? {} : { access: "role" as const }),
 		routes: [],
-		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: iconOf(manifest.app), unread: true }],
+		nav: [{ key: manifest.id, label: say(manifest.app, language), to: "", href: url, icon: iconOf(manifest.app), unread: true, ...(Sections === undefined ? {} : { Sections }) }],
 		eventLabel: (kind) => {
 			// `work_order.*` covers a family of kinds with one meaning.
 			const event = manifest.events?.[kind] ?? manifest.events?.[`${kind.split(".")[0]}.*`];
