@@ -12,7 +12,10 @@ export type Tenant = { id: string; name: string; status: string; require_mfa: bo
 
 export type Member = {
 	user_id: string;
+	/** The sign-in name. */
 	name: string;
+	/** The person's own name, which can be empty or the same as the sign-in name. */
+	display_name?: string;
 	role: Role;
 	status: MemberStatus;
 	/** The account's own status, which a platform admin sets for every tenant at once. */
@@ -20,12 +23,15 @@ export type Member = {
 	/** The manager as an admin set them, who may have left since. Saving it back keeps the link. */
 	manager_user_id?: string;
 	manager_name?: string;
+	manager_display_name?: string;
 	org_unit_id?: string;
 	org_unit_name?: string;
 };
 
 export type UnitKind = "department" | "team";
-export type Unit = { id: string; parent_id?: string; name: string; kind: UnitKind };
+/** `members` counts the unit's own active members. The lead is as an admin set them, who may have left since. */
+export type Unit = { id: string; parent_id?: string; name: string; kind: UnitKind; lead_user_id?: string; members?: number };
+export type Placement = { user_id: string; manager_user_id: string; org_unit_id: string };
 
 export type Grant = { id: string; parent_id?: string; runtime_id: string; user_id: string; who: string; actions: string[]; created_at: string; expires_at: string; running: boolean };
 
@@ -44,13 +50,16 @@ export const listMembers = (tenant: string) => request<{ members: Member[] }>(ba
 export const updateMember = (tenant: string, user: string, change: { role?: Role; status?: MemberStatus }) => send<unknown>("PATCH", base(tenant, `members/${encodeURIComponent(user)}`), change);
 export const setPlacement = (tenant: string, user: string, placement: { manager_user_id: string; org_unit_id: string }) =>
 	send<unknown>("PUT", base(tenant, `members/${encodeURIComponent(user)}/placement`), placement);
+/** Places several members in one change: all of them, or none if one is refused. */
+export const setPlacements = (tenant: string, placements: Placement[]) => send<void>("PUT", base(tenant, "placements"), { placements });
 export const resetLink = (tenant: string, user: string) => postJSON<{ reset_url: string }>(base(tenant, `members/${encodeURIComponent(user)}/reset-link`), {}).then((body) => body.reset_url);
 export const invite = (tenant: string, role: Role) => postJSON<{ invite_url: string; join_url: string }>(base(tenant, "invitations"), { role });
 
 export const listUnits = (tenant: string) => request<{ units: Unit[] }>(base(tenant, "units")).then((body) => body.units);
 export const createUnit = (tenant: string, unit: Omit<Unit, "id">) => postJSON<Unit>(base(tenant, "units"), unit);
-export const updateUnit = (tenant: string, unit: Unit) => send<Unit>("PUT", base(tenant, `units/${encodeURIComponent(unit.id)}`), { name: unit.name, kind: unit.kind, parent_id: unit.parent_id ?? "" });
-export const deleteUnit = (tenant: string, id: string) => send<void>("DELETE", base(tenant, `units/${encodeURIComponent(id)}`));
+export const updateUnit = (tenant: string, unit: Unit) => send<Unit>("PUT", base(tenant, `units/${encodeURIComponent(unit.id)}`), { name: unit.name, kind: unit.kind, parent_id: unit.parent_id ?? "", lead_user_id: unit.lead_user_id ?? "" });
+/** With moveUp, the unit's members and child units go to its parent first. */
+export const deleteUnit = (tenant: string, id: string, moveUp = false) => send<void>("DELETE", base(tenant, `units/${encodeURIComponent(id)}${moveUp ? "?move=up" : ""}`));
 
 export const listGrants = (tenant: string) => request<{ grants: Grant[] }>(base(tenant, "grants")).then((body) => body.grants);
 export const revokeGrant = (tenant: string, id: string) => postJSON<unknown>(base(tenant, `grants/${encodeURIComponent(id)}/revoke`), {});

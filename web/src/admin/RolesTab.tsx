@@ -6,6 +6,7 @@ import { Dialog, Empty, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { useWorkspace } from "../shell/workspace.ts";
 import { assignRole, type BusinessRole, type Catalog, createRole, getCatalog, listAssignments, listRoles, type Member, type RoleAssignment, revokeAssignment, updateRole } from "./api.ts";
 import { useFailure } from "./members.ts";
+import { nameOf } from "./org.ts";
 
 function useRoles() {
 	const { tenant } = useWorkspace();
@@ -211,7 +212,7 @@ export function MemberRoles({ member, onClose }: { member: Member; onClose(): vo
 		onError: failed,
 	});
 	const take = useMutation({ mutationFn: (assignment: RoleAssignment) => revokeAssignment(tenant, member.user_id, assignment), onSuccess: refresh, onError: failed });
-	const label = member.name || member.user_id;
+	const label = nameOf(member);
 	const current = (assignments.data ?? []).filter((assignment) => assignment.status === "active");
 	const offered = (roles.data ?? []).filter((role) => role.enabled && !current.some((assignment) => assignment.role_id === role.id));
 	return (
