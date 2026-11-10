@@ -21,7 +21,7 @@ test("a member picks Ti Assistant, chats, and reopens its saved conversation", a
     await page.waitForURL(/\/c\/ti\.agent-ti-0\./);
     await expect(page.locator(".transcript .line.assistant").filter({ hasText: "Ti UI ready." })).toHaveCount(1, { timeout: 90_000 });
     await expect(page.locator(".transcript").getByText(first, { exact: true })).toHaveCount(1);
-    await expect(page.locator(".composer textarea")).toHaveAttribute("placeholder", "Ask your agent");
+    await expect(page.locator(".composer textarea")).toHaveAttribute("placeholder", "Ask the assistant");
     const second = "Reply with exactly: Ti followup ready.";
     await page.locator(".composer textarea").fill(second);
     await page.locator(".composer textarea").press("Enter");

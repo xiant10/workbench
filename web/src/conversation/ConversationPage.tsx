@@ -201,7 +201,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						mode={mode}
 						inCall={inCall}
 						canAddToRun={supports(session, "steer")}
-						placeholder={!state.busy ? t("Ask your agent") : supports(session, "steer") ? t("Add to this run…") : t("Wait for this run to finish")}
+						placeholder={!state.busy ? t("Ask the assistant") : supports(session, "steer") ? t("Add to this run…") : t("Wait for this run to finish")}
 						autoFocus
 						onSend={(input, text, images) => void send(input, text, images, state.busy).then(refresh)}
 						onStop={() => void stop()}

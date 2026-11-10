@@ -1,5 +1,5 @@
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MonitorCog, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings as SettingsIcon, UserRound, Trash2, UsersRound } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronRight, Home as HomeIcon, LogOut, MoreHorizontal, Pencil, Pin, PinOff, Plus, Settings as SettingsIcon, Trash2, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { postJSON, rpc } from "../lib/api.ts";
@@ -7,7 +7,7 @@ import type { SessionInfo } from "../lib/agent.ts";
 import { signOut } from "../kit/session.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { SearchButton } from "../kit/command.tsx";
-import { AccountMenu, Rail, type RailApp, WORKBENCH_APP } from "../kit/frame.tsx";
+import { AccountMenu, CONSOLE_APP, Rail, type RailApp, WORKBENCH_APP } from "../kit/frame.tsx";
 import { WorkbenchBell } from "./Bell.tsx";
 import { Logo, Menu, Skeleton, useFeedback } from "../lib/ui.tsx";
 import { type AppConversation, appHref, conversationsQuery } from "../modules/fromManifest.tsx";
@@ -173,55 +173,23 @@ function Row({ session, onDone }: { session: SessionInfo; onDone(): void }) {
 	);
 }
 
-/** Workbench's own items in the shared account menu. */
+/** The shared account menu, with Workbench's settings as its only item of its own. */
 function Account() {
 	const { t } = useI18n();
-	const { me, tenant, config, path, agent, agents, setAgent } = useWorkspace();
+	const { me, tenant, config, path } = useWorkspace();
 	const client = useQueryClient();
-	const navigate = useNavigate();
 	const switchTenant = async (next: string) => {
 		await postJSON("/auth/tenant", { tenant: next });
 		client.clear();
 		window.location.assign(`/t/${next}/`);
 	};
 	return (
-		<AccountMenu name={displayName(me)} tenant={tenant} tenants={me.tenants} onSwitch={(next) => void switchTenant(next)} signOut={signOut}>
+		<AccountMenu name={displayName(me)} tenant={tenant} tenants={me.tenants} onSwitch={(next) => void switchTenant(next)} signOut={signOut} accountUrl={config.account_url}>
 			{(close) => (
-				<>
-					{agents.length > 1 && (
-						<label>
-							{t("Agent")}
-							<select
-								value={agent}
-								onChange={(event) => {
-									setAgent(event.target.value);
-									navigate(path());
-									close();
-								}}
-							>
-								{agents.map((option) => (
-									<option key={option.name} value={option.name}>
-										{option.title ?? option.name}
-									</option>
-								))}
-							</select>
-						</label>
-					)}
-					<Link to={path("settings")} onClick={close}>
-						<SettingsIcon size={15} aria-hidden="true" />
-						{t("Settings")}
-					</Link>
-					{config.console_url !== undefined && (
-						<a href={config.console_url} onClick={close}>
-							<MonitorCog size={15} aria-hidden="true" />
-							{t("Platform console")}
-						</a>
-					)}
-					<Link to={path("profile")} onClick={close}>
-						<UserRound size={15} aria-hidden="true" />
-						{t("Profile")}
-					</Link>
-				</>
+				<Link to={path("settings")} onClick={close}>
+					<SettingsIcon size={15} aria-hidden="true" />
+					{t("Workbench settings")}
+				</Link>
 			)}
 		</AccountMenu>
 	);
@@ -232,7 +200,7 @@ type Props = { open: boolean; onClose(): void; onCollapse(): void; onSearch(): v
 /** Workbench in the shared rail: its own sections and conversations, and every app this person has, from manifests. */
 export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 	const { t } = useI18n();
-	const { path, isAdmin, tenant } = useWorkspace();
+	const { path, isAdmin, tenant, config } = useWorkspace();
 	const [showArchived, setShowArchived] = useState(false);
 	const sessions = useSessions();
 	const archived = useSessions(true);
@@ -263,6 +231,7 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 			badge: available && entry.unread === true ? <UnreadBadge module={module} /> : undefined,
 			...(entry.Sections === undefined ? {} : { Sections: entry.Sections }),
 		}]),
+		...(config.console_url === undefined ? [] : [{ id: CONSOLE_APP, label: t("Platform console"), href: config.console_url }]),
 	];
 
 	return (

@@ -66,7 +66,7 @@ func run() error {
 
 	auth := &session.AuthClient{
 		URL: cfg.AuthURL, ClientID: cfg.ClientID, ClientSecret: cfg.ClientSecret,
-		HTTP: &http.Client{Timeout: authTimeout},
+		HTTP: &http.Client{Timeout: authTimeout}, Inject: telemetry.Inject,
 	}
 	sessions, err := session.NewManager(session.Options{
 		Pool: pool, Key: cfg.SessionKey, Auth: auth, AuthPublicURL: cfg.AuthPublicURL,

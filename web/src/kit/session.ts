@@ -6,6 +6,8 @@ import { load, save } from "./storage.ts";
 const CHANNEL = "t10-session";
 /** How often a page someone is using asks whether the sign-in still stands. */
 const CHECK_MS = 30_000;
+/** A click or key asks at once, unless a check ran this recently. */
+const NEXT_USE_MS = 5_000;
 /** Lets the tab that signed out finish first, so another can't slip back in. */
 const FOLLOW_MS = 1_000;
 
@@ -60,12 +62,15 @@ function clearDrafts(): void {
 }
 
 /** Takes this page off the screen once the sign-in behind it ends: at once for a
- * sign-out in another tab of this app, and for any other app when someone comes back
- * to the page, or every 30 seconds while they use it. An unattended page doesn't ask,
- * because asking keeps the session alive. Returns a cleanup. */
+ * sign-out in another tab of this app, and for any other app on the next click or key
+ * (at most every 5 seconds), when someone comes back to the page, or every 30 seconds
+ * while they use it. An unattended page doesn't ask, because asking keeps the session
+ * alive. Returns a cleanup. */
 export function watchSession(): () => void {
 	let used = false;
+	let checked = 0;
 	const check = () => {
+		checked = Date.now();
 		fetch("/auth/session", { credentials: "same-origin" }).then(
 			(response) => {
 				if (response.status === 401) signIn(undefined, "ended");
@@ -79,6 +84,10 @@ export function watchSession(): () => void {
 	};
 	const markUsed = () => {
 		used = true;
+		if (Date.now() - checked > NEXT_USE_MS) {
+			used = false;
+			check();
+		}
 	};
 	const onVisible = () => {
 		if (document.visibilityState === "visible") check();

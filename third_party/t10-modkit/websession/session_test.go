@@ -1,9 +1,10 @@
-package session
+package websession
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,8 +17,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"t10-workbench/internal/db"
 )
 
 func TestSealRoundTripAndPurpose(t *testing.T) {
@@ -135,16 +134,19 @@ func newManager(t *testing.T, auth *fakeAuth) *Manager {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(ctx, "DROP SCHEMA IF EXISTS workbench CASCADE"); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Migrate(ctx, pool); err != nil {
+	// Each app makes this table in its own migrations; the columns are the contract.
+	if _, err := pool.Exec(ctx, `DROP SCHEMA IF EXISTS websession_test CASCADE;
+		CREATE SCHEMA websession_test;
+		CREATE TABLE websession_test.web_sessions (
+			id text PRIMARY KEY, user_id text NOT NULL, refresh_token bytea NOT NULL, access_token bytea NOT NULL,
+			access_expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz NOT NULL)`); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(auth)
 	t.Cleanup(server.Close)
 	m, err := NewManager(Options{
 		Pool: pool, Key: make([]byte, 32), PublicURL: "http://127.0.0.1:8083", AuthPublicURL: "http://auth",
+		Name: "wb", Table: "websession_test.web_sessions",
 		Auth: &AuthClient{URL: server.URL, ClientID: "t10-workbench", ClientSecret: "s", HTTP: server.Client()},
 	})
 	if err != nil {
@@ -196,7 +198,7 @@ func TestSignInStoresNothingInTheClear(t *testing.T) {
 	}
 	var id string
 	var refresh []byte
-	err := m.opts.Pool.QueryRow(context.Background(), "SELECT id, refresh_token FROM workbench.web_sessions").Scan(&id, &refresh)
+	err := m.opts.Pool.QueryRow(context.Background(), "SELECT id, refresh_token FROM websession_test.web_sessions").Scan(&id, &refresh)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +275,7 @@ func TestRevokedSessionSignsOut(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	var rows int
-	_ = m.opts.Pool.QueryRow(context.Background(), "SELECT count(*) FROM workbench.web_sessions").Scan(&rows)
+	_ = m.opts.Pool.QueryRow(context.Background(), "SELECT count(*) FROM websession_test.web_sessions").Scan(&rows)
 	if rows != 0 {
 		t.Error("a dead session stayed in the table")
 	}
@@ -315,15 +317,48 @@ func TestPrune(t *testing.T) {
 	m := newManager(t, &fakeAuth{expires: 300})
 	signIn(t, m)
 	ctx := context.Background()
-	if _, err := m.opts.Pool.Exec(ctx, "UPDATE workbench.web_sessions SET expires_at = $1", time.Now().Add(-time.Minute)); err != nil {
+	if _, err := m.opts.Pool.Exec(ctx, "UPDATE websession_test.web_sessions SET expires_at = $1", time.Now().Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.Prune(ctx); err != nil {
 		t.Fatal(err)
 	}
 	var rows int
-	_ = m.opts.Pool.QueryRow(ctx, "SELECT count(*) FROM workbench.web_sessions").Scan(&rows)
+	_ = m.opts.Pool.QueryRow(ctx, "SELECT count(*) FROM websession_test.web_sessions").Scan(&rows)
 	if rows != 0 {
 		t.Error("an expired session stayed")
+	}
+}
+
+func TestAStepUpReplacesTheSessionItCameFrom(t *testing.T) {
+	m := newManager(t, &fakeAuth{expires: 300})
+	m.opts.ReplaceOnSignIn = true
+	old := signIn(t, m)
+	w := httptest.NewRecorder()
+	location := m.BeginStepUp(w, "/t/ten_a/")
+	target, err := url.Parse(location)
+	if err != nil || !strings.HasPrefix(location, "http://auth/v1/signin?") || target.Query().Get("reason") != "stepup" {
+		t.Fatalf("step-up goes to %q", location)
+	}
+	authorize, err := url.Parse(target.Query().Get("next"))
+	if err != nil || authorize.Path != "/v1/authorize" {
+		t.Fatalf("then to %q", target.Query().Get("next"))
+	}
+	r := httptest.NewRequest("GET", "/auth/callback?code=c&state="+authorize.Query().Get("state"), nil)
+	r.AddCookie(w.Result().Cookies()[0])
+	r.AddCookie(old)
+	if _, err := m.Complete(context.Background(), httptest.NewRecorder(), r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Identify(context.Background(), request(old)); !errors.Is(err, ErrSignedOut) {
+		t.Errorf("the session it came from lives on: %v", err)
+	}
+}
+
+func TestATableNameIsTheOnlyTextInAQuery(t *testing.T) {
+	for _, bad := range []string{"", "sessions", "a.b; DROP TABLE x", "A.b", "a.b.c"} {
+		if _, err := NewManager(Options{Key: make([]byte, 32), Name: "wb", Table: bad}); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
 	}
 }

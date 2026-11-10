@@ -6,6 +6,7 @@ import { AdminPage } from "../admin/AdminPage.tsx";
 import { ConversationPage } from "../conversation/ConversationPage.tsx";
 import { listAgents } from "../lib/agent.ts";
 import { keepDraftsFor, signIn, watchSession } from "../kit/session.ts";
+import { useSavedPreferences } from "../kit/preferences.ts";
 import { ApiError, onModuleGone, onSignedOut, postJSON, request } from "../lib/api.ts";
 import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
@@ -15,11 +16,11 @@ import { Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
 import { ModuleRedirect, moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
-import { Profile } from "./Profile.tsx";
 import "./shell.css";
 import { Settings } from "./Settings.tsx";
+import { WorkbenchBell } from "./Bell.tsx";
 import { Sidebar, SignOutButton } from "./Sidebar.tsx";
-import { configQuery, type Me, type Workspace, WorkspaceContext } from "./workspace.ts";
+import { configQuery, type Me, type Workspace, WorkspaceContext, useWorkspace } from "./workspace.ts";
 
 /** Drafts belong to whoever wrote them, so another person signing in here starts clean. */
 const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => request<Me>("/api/me").then((me) => { keepDraftsFor(me.user_id); return me; }), retry: false });
@@ -210,8 +211,11 @@ function Shell() {
 	if (workspace === undefined) return <Splash />;
 	return (
 		<WorkspaceContext.Provider value={workspace}>
+			<SavedPreferences />
 			<Frame
 				place={location.pathname}
+				title={t("Workbench")}
+				bell={<WorkbenchBell />}
 				rail={({ open, close, collapse }) => <Sidebar open={open} onClose={close} onCollapse={collapse} onSearch={() => { close(); setSearching(true); }} />}
 			>
 				{signedOut && (
@@ -243,7 +247,8 @@ export function App() {
 				{/* The Workflows page became Skills, with each skill's workflow on its own tab. */}
 				<Route path="workflows" element={<Navigate to="../skills" replace />} />
 				<Route path=":module/*" element={<ModuleRedirect />} />
-				<Route path="profile" element={<Profile />} />
+				{/* Profile became the account page, which every app shares. */}
+				<Route path="profile" element={<ToAccount />} />
 				<Route path="settings" element={<Settings />} />
 				<Route path="admin" element={<AdminPage />} />
 			</Route>
@@ -254,4 +259,17 @@ export function App() {
 			<Route path="*" element={<Navigate to="/" replace />} />
 		</Routes>
 	);
+}
+
+/** An old link to Workbench's profile: who a person is lives on the account page now. */
+function ToAccount() {
+	const { config } = useWorkspace();
+	useEffect(() => window.location.replace(config.account_url), [config.account_url]);
+	return null;
+}
+
+/** Language and theme as the person saved them, in every app. Only once signed in. */
+function SavedPreferences() {
+	useSavedPreferences();
+	return null;
 }

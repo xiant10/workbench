@@ -12,6 +12,7 @@ FROM golang:1.27.2-alpine AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
+COPY third_party/t10-modkit ./third_party/t10-modkit
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist

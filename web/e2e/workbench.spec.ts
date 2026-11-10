@@ -451,7 +451,7 @@ test.describe("Chinese", () => {
 		await expect(page.getByRole("heading", { name: "共享列表" })).toBeVisible();
 		await expectNoEnglish(page);
 		await page.goto("/t/ten_sample-acme/settings");
-		await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "工作台设置" })).toBeVisible();
 		await expectNoEnglish(page);
 	});
 });

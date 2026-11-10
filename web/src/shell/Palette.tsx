@@ -17,7 +17,7 @@ const MAX_SECTIONS = 8;
 /** One place to jump anywhere, from the keyboard or a tap on Search: conversations, Workbench, and other apps' sections. */
 export function Palette({ onClose }: { onClose(): void }) {
 	const { t, ago, language, setLanguage } = useI18n();
-	const { path, tenant } = useWorkspace();
+	const { path, tenant, config } = useWorkspace();
 	const nav = useModuleNav();
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -33,8 +33,8 @@ export function Palette({ onClose }: { onClose(): void }) {
 			{ key: "new", label: t("New conversation"), icon: MessageSquarePlus, run: go("") },
 			{ key: "home", label: t("Home"), icon: HomeIcon, run: go("") },
 			...nav.map(({ entry }) => ({ key: entry.key, label: t(entry.label), icon: entry.icon, run: entry.href === undefined ? go(entry.to) : () => window.location.assign(appHref(entry.href ?? "", tenant)) })),
-			{ key: "profile", label: t("Profile"), icon: UserRound, run: go("profile") },
-			{ key: "settings", label: t("Settings"), icon: SettingsIcon, run: go("settings") },
+			{ key: "account", label: t("Account"), icon: UserRound, run: () => window.location.assign(config.account_url) },
+			{ key: "settings", label: t("Workbench settings"), icon: SettingsIcon, run: go("settings") },
 			{ key: "theme", label: t(dark ? "Switch to light theme" : "Switch to dark theme"), icon: dark ? Sun : Moon, run: () => setTheme(dark ? "light" : "dark") },
 			{ key: "language", label: language === "zh" ? "Switch to English" : "切换到简体中文", icon: Languages, run: () => setLanguage(language === "zh" ? "en" : "zh") },
 		];

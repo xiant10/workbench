@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 // Which modules a person sees: deployed, down, or held back by business roles. Everything under /api is mocked, so this
 // needs only the page. See docs/module-visibility.md.
 type Config = { modules?: (string | { id: string; api_version: number; [key: string]: unknown })[]; unavailable?: string[]; access?: { modules: string[]; module_admin: string[] } };
-type State = Config & { role?: "member" | "admin"; asked: string[]; configFails?: boolean };
+type State = Config & { role?: "member" | "admin"; asked: string[]; configFails?: boolean; console?: string };
 
 // Facilities, a made-up app, has its own app, so this build knows it only from its manifest.
 const FACILITIES = { id: "facilities", api_version: 1, app: { url: "http://facilities.test", label: "Facilities", label_zh: "设施" } };
@@ -21,6 +21,7 @@ async function open(page: Page, state: State, path = "/t/ten_a/") {
 				agents: ["assistant"], profiles: ["chat"], voice: false, account_url: "http://auth.test/v1/account", unavailable_modules: state.unavailable ?? [],
 				modules: (state.modules ?? ALL).map((entry) => (typeof entry === "string" ? { id: entry, api_version: 1, features: [] } : { features: [], ...entry })),
 				...(state.access === undefined ? {} : { access: state.access }),
+				...(state.console === undefined ? {} : { console_url: state.console }),
 			});
 		}
 		if (pathname.startsWith("/api/modules/")) {
@@ -374,5 +375,44 @@ test.describe("a module with its own app", () => {
 		await open(page, { modules: ["collab", { ...deals, app: { ...deals.app, url: "javascript:alert(1)" } }], access: { modules: ["deals"], module_admin: [] }, asked: [] });
 		await expect(page.getByTestId("nav-tasks")).toBeVisible();
 		await expect(page.getByTestId("app-deals")).toHaveCount(0);
+	});
+});
+
+test.describe("account menu", () => {
+	const items = async (page: Page) => {
+		await page.locator("button.account").click();
+		return page.locator(".account-menu").locator("a, button:not([role=radio]):not(.segmented button)").allInnerTexts();
+	};
+
+	test("is Account, Workbench's settings, then Sign out, and Account knows the way back", async ({ page }) => {
+		await open(page, { asked: [], console: "http://console.test" });
+		const shown = (await items(page)).map((text) => text.trim()).filter((text) => ["Account", "Platform console", "Workbench settings", "Sign out", "Profile"].includes(text));
+		expect(shown).toEqual(["Account", "Workbench settings", "Sign out"]);
+		const href = await page.locator(".account-menu").getByRole("link", { name: "Account" }).getAttribute("href");
+		expect(new URL(href ?? "").searchParams.get("return_to")).toBe(page.url());
+	});
+
+	test("the console is a platform admin's last place in the Apps list", async ({ page }) => {
+		await open(page, { asked: [], console: "http://console.test" });
+		await expect(page.getByTestId("rail-apps").locator(".nav-link").last()).toHaveText("Platform console");
+		await expect(page.getByTestId("app-console")).toHaveAttribute("href", "http://console.test");
+	});
+
+	test("nobody else has the console in the Apps list", async ({ page }) => {
+		await open(page, { asked: [] });
+		await expect(page.getByTestId("app-console")).toHaveCount(0);
+	});
+});
+
+test.describe("on a phone", () => {
+	test("one bar says which app this is, holds the bell, and opens the rail", async ({ page }) => {
+		await open(page, { asked: [] });
+		await page.setViewportSize({ width: 390, height: 844 });
+		const bar = page.getByTestId("phone-bar");
+		await expect(bar).toContainText("Workbench");
+		await expect(bar.getByRole("button", { name: /Notifications/ })).toBeVisible();
+		expect((await bar.boundingBox())?.height).toBeLessThanOrEqual(56);
+		await bar.getByRole("button", { name: "Menu" }).click();
+		await expect(page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "New conversation" })).toBeVisible();
 	});
 });

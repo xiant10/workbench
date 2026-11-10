@@ -1,4 +1,4 @@
-package session
+package websession
 
 import (
 	"context"
@@ -60,7 +60,7 @@ func (m *Manager) Alive(ctx context.Context, r *http.Request) error {
 		return nil
 	}
 	if session, ok := m.sessionID(r); ok {
-		if _, err := m.opts.Pool.Exec(ctx, "DELETE FROM workbench.web_sessions WHERE id = $1", session); err != nil {
+		if _, err := m.opts.Pool.Exec(ctx, m.sql("DELETE FROM {sessions} WHERE id = $1"), session); err != nil {
 			return err
 		}
 	}

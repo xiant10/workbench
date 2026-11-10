@@ -32,6 +32,7 @@ type Sessions interface {
 	SwitchTenant(ctx context.Context, r *http.Request, tenant string) error
 	SignOut(ctx context.Context, w http.ResponseWriter, r *http.Request) string
 	Alive(ctx context.Context, r *http.Request) error
+	OnPublicHost(w http.ResponseWriter, r *http.Request) bool
 }
 
 // Deps is what the server needs.
@@ -77,6 +78,8 @@ func (s *Server) Handler() http.Handler {
 
 	handle("GET /api/config", s.user(s.handleConfig))
 	handle("GET /api/me", s.user(s.handleMe))
+	handle("GET /api/preferences", s.user(s.handlePreferences))
+	handle("PUT /api/preferences", s.sameOrigin(s.user(s.handlePreferences)))
 	handle("POST /api/voice/admission", s.sameOrigin(s.user(s.handleAdmission)))
 	agent := s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
 		s.Proxy.Agent(w, r, r.PathValue("agent"), id.Access, func() bool { return s.isTenantAdmin(r, id) })
@@ -135,6 +138,9 @@ func (s *Server) sameOrigin(next http.Handler) http.Handler {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if s.Sessions.OnPublicHost(w, r) {
+		return
+	}
 	q := r.URL.Query()
 	next := q.Get("next")
 	http.Redirect(w, r, session.SignInHints(s.Sessions.Begin(w, next, tenantIn(next)), q.Get("reason"), q.Get("lang")), http.StatusFound)
@@ -305,6 +311,29 @@ func (s *Server) isTenantAdmin(r *http.Request, id session.Identity) bool {
 		}
 	}
 	return false
+}
+
+// handlePreferences reads and saves the person's language and theme in the auth
+// service, which keeps them for every app.
+func (s *Server) handlePreferences(w http.ResponseWriter, r *http.Request, id session.Identity) {
+	var change map[string]string
+	if r.Method == http.MethodPut && json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&change) != nil {
+		proxy.WriteError(w, http.StatusBadRequest, "invalid_request", "send a language or a theme")
+		return
+	}
+	var body any
+	if change != nil {
+		body = change
+	}
+	status, out, err := s.Auth.Call(r.Context(), r.Method, "/v1/me/preferences", id.Access, body)
+	if err != nil {
+		writeSessionError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	_, _ = w.Write(out)
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, id session.Identity) {

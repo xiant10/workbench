@@ -1,47 +1,38 @@
-import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
-import { LanguageSwitch, Segmented, Setting } from "../lib/ui.tsx";
+import { Setting } from "../lib/ui.tsx";
 import { useModules } from "../modules/index.tsx";
-import { AccountNav } from "./AccountNav.tsx";
 import { SHORTCUT } from "../kit/command.tsx";
-import { setTheme, type Theme, useTheme } from "./theme.ts";
 import { useWorkspace } from "./workspace.ts";
 
+/** Workbench's own preferences. Language, theme and the account are in the account menu, the same in every app. */
 export function Settings() {
 	const { t } = useI18n();
-	const { config, isAdmin, path } = useWorkspace();
+	const { agent, agents, setAgent } = useWorkspace();
 	const modules = useModules();
-	const theme = useTheme();
 	const [notify, setNotify] = useState(load("notify") === "on");
 	const supported = "Notification" in window;
 	const blocked = supported && window.Notification.permission === "denied";
 	return (
 		<div className="page settings account-page">
 			<header className="page-head">
-				<h1>{t("Settings")}</h1>
+				<h1>{t("Workbench settings")}</h1>
 			</header>
-			<AccountNav />
-			<section className="card">
-				<h2>{t("Appearance")}</h2>
-				<Setting title={t("Language")}>
-					<LanguageSwitch />
-				</Setting>
-				<Setting title={t("Theme")}>
-					<Segmented<Theme>
-						label={t("Theme")}
-						value={theme}
-						options={[
-							{ value: "system", label: t("System") },
-							{ value: "light", label: t("Light") },
-							{ value: "dark", label: t("Dark") },
-						]}
-						onChange={setTheme}
-					/>
-				</Setting>
-			</section>
+			{agents.length > 1 && (
+				<section className="card">
+					<h2>{t("Agent")}</h2>
+					<Setting title={t("Default agent")} hint={t("Where new conversations go, and whose conversations the sidebar lists.")}>
+						<select aria-label={t("Agent")} value={agent} onChange={(event) => setAgent(event.target.value)}>
+							{agents.map((option) => (
+								<option key={option.name} value={option.name}>
+									{option.title ?? option.name}
+								</option>
+							))}
+						</select>
+					</Setting>
+				</section>
+			)}
 			{modules.length > 0 && (
 				<section className="card">
 					<h2>{t("Notifications")}</h2>
@@ -65,36 +56,6 @@ export function Settings() {
 					</Setting>
 				</section>
 			)}
-			{(isAdmin || config.console_url !== undefined) && (
-				<section className="card">
-					<h2>{t("Administration")}</h2>
-					{isAdmin && (
-						<Setting title={t("This tenant")} hint={t("People, organization, agents and policies.")}>
-							<Link className="button ghost" to={path("admin")}>
-								{t("Open")}
-								<ChevronRight size={14} aria-hidden="true" />
-							</Link>
-						</Setting>
-					)}
-					{config.console_url !== undefined && (
-						<Setting title={t("Platform console")} hint={t("Every tenant, the agent fleet and model usage. For platform admins.")}>
-							<a className="button ghost" href={config.console_url}>
-								{t("Open")}
-								<ChevronRight size={14} aria-hidden="true" />
-							</a>
-						</Setting>
-					)}
-				</section>
-			)}
-			<section className="card">
-				<h2>{t("Account")}</h2>
-				<Setting title={t("Account security")} hint={t("Password, second factor and signed-in devices.")}>
-					<a className="button ghost" href={config.account_url}>
-						{t("Manage account")}
-						<ArrowUpRight size={14} aria-hidden="true" />
-					</a>
-				</Setting>
-			</section>
 			<section className="card">
 				<h2>{t("Keyboard shortcuts")}</h2>
 				<Setting title={t("Search and jump anywhere")}>

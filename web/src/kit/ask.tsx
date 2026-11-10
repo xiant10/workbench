@@ -184,7 +184,7 @@ export function AskPanel({ transport, placement, session: opened, context, place
 				<label>
 					{!side && (
 						<span>
-							<Sparkles size={16} aria-hidden="true" /> {t("Tell the assistant")}
+							<Sparkles size={16} aria-hidden="true" /> {t("Ask the assistant")}
 						</span>
 					)}
 					<textarea required maxLength={4000} rows={side ? 3 : 2} value={text} placeholder={placeholder} aria-label={side ? t("Message") : undefined} onChange={(event) => setText(event.target.value)} />

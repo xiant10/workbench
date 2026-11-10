@@ -1,4 +1,4 @@
-package session
+package websession
 
 import (
 	"bytes"
@@ -11,8 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"t10-workbench/internal/telemetry"
 )
 
 // Errors the auth service answers with. Each ends a different way for the user.
@@ -37,11 +35,14 @@ type Tokens struct {
 	ExpiresAt time.Time
 }
 
-// AuthClient calls the auth service as the workbench's own confidential client.
+// AuthClient calls the auth service as this app's own confidential client.
 type AuthClient struct {
 	URL, ClientID, ClientSecret string
 	// HTTP needs a timeout, because a refresh holds a row lock across this call.
 	HTTP *http.Client
+	// Inject, if set, adds the caller's trace to each request, so the auth service's
+	// spans join the app's.
+	Inject func(context.Context, http.Header)
 }
 
 // Redeem exchanges a code. A refused redemption leaves the code unspent.
@@ -96,7 +97,9 @@ func (a *AuthClient) Call(ctx context.Context, method, path, bearer string, body
 		return 0, nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
-	telemetry.Inject(ctx, req.Header)
+	if a.Inject != nil {
+		a.Inject(ctx, req.Header)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -169,7 +172,9 @@ func (a *AuthClient) postForm(ctx context.Context, path string, form url.Values)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	telemetry.Inject(ctx, req.Header)
+	if a.Inject != nil {
+		a.Inject(ctx, req.Header)
+	}
 	resp, err := a.HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)

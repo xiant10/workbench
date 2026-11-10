@@ -1,4 +1,4 @@
-import { AppWindow, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, LayoutGrid, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { AppWindow, Building2, Check, ChevronDown, ChevronRight, ChevronsUpDown, LayoutGrid, LogOut, MonitorCog, PanelLeftClose, PanelLeftOpen, UserRound } from "lucide-react";
 import { type ComponentType, Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "./i18n.tsx";
 import { useMedia } from "./layout.ts";
@@ -76,6 +76,19 @@ export function SectionLinks({ sections, href, counts }: { sections: NavSection[
 }
 
 export const WORKBENCH_APP = "workbench";
+/** The platform console, last in a platform admin's Apps list, from the auth service's homes. */
+export const CONSOLE_APP = "console";
+
+/** The account page, told which page to come back to, so it can offer a way back here. */
+export function accountHref(accountUrl: string): string {
+	try {
+		const target = new URL(accountUrl);
+		target.searchParams.set("return_to", window.location.href);
+		return target.toString();
+	} catch {
+		return accountUrl;
+	}
+}
 
 /** A module's own icon, as a mask over the text colour. Never put in the page as markup, so it can't run anything. */
 export function maskIcon(svg: string): Icon {
@@ -83,6 +96,22 @@ export function maskIcon(svg: string): Icon {
 	return function ModuleIcon({ size = 16 }) {
 		return <span className="module-icon" aria-hidden="true" style={{ width: size, height: size, maskImage: image, WebkitMaskImage: image }} />;
 	};
+}
+
+/** The places a page that refuses someone offers instead: every other app in their Apps list, Workbench first. */
+export function OtherPlaces({ current, apps }: { current: string; apps: RailApp[] }) {
+	const { t } = useI18n();
+	return (
+		<>
+			{apps
+				.filter((app) => app.id !== current && app.unavailable !== true)
+				.map((app, index) => (
+					<a key={app.id} className={index === 0 ? "button primary" : "button ghost"} href={app.href}>
+						{t("Open {name}", { name: app.label })}
+					</a>
+				))}
+		</>
+	);
 }
 
 type RailProps = {
@@ -123,11 +152,12 @@ export function Rail({ current, top, bell, sections, apps, children, account, op
 			</div>
 			{top}
 			<div className="nav-links">{sections}</div>
-			{apps.length > 1 && (
+			{/* Shown whenever there's somewhere else to go, even from an app this person has no role in, so no page is a dead end. */}
+			{apps.some((app) => app.id !== current.id) && (
 				<div className="nav-links rail-apps" data-testid="rail-apps">
 					<h2>{t("Apps")}</h2>
 					{apps.map((app) => {
-						const AppIcon = app.icon ?? (app.id === WORKBENCH_APP ? LayoutGrid : AppWindow);
+						const AppIcon = app.icon ?? (app.id === WORKBENCH_APP ? LayoutGrid : app.id === CONSOLE_APP ? MonitorCog : AppWindow);
 						const here = app.id === current.id;
 						const expandable = app.Sections !== undefined && !here && app.unavailable !== true;
 						const expanded = expandable && opened.includes(app.id);
@@ -168,12 +198,18 @@ type AccountMenuProps = {
 	onSwitch(tenant: string): void;
 	/** Sign out of every t10 app in this browser. */
 	signOut(): Promise<void>;
-	/** The app's own items, between the settings and Sign out. */
+	/** The account page, where name, password, second factor and sessions live for every app. From the auth service's homes. */
+	accountUrl?: string;
+	/** The app's own settings, if it has any, such as a link to its settings page. Nothing else goes here. */
 	children?(close: () => void): ReactNode;
 };
 
-/** The same account menu in every app: tenants, language, theme, the app's own items, and one Sign out. */
-export function AccountMenu({ name, tenant, tenants, onSwitch, signOut, children }: AccountMenuProps) {
+/**
+ * The same account menu in every app, in the same order: workspaces, language, theme, Account, the app's own
+ * settings, and one Sign out. Who a person is lives on the account page, never in an app. The platform console is a
+ * place, so it's in the Apps list.
+ */
+export function AccountMenu({ name, tenant, tenants, onSwitch, signOut, accountUrl, children }: AccountMenuProps) {
 	const { t, describe } = useI18n();
 	const { toast } = useFeedback();
 	const theme = useTheme();
@@ -226,6 +262,12 @@ export function AccountMenu({ name, tenant, tenants, onSwitch, signOut, children
 						/>
 					</div>
 					<hr />
+					{accountUrl !== undefined && (
+						<a href={accountHref(accountUrl)} onClick={close}>
+							<UserRound size={15} aria-hidden="true" />
+							{t("Account")}
+						</a>
+					)}
 					{children?.(close)}
 					<button
 						type="button"
@@ -254,11 +296,17 @@ type FrameProps = {
 	rail(controls: { open: boolean; close(): void; collapse(): void }): ReactNode;
 	/** Any change here closes the phone drawer, such as the page's path. */
 	place: string;
+	/** On a phone, the bar across the top says which app this is and holds its bell. */
+	title?: ReactNode;
+	bell?: ReactNode;
 	children: ReactNode;
 };
 
-/** The rail and the page, the same in every app: a hideable rail on a wide screen, a drawer on a phone. */
-export function Frame({ rail, place, children }: FrameProps) {
+/**
+ * The rail and the page, the same in every app: a hideable rail on a wide screen, and on a phone a drawer opened from
+ * a one-line bar that names the app and holds its bell.
+ */
+export function Frame({ rail, place, title, bell, children }: FrameProps) {
 	const { t } = useI18n();
 	const mobile = useMedia("(max-width: 600px)");
 	const [drawer, setDrawer] = useState(false);
@@ -270,21 +318,32 @@ export function Frame({ rail, place, children }: FrameProps) {
 		save("sidebar", hidden ? "hidden" : undefined);
 	};
 	const close = () => setDrawer(false);
+	const toggle = (
+		<button
+			type="button"
+			ref={menuButton}
+			className="drawer-toggle icon-button"
+			aria-label={t("Menu")}
+			aria-expanded={drawer}
+			onClick={() => {
+				hide(false);
+				setDrawer(!drawer);
+			}}
+		>
+			<PanelLeftOpen size={18} aria-hidden="true" />
+		</button>
+	);
 	return (
 		<div className={collapsed ? "shell collapsed" : "shell"}>
-			<button
-				type="button"
-				ref={menuButton}
-				className="drawer-toggle icon-button"
-				aria-label={t("Menu")}
-				aria-expanded={drawer}
-				onClick={() => {
-					hide(false);
-					setDrawer(!drawer);
-				}}
-			>
-				<PanelLeftOpen size={18} aria-hidden="true" />
-			</button>
+			{mobile ? (
+				<header className="phone-bar" data-testid="phone-bar">
+					{toggle}
+					<span className="phone-title">{title}</span>
+					{bell}
+				</header>
+			) : (
+				toggle
+			)}
 			{mobile
 				? drawer && (
 						<Dialog label={t("Menu")} onClose={close} className="sidebar-dialog" backdropClassName="sidebar-backdrop">

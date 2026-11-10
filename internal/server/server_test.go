@@ -43,7 +43,8 @@ func (f *fakeSessions) SignOut(context.Context, http.ResponseWriter, *http.Reque
 	f.loggedOut = true
 	return f.signOutTarget
 }
-func (f *fakeSessions) Alive(context.Context, *http.Request) error { return f.ended }
+func (f *fakeSessions) Alive(context.Context, *http.Request) error           { return f.ended }
+func (f *fakeSessions) OnPublicHost(http.ResponseWriter, *http.Request) bool { return false }
 
 func newServer(t *testing.T, sessions *fakeSessions, upstream string) http.Handler {
 	t.Helper()
@@ -215,6 +216,26 @@ func TestTenantIn(t *testing.T) {
 	for path, want := range map[string]string{"/t/ten_a/tasks": "ten_a", "/t/ten_a": "ten_a", "/": "", "": "", "/admin": "", "/t/": ""} {
 		if got := tenantIn(path); got != want {
 			t.Errorf("tenantIn(%q) = %q, want %q", path, got, want)
+		}
+	}
+}
+
+func TestPreferencesPassThroughToTheAuthService(t *testing.T) {
+	h := newServerWithAuth(t, &fakeSessions{}, "", 200, `{"language":"zh-Hans","theme":"dark"}`, "")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/api/preferences", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"theme":"dark"`) {
+		t.Errorf("read: %d %s", w.Code, w.Body)
+	}
+	for origin, want := range map[string]int{"": 403, "http://127.0.0.1:8083": 200} {
+		r := httptest.NewRequest("PUT", "/api/preferences", strings.NewReader(`{"theme":"light"}`))
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != want {
+			t.Errorf("save from %q: %d %s", origin, w.Code, w.Body)
 		}
 	}
 }

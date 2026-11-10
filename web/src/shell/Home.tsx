@@ -87,7 +87,7 @@ export function Home() {
 				suggestion={suggestion}
 				draftKey="home"
 				mode={signedOut ? "signed-out" : "idle"}
-				placeholder={t("Ask your agent")}
+				placeholder={t("Ask the assistant")}
 				autoFocus
 				onSend={async (input, text) => { await start.mutateAsync({ input, text: text || t("New conversation") }); }}
 				onSignIn={() => signIn(undefined, "ended")}

@@ -1,4 +1,4 @@
-package session
+package websession
 
 import (
 	"crypto/aes"
