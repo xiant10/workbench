@@ -1,6 +1,19 @@
-# workbench
+# Workbench
 
-The web client where people work with their t10 agent: conversations, their results, voice calls, and teammates' tasks. It's a React app served by one Go binary, which holds tokens and proxies `/agent` (to `ai-gateway-agent`, or straight to a harness such as `agent-pi`), the auth service, business modules such as `t10-collab`, and room admission. The browser holds a cookie, never a t10 token. [docs/design.md](docs/design.md) explains why.
+The web client and application server for the t10 multi-tenant AI agent platform: conversations, real-time voice calls, task collaboration, and tenant administration.
+
+## Project Description
+
+**Workbench** is the flagship web client where users and teams interact with their t10 AI agents. Served by a lightweight Go backend daemon and built as a modern React SPA, Workbench integrates conversational chat, real-time WebRTC audio calls, business modules (such as task management and knowledge bases), and comprehensive tenant administration into a single workspace.
+
+### Key Capabilities
+
+- **Conversational Agent Workspace**: Multi-session streaming chat with AI agents via Streamable HTTP (JSON-RPC/SSE) through `ai-gateway` or directly to agent harnesses (such as `agent-pi` and `agent-ti`). Features conversation persistence, markdown formatting, and structured tool result extraction.
+- **Real-Time Voice Calls**: Integrated WebRTC voice calling powered by LiveKit and `t10-livekit-agent`, featuring full-duplex audio, voice activity detection, and speech-to-text transcript streaming directly inside the conversation view.
+- **Teammate Task Collaboration**: Seamless integration with the `t10-collab` module for creating, delegating, commenting on, and managing shared work items and backlogs among team members and AI agents.
+- **Knowledge Base & Document Sets**: Document management powered by `t10-knowledge`, enabling file uploads, text extraction, version rollback, and search across bases and document sets.
+- **Tenant Administration**: Self-service management for tenant admins covering organizational trees, members, invitations, MFA policies, agent fleet enablement (via `t10-agent-control`), and audit activities.
+- **Security-First Session Architecture**: Zero token exposure in the browser. The frontend communicates exclusively via secure, HTTP-only session cookies with the Go backend, which manages token lifecycle, row-locked refresh flows, and downstream delegated authorization with `auth-server`.
 
 ## Status
 
