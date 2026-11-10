@@ -18,7 +18,11 @@ export type Item = {
 	collaborators: string[];
 	created_at: string;
 	updated_at: string;
+	/** What the caller may do to it. Only a single read has it. */
+	can?: Can;
 };
+
+export type Can = { edit: boolean; cancel: boolean; claim: boolean; send: boolean; delete: boolean; manage_people: boolean };
 
 /**
  * A due date is a day, kept as midnight UTC. Collab answers in its own time zone, so the string's first ten characters

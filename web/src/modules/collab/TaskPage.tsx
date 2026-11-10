@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, CircleAlert, Eye, FileQuestion, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { ChevronLeft, CircleAlert, Eye, FileQuestion, Hand, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { load, save as saveLocal } from "../../lib/storage.ts";
@@ -9,7 +9,7 @@ import { useI18n } from "../../lib/i18n.tsx";
 import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
-import { addCollaborator, addComment, deleteItem, dueDay, getItem, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
+import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
 import { eventLabel } from "./events.ts";
 import { SendDialog } from "./SendDialog.tsx";
 import { usePeople } from "./usePeople.ts";
@@ -103,8 +103,11 @@ function TaskEditor({ item }: { item: Item }) {
 	const [preview, setPreview] = useState(false);
 	const [comment, setComment] = useState("");
 	const [adding, setAdding] = useState("");
-	const canEdit = item.owners.includes(me.user_id) || item.collaborators.includes(me.user_id);
+	// Collab says what this person can do. The fallback is for a collab that doesn't yet.
 	const isOwner = item.owners.includes(me.user_id);
+	const can: Can = item.can ?? { edit: isOwner || item.collaborators.includes(me.user_id), cancel: isOwner, claim: false, send: isOwner, delete: isOwner, manage_people: isOwner };
+	const canEdit = can.edit;
+	const list = useQuery({ queryKey: ["list", item.list_id], queryFn: () => getList(item.list_id as string), enabled: item.list_id !== undefined && item.list_id !== "", retry: false, staleTime: 60_000 });
 	const comments = usePaged(["comments", item.id], (cursor) => commentsPage(item.id, cursor), { refetchInterval: POLL_MS });
 	const events = usePaged(["events", item.id], (cursor) => eventsPage(item.id, cursor), { refetchInterval: POLL_MS });
 	const mine = changes(draftOf(base), draft);
@@ -144,7 +147,9 @@ function TaskEditor({ item }: { item: Item }) {
 			setConflict(undefined);
 			setBase(saved);
 			setDraft(draftOf(saved));
-			client.setQueryData(["item", item.id], saved);
+			// An edit answers without `can`, and a status change can change it, so the item is read again.
+			client.setQueryData(["item", item.id], { ...saved, can: item.can });
+			refresh();
 			void client.invalidateQueries({ queryKey: ["items"] });
 			void client.invalidateQueries({ queryKey: ["events", item.id] });
 		},
@@ -161,7 +166,7 @@ function TaskEditor({ item }: { item: Item }) {
 		onSuccess: () => {
 			void client.invalidateQueries({ queryKey: ["items"] });
 			toast(t("Task deleted"));
-			navigate(path("tasks"));
+			navigate(path(list.data === undefined ? "tasks" : `lists/${list.data.id}`));
 		},
 		onError: (error) => toast(describe(error)),
 	});
@@ -172,7 +177,15 @@ function TaskEditor({ item }: { item: Item }) {
 			refresh();
 		},
 	});
-	const removePerson = useMutation({ mutationFn: (user: string) => removeCollaborator(item.id, user), onSuccess: refresh });
+	const removePerson = useMutation({ mutationFn: (user: string) => removeCollaborator(item.id, user), onSuccess: refresh, onError: (error) => toast(describe(error)) });
+	const claim = useMutation({
+		mutationFn: () => claimItem(item.id),
+		onSuccess: () => {
+			refresh();
+			void client.invalidateQueries({ queryKey: ["items"] });
+		},
+		onError: (error) => toast(describe(error)),
+	});
 	const work = useMutation({
 		mutationFn: (current: Item) => startConversation(agent, profile, workItemPrompt(current), titleOf(current.title), { ref: workItemRef(item.id) }),
 		onSuccess: (sessionId) => {
@@ -189,9 +202,10 @@ function TaskEditor({ item }: { item: Item }) {
 	return (
 		<div className="page wide">
 			<header className="task-bar">
-				<Link className="crumb" to={path("tasks")}>
+				{/* A list item goes back to its list, if this person is on it. */}
+				<Link className="crumb" to={path(list.data === undefined ? "tasks" : `lists/${list.data.id}`)}>
 					<ChevronLeft size={16} aria-hidden="true" />
-					{t("Tasks")}
+					{list.data === undefined ? t("Tasks") : list.data.name}
 				</Link>
 				<span className="draft-status" role="status">{t(dirty ? "Unsaved changes · Draft kept on this device" : "Saved")}</span>
 				{dirty && <button type="button" className="link" onClick={() => { setBase(item); setDraft(draftOf(item)); }}>{t("Discard draft")}</button>}
@@ -313,9 +327,10 @@ function TaskEditor({ item }: { item: Item }) {
 					<div className="fields">
 						<label>
 							{t("Status")}
-							<select value={draft.status} disabled={!canEdit || save.isPending} onChange={(event) => set("status", event.target.value as Item["status"])}>
+							{/* Only an owner or the creator cancels, or reopens what they cancelled. */}
+							<select value={draft.status} disabled={!canEdit || save.isPending || (base.status === "cancelled" && !can.cancel)} onChange={(event) => set("status", event.target.value as Item["status"])}>
 								{(["todo", "doing", "done", "cancelled"] as const).map((value) => (
-									<option key={value} value={value}>
+									<option key={value} value={value} disabled={value === "cancelled" && !can.cancel && base.status !== "cancelled"}>
 										{t({ todo: "To do", doing: "In progress", done: "Done", cancelled: "Cancelled", low: "Low", normal: "Normal", high: "High" }[value])}
 									</option>
 								))}
@@ -343,7 +358,13 @@ function TaskEditor({ item }: { item: Item }) {
 					</div>
 					<div className="side-group">
 						<h2>{t("Owners")}</h2>
-						{item.owners.length === 0 && <p className="quiet">{t("Unowned")}</p>}
+						{item.owners.length === 0 && <p className="quiet">{t(item.list_id ? "Open for anyone on this list" : "Unowned")}</p>}
+						{can.claim && (
+							<button type="button" className="primary wide" disabled={claim.isPending} onClick={() => claim.mutate()}>
+								<Hand size={14} aria-hidden="true" />
+								{t("Claim")}
+							</button>
+						)}
 						<ul className="people">
 							{item.owners.map((user) => (
 								<li key={user}>
@@ -360,7 +381,7 @@ function TaskEditor({ item }: { item: Item }) {
 								<li key={user}>
 									<Avatar name={name(user)} size={24} />
 									<span>{name(user)}</span>
-									{isOwner && (
+									{can.manage_people && (
 										<button type="button" className="icon-button" aria-label={t("Remove {name}", { name: name(user) })} onClick={() => removePerson.mutate(user)}>
 											<X size={14} aria-hidden="true" />
 										</button>
@@ -368,7 +389,7 @@ function TaskEditor({ item }: { item: Item }) {
 								</li>
 							))}
 						</ul>
-						{isOwner && (
+						{can.manage_people && (
 							<div className="add-row">
 								<select value={adding} aria-label={t("Find a teammate")} onChange={(event) => setAdding(event.target.value)}>
 									<option value="">{t("Find a teammate")}</option>
@@ -386,16 +407,20 @@ function TaskEditor({ item }: { item: Item }) {
 							</div>
 						)}
 					</div>
-					{isOwner && (
+					{(can.send || can.delete) && (
 						<div className="side-actions">
-							<button type="button" className="ghost wide" onClick={() => setHanding(true)}>
-								<Send size={14} aria-hidden="true" />
-								{t("Hand over")}
-							</button>
-							<button type="button" className="ghost wide danger-text" onClick={() => void askDelete()}>
-								<Trash2 size={14} aria-hidden="true" />
-								{t("Delete")}
-							</button>
+							{can.send && (
+								<button type="button" className="ghost wide" onClick={() => setHanding(true)}>
+									<Send size={14} aria-hidden="true" />
+									{t("Hand over")}
+								</button>
+							)}
+							{can.delete && (
+								<button type="button" className="ghost wide danger-text" onClick={() => void askDelete()}>
+									<Trash2 size={14} aria-hidden="true" />
+									{t("Delete")}
+								</button>
+							)}
 						</div>
 					)}
 				</aside>

@@ -1,7 +1,7 @@
 import { navigateOptions } from "../../lib/layout.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CheckSquare, ChevronRight, Circle, CircleDot, CircleOff, Eye, Flag, Plus } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../lib/i18n.tsx";
 import { LoadMore, usePaged } from "../../lib/paged.tsx";
@@ -20,7 +20,7 @@ const VISIBILITY: Record<Visibility, string> = {
 
 const STATUS_ICONS = { todo: Circle, doing: CircleDot, done: Check, cancelled: CircleOff } satisfies Record<Status, unknown>;
 
-function isClosed(item: Item): boolean {
+export function isClosed(item: Item): boolean {
 	return item.status === "done" || item.status === "cancelled";
 }
 
@@ -28,12 +28,13 @@ function isOverdue(item: Item): boolean {
 	return !isClosed(item) && item.due_at !== null && dueDay(item.due_at) < today();
 }
 
-function ItemRow({ item }: { item: Item }) {
+/** A task in a list of them. A shared list lets every member edit, so it passes `editable`, and its own controls as children. */
+export function ItemRow({ item, editable, children }: { item: Item; editable?: boolean; children?: ReactNode }) {
 	const { t, day, describe } = useI18n();
 	const { toast } = useFeedback();
 	const { me, path } = useWorkspace();
 	const client = useQueryClient();
-	const canEdit = item.owners.includes(me.user_id) || item.collaborators.includes(me.user_id);
+	const canEdit = editable ?? (item.owners.includes(me.user_id) || item.collaborators.includes(me.user_id));
 	const finished = item.status === "done";
 	const toggle = useMutation({
 		mutationFn: () => updateItem(item.id, { status: finished ? "todo" : "done", version: item.version }),
@@ -57,6 +58,7 @@ function ItemRow({ item }: { item: Item }) {
 					</span>
 				)}
 				{item.due_at !== null && <span className={isOverdue(item) ? "due overdue" : "due"}>{day(item.due_at)}</span>}
+				{children}
 				<span className={`pill ${item.status}`}>{t({ todo: "To do", doing: "In progress", done: "Done", cancelled: "Cancelled" }[item.status])}</span>
 			</div>
 		</li>
