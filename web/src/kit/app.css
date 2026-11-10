@@ -566,6 +566,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .people li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; min-height: 28px; }
 .people li > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .people + .add-row { margin-top: 0.5rem; }
+.people + .person-picker { margin-top: 0.5rem; }
+.person-picker > input { width: 100%; }
+.person-picker > .picker { margin-top: 0.3rem; }
+.people select.compact { width: auto; padding: 0.15rem 0.4rem; font-size: 0.82rem; min-height: 0; }
 .side-actions { display: flex; flex-direction: column; gap: 0.4rem; border-top: 1px solid var(--line); padding-top: 0.85rem; }
 label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); font-weight: 500; }
 label > input, label > select, label > textarea { color: var(--text); font-size: 15px; font-weight: 400; }
@@ -694,6 +698,7 @@ label > input, label > select, label > textarea { color: var(--text); font-size:
 .draft-status { font-size: 0.78rem; color: var(--muted); }
 .invite-row { flex-wrap: wrap; }
 .task-row .row-main { min-width: 0; }
+.task-row .chip { max-width: 16rem; }
 @media (max-width: 1199px) {
  .results-resize { display: none; }
  .composer-hint { display: none; }

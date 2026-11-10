@@ -54,11 +54,15 @@ export type Comment = { id: string; author_id: string; body: string; created_at:
 export type ItemEvent = { id: string; item_id: string; actor_user_id: string; kind: string; detail: Record<string, unknown>; at: string };
 export type Person = { user_id: string; display_name: string; org_unit_id: string };
 export type Unit = { id: string; name: string };
+export type ListRole = "owner" | "member";
 export type TaskList = {
 	id: string;
 	name: string;
 	org_unit_id?: string;
-	members?: { user_id: string; role: "owner" | "member"; source: "manual" | "org" }[];
+	archived_at?: string | null;
+	members?: { user_id: string; role: ListRole; source: "manual" | "org" }[];
+	/** Only on a page of lists. */
+	counts?: { open: number; unclaimed: number; members: number };
 };
 export type Visibility = "none" | "direct_reports" | "all_reports";
 
@@ -74,7 +78,7 @@ async function page<T>(path: string, key: string, cursor: string): Promise<Page<
 export const itemsPage = (query: string, cursor: string) => page<Item>(`/work-items?${query}`, "items", cursor);
 export const commentsPage = (id: string, cursor: string) => page<Comment>(`/work-items/${id}/comments`, "comments", cursor);
 export const eventsPage = (id: string, cursor: string) => page<ItemEvent>(`/work-items/${id}/events`, "events", cursor);
-export const listsPage = (cursor: string) => page<TaskList>("/lists", "lists", cursor);
+export const listsPage = (cursor: string, archived = false) => page<TaskList>(`/lists${archived ? "?archived=true" : ""}`, "lists", cursor);
 /** A summary's first page: Home shows only a few of these. */
 export const listItems = async (query: string) => (await request<{ items: Item[] }>(`${base}/work-items?${query}&limit=100`)).items;
 export const getItem = (id: string) => request<Item>(`${base}/work-items/${id}`);
@@ -98,7 +102,9 @@ export const listUnits = async () => (await request<{ units: Unit[] }>(`${base}/
 
 export const getList = (id: string) => request<TaskList>(`${base}/lists/${id}`);
 export const createList = (name: string) => postJSON<TaskList>(`${base}/lists`, { name });
-export const putListMember = (id: string, user: string) => send<void>("PUT", `/lists/${id}/members/${user}`, { role: "member" });
+export const putListMember = (id: string, user: string, role: ListRole = "member") => send<void>("PUT", `/lists/${id}/members/${user}`, { role });
+/** Rename, archive, or link a team. An empty `org_unit_id` clears the link. */
+export const updateList = (id: string, patch: { name?: string; archived?: boolean; org_unit_id?: string }) => send<TaskList>("PATCH", `/lists/${id}`, patch);
 export const removeListMember = (id: string, user: string) => send<void>("DELETE", `/lists/${id}/members/${user}`);
 
 export const getSettings = () => request<{ manager_visibility: Visibility }>(`${base}/settings`);
