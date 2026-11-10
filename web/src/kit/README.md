@@ -29,3 +29,16 @@ app that checks consent or removes identifiers before a turn leaves it keeps doi
 signed-in app, applies what the auth service holds (through the app's `GET /api/preferences`) when the page opens and
 when the person comes back to it, and saves each change with `PUT /api/preferences`. Browser storage stays only as the
 cache for the first paint.
+
+`session.ts`'s `watchSession` asks whether the sign-in still stands on the next click or key
+(at most every 5 seconds), when the page comes back into view, and every 30 seconds in use,
+so a tab signed out from another app leaves on its next use. The Go side of sign-in is
+`websession` in this repo, which every app's server uses with its own cookie and table.
+
+`Frame` takes the app's `title` and `bell`: on a phone they make a one-line bar across the
+top with the menu button, so every app says which it is.
+
+One vocabulary: what a person asks is "the assistant" (助手), and "Ask the assistant" (问助手)
+opens it everywhere; "agent" (智能体) is only where agents are set up or chosen. System text
+says 您. The workspace's `scripts/check-words.py`, in `make check`, refuses 你, a retired name
+for the assistant, and any shared word an app translates differently.
