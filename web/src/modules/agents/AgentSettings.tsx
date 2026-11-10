@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useMemberName } from "../../admin/members.ts";
 import { useState } from "react";
 import { useI18n } from "../../lib/i18n.tsx";
 import { Setting, useFeedback } from "../../lib/ui.tsx";
+import { useWorkspace } from "../../shell/workspace.ts";
 import { Evidence } from "./Evidence.tsx";
 import { PolicySettings } from "./PolicySettings.tsx";
 import { type AgentImpact, type AgentSettings as Settings, getAgentSettings, getPlatformChanges, getSettingHistory, putAgentSettings } from "./api.ts";
@@ -18,6 +21,7 @@ export function AgentSettings() {
 	const { t, describe } = useI18n();
 	const { confirm, toast } = useFeedback();
 	const client = useQueryClient();
+	const { path } = useWorkspace();
 	const settings = useQuery({ queryKey: ["agent-settings"], queryFn: getAgentSettings });
 	const [reason, setReason] = useState("");
 	const update = useMutation({
@@ -35,7 +39,8 @@ export function AgentSettings() {
 	if (settings.data === undefined) return null;
 	const current: Settings = settings.data;
 	const save = (disabled: string[], defaultAgent: string) => update.mutate({ disabled_agents: disabled, default_agent: defaultAgent, reason });
-	const enabled = current.agents.filter((agent) => agent.enabled);
+	// An agent reached only through its own app is never picked, so it has no switch and can't be the default.
+	const enabled = current.agents.filter((agent) => agent.enabled && agent.picker !== false);
 	const label = (name: string) => current.agents.find((agent) => agent.name === name)?.title ?? name;
 	return (
 		<>
@@ -45,8 +50,13 @@ export function AgentSettings() {
 					<input aria-label={t("Reason")} value={reason} maxLength={500} disabled={update.isPending} onChange={(event) => setReason(event.target.value)} />
 				</Setting>
 				{current.agents.map((agent) => (
-					<Setting key={agent.name} title={agent.title ?? agent.name} hint={agent.name}>
-						<label className="switch">
+					<Setting key={agent.name} title={agent.title ?? agent.name} hint={agent.picker === false ? t("{name}, used through its own app", { name: agent.name }) : agent.name}>
+						<div className="row-actions">
+						<Link className="button ghost small" to={path(`agents/${encodeURIComponent(agent.name)}`)} data-testid={`agent-open-${agent.name}`}>
+							{agent.customizable ? t("Customize") : t("Details")}
+							<ChevronRight size={13} aria-hidden="true" />
+						</Link>
+						{agent.picker !== false && <label className="switch">
 							<span className="sr-only">{agent.title ?? agent.name}</span>
 							<input
 								type="checkbox"
@@ -62,7 +72,8 @@ export function AgentSettings() {
 								}}
 							/>
 							<span aria-hidden="true" />
-						</label>
+						</label>}
+						</div>
 					</Setting>
 				))}
 				<Setting title={t("New conversations start with")} hint={t("When someone doesn't pick an agent.")}>

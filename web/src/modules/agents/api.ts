@@ -1,8 +1,11 @@
 import type { SkillFlow } from "../../lib/agent.ts";
 import { postJSON, request } from "../../lib/api.ts";
 
-/** One agent the platform lets this tenant use. Agents it doesn't are never listed. */
-export type AgentChoice = { name: string; title?: string; enabled: boolean };
+/**
+ * One agent the platform lets this tenant use. Agents it doesn't are never listed. `picker` is false for an agent reached
+ * only through its own app, which people never pick; `customizable` says whether this tenant may customize it.
+ */
+export type AgentChoice = { name: string; title?: string; enabled: boolean; picker?: boolean; customizable?: boolean };
 
 export type AgentSettings = {
 	/** Empty keeps the platform's default. */
@@ -175,3 +178,42 @@ export const discardSkillDraft = (agent: string, name: string) => request<unknow
 /** Your drafts for an agent, including skills that are only a draft so far. */
 export const listSkillDrafts = (agent: string) =>
 	request<{ drafts: (SkillDraft & { name: string })[] }>(`/api/modules/agents/admin/skills/drafts?agent=${encodeURIComponent(agent)}`).then((body) => body.drafts);
+
+/** What a tenant's customization of an agent holds. Everything is optional; empty is the agent as the platform ships it. */
+export type AgentConfigContent = {
+	instructions?: string;
+	/** Replaces `instructions` during a call. */
+	callInstructions?: string;
+	/** Tools named `owner:tool`, as the tool gateway names them; `on` wins over `off`. */
+	tools?: { off?: string[]; on?: string[] };
+	skills?: { off?: string[] };
+	/** One of the model entries the platform allows. Empty keeps the agent's own. */
+	model?: string;
+};
+
+/** The published customization, version 0 when there's none. */
+export type AgentConfig = { agent: string; version: number; digest: string; content: AgentConfigContent; updated_by: string; updated_at: string };
+
+/** Your unpublished edit, which only you see and only your test conversations use. */
+export type AgentConfigDraft = { content: AgentConfigContent; base_version: number; updated_at: string; problems: { text: string }[] };
+
+/** One agent's customization, your draft, and what the platform allows. */
+export type AgentConfigView = { config: AgentConfig; draft: AgentConfigDraft | null; models: string[]; keep_tools: string[] };
+
+/** One published version, never changed. */
+export type AgentConfigVersion = { version: number; digest: string; content: AgentConfigContent; actor: string; reason: string; at: string };
+
+const configPath = (agent: string) => `/api/modules/agents/admin/agents/${encodeURIComponent(agent)}/config`;
+
+export const getAgentConfig = (agent: string) => request<AgentConfigView>(configPath(agent));
+
+/** Publish. `version` is the one the edit started from; someone else's publish since is a 409. */
+export const publishAgentConfig = (agent: string, body: { content: AgentConfigContent; version: number; reason: string }) =>
+	request<AgentConfigView>(configPath(agent), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+export const saveAgentConfigDraft = (agent: string, draft: { content: AgentConfigContent; base_version: number }) =>
+	request<AgentConfigView>(`${configPath(agent)}/draft`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(draft) });
+
+export const discardAgentConfigDraft = (agent: string) => request<unknown>(`${configPath(agent)}/draft`, { method: "DELETE" });
+
+export const getAgentConfigHistory = (agent: string) => request<{ versions: AgentConfigVersion[] }>(`${configPath(agent)}/history`).then((body) => body.versions);

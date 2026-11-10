@@ -11,10 +11,11 @@ const POLL_MS = 1_000;
 const WAIT_MS = 180_000;
 
 /**
- * A private chat with the agent that uses the editor's draft of one skill. The agent reads the draft only for a
+ * A private chat with the agent that uses the editor's draft: of one skill, or with `draft`, another of the agent's
+ * drafts, such as `{ configDraft: true }` for the agent's customization. The agent reads a draft only for a
  * conversation whose owner wrote it, so nobody else's turns change. Test conversations stay out of the sidebar.
  */
-export function TestPanel({ agent, name, prepare, onClose }: { agent: string; name: string; prepare(): Promise<void>; onClose(): void }) {
+export function TestPanel({ agent, name, draft, prepare, onClose }: { agent: string; name: string; draft?: Record<string, unknown>; prepare(): Promise<void>; onClose(): void }) {
 	const { t, describe } = useI18n();
 	const [sessionId, setSessionId] = useState<string>();
 	const [messages, setMessages] = useState<TranscriptMessage[]>([]);
@@ -53,7 +54,7 @@ export function TestPanel({ agent, name, prepare, onClose }: { agent: string; na
 			await prepare();
 			let id = sessionId;
 			if (id === undefined) {
-				({ sessionId: id } = await rpc<{ sessionId: string }>(agent, "session.create", { metadata: { title: t("Test: {name}", { name }), skillDraft: name } }));
+				({ sessionId: id } = await rpc<{ sessionId: string }>(agent, "session.create", { metadata: { title: t("Test: {name}", { name }), ...(draft ?? { skillDraft: name }) } }));
 				opened.current = id;
 				setSessionId(id);
 			}
