@@ -550,6 +550,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 .flag { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--danger); font-size: 0.78rem; font-weight: 550; }
 .due { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
 .due.overdue { color: var(--danger); font-weight: 550; }
+.avatars { display: inline-flex; }
+.avatars > * + * { margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
 .tabs { margin-top: 0.5rem; overflow-x: auto; }
 
 .task-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

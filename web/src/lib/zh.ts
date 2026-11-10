@@ -428,6 +428,9 @@ export const ZH: Record<string, string> = {
 	"From a linked team": "来自关联团队",
 	"Open for anyone on this list": "列表中的任何人都可认领",
 	"Nothing here.": "这里没有内容。",
+	"Everything on this list is done.": "此列表的任务都已结束。",
+	"Show finished ({n})": "显示已结束的任务（{n}）",
+	"Hide finished ({n})": "隐藏已结束的任务（{n}）",
 
 	// Settings
 	Language: "语言",

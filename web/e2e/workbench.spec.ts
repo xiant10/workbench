@@ -386,7 +386,14 @@ test.describe("M4: people's work", () => {
 		await page.getByRole("link", { name }).click();
 		await page.getByLabel("Add a task").fill("Unowned job");
 		await page.getByLabel("Add a task").press("Enter");
+		// An open list item is the member's to work on, and can be claimed from its own page.
+		await page.getByRole("link", { name: "Unowned job" }).click();
+		await expect(page.getByText("You're reading this as a manager")).toHaveCount(0);
+		await expect(page.getByLabel("Description")).toBeEditable();
 		await page.getByRole("button", { name: "Claim" }).click();
+		await expect(page.getByRole("button", { name: "Claim" })).toHaveCount(0);
+		await page.getByRole("link", { name }).click();
+		await expect(page.getByRole("link", { name: "Unowned job" })).toBeVisible();
 		await expect(page.getByRole("button", { name: "Claim" })).toHaveCount(0);
 	});
 
@@ -406,7 +413,7 @@ test.describe("Chinese", () => {
 		await openAccount(page);
 		await page.getByRole("radio", { name: "简体中文" }).click();
 		await page.keyboard.press("Escape");
-		await expect(page.getByRole("link", { name: "任务" })).toBeVisible();
+		await expect(page.getByRole("link", { name: "任务", exact: true })).toBeVisible();
 	}
 
 	async function expectNoEnglish(page: Page): Promise<void> {
@@ -432,7 +439,7 @@ test.describe("Chinese", () => {
 		await page.getByRole("link", { name: "主页" }).click();
 		await expect(page.getByRole("heading", { level: 1 })).toContainText(/好|夜深了/);
 		await expectNoEnglish(page);
-		await page.getByRole("link", { name: "任务" }).click();
+		await page.getByRole("link", { name: "任务", exact: true }).click();
 		const title = `季度数字 ${Date.now()}`;
 		await page.getByLabel("添加任务").fill(title);
 		await page.getByLabel("添加任务").press("Enter");
