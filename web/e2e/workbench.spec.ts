@@ -383,7 +383,8 @@ test.describe("M4: people's work", () => {
 		const name = `Team list ${Date.now()}`;
 		await page.getByLabel("New list").fill(name);
 		await page.getByLabel("New list").press("Enter");
-		await page.getByRole("link", { name }).click();
+		// A new list opens, ready for work.
+		await expect(page.getByRole("heading", { name })).toBeVisible();
 		await page.getByLabel("Add a task").fill("Unowned job");
 		await page.getByLabel("Add a task").press("Enter");
 		// An open list item is the member's to work on, and can be claimed from its own page.
@@ -395,6 +396,53 @@ test.describe("M4: people's work", () => {
 		await page.getByRole("link", { name }).click();
 		await expect(page.getByRole("link", { name: "Unowned job" })).toBeVisible();
 		await expect(page.getByRole("button", { name: "Claim" })).toHaveCount(0);
+	});
+
+	test("open list work shows up for grabs, and a finished task can be undone", async ({ page }) => {
+		await signIn(page, "sample-member");
+		await page.goto("/t/ten_sample-acme/lists");
+		const name = `Grabs ${Date.now()}`;
+		const job = `Water the plants ${Date.now()}`;
+		await page.getByLabel("New list").fill(name);
+		await page.getByLabel("New list").press("Enter");
+		await expect(page.getByRole("heading", { name })).toBeVisible();
+		await page.getByLabel("Add a task").fill(job);
+		await page.getByLabel("Add a task").press("Enter");
+		await expect(page.getByRole("link", { name: job })).toBeVisible();
+
+		await page.getByRole("link", { name: "Tasks", exact: true }).first().click();
+		await page.getByRole("tab", { name: /Up for grabs/ }).click();
+		await page.getByLabel("Search tasks").fill(job);
+		const row = page.locator("li", { has: page.getByRole("link", { name: job }) });
+		await expect(row.getByRole("link", { name })).toBeVisible();
+		await row.getByRole("button", { name: "Claim" }).click();
+		await expect(page.getByRole("link", { name: job })).toHaveCount(0);
+
+		await page.getByRole("tab", { name: "Owned" }).click();
+		await row.getByRole("button", { name: "Mark as done" }).click();
+		await expect(page.getByRole("link", { name: job })).toHaveCount(0);
+		await page.getByRole("button", { name: "Undo" }).click();
+		await expect(page.getByRole("link", { name: job })).toBeVisible();
+	});
+
+	test("a list owner shares the list, and a member can leave it", async ({ browser }) => {
+		const owner = await signedIn(browser, "sample-acme-admin");
+		await owner.goto("/t/ten_sample-acme/lists");
+		const name = `Leavers ${Date.now()}`;
+		await owner.getByLabel("New list").fill(name);
+		await owner.getByLabel("New list").press("Enter");
+		await owner.getByLabel("Add member").fill("sample-member");
+		await owner.getByRole("button", { name: /^sample-member/ }).click();
+		await expect(owner.getByLabel("Role of sample-member")).toHaveValue("member");
+
+		const member = await signedIn(browser, "sample-member");
+		await member.goto(owner.url().replace(/^https?:\/\/[^/]+/, ""));
+		await expect(member.getByRole("heading", { name })).toBeVisible();
+		await expect(member.getByRole("button", { name: "List settings" })).toHaveCount(0);
+		await member.getByRole("button", { name: "Leave list" }).click();
+		await member.getByRole("dialog").getByRole("button", { name: "Leave" }).click();
+		await expect(member).toHaveURL(/\/lists$/);
+		await expect(member.getByRole("link", { name })).toHaveCount(0);
 	});
 
 	test("a missing task reads the same as a forbidden one", async ({ page }) => {
@@ -413,7 +461,7 @@ test.describe("Chinese", () => {
 		await openAccount(page);
 		await page.getByRole("radio", { name: "简体中文" }).click();
 		await page.keyboard.press("Escape");
-		await expect(page.getByRole("link", { name: "任务", exact: true })).toBeVisible();
+		await expect(page.getByRole("link", { name: /^任务\s*\d*$/ })).toBeVisible();
 	}
 
 	async function expectNoEnglish(page: Page): Promise<void> {
@@ -439,7 +487,7 @@ test.describe("Chinese", () => {
 		await page.getByRole("link", { name: "主页" }).click();
 		await expect(page.getByRole("heading", { level: 1 })).toContainText(/好|夜深了/);
 		await expectNoEnglish(page);
-		await page.getByRole("link", { name: "任务", exact: true }).click();
+		await page.getByRole("link", { name: /^任务\s*\d*$/ }).click();
 		const title = `季度数字 ${Date.now()}`;
 		await page.getByLabel("添加任务").fill(title);
 		await page.getByLabel("添加任务").press("Enter");

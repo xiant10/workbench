@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, CircleAlert, Eye, FileQuestion, Hand, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { ChevronLeft, CircleAlert, Eye, FileQuestion, Hand, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { load, save as saveLocal } from "../../lib/storage.ts";
@@ -11,6 +11,7 @@ import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
 import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
 import { eventLabel } from "./events.ts";
+import { PersonPicker } from "./PersonPicker.tsx";
 import { SendDialog } from "./SendDialog.tsx";
 import { usePeople } from "./usePeople.ts";
 
@@ -73,7 +74,7 @@ function TaskEditor({ item }: { item: Item }) {
 	const navigate = useNavigate();
 	const client = useQueryClient();
 	const refreshSessions = useRefreshSessions();
-	const { people, name } = usePeople();
+	const { name } = usePeople();
 	const draftKey = `task-draft:${tenant}:${me.user_id}:${item.id}`;
 	const [restored] = useState(() => {
 		try {
@@ -102,7 +103,6 @@ function TaskEditor({ item }: { item: Item }) {
 	const [handing, setHanding] = useState(false);
 	const [preview, setPreview] = useState(false);
 	const [comment, setComment] = useState("");
-	const [adding, setAdding] = useState("");
 	// Collab says what this person can do. The fallback is for a collab that doesn't yet.
 	const isOwner = item.owners.includes(me.user_id);
 	const can: Can = item.can ?? { edit: isOwner || item.collaborators.includes(me.user_id), cancel: isOwner, claim: false, send: isOwner, delete: isOwner, manage_people: isOwner };
@@ -170,13 +170,7 @@ function TaskEditor({ item }: { item: Item }) {
 		},
 		onError: (error) => toast(describe(error)),
 	});
-	const addPerson = useMutation({
-		mutationFn: () => addCollaborator(item.id, adding),
-		onSuccess: () => {
-			setAdding("");
-			refresh();
-		},
-	});
+	const addPerson = useMutation({ mutationFn: (user: string) => addCollaborator(item.id, user), onSuccess: refresh, onError: (error) => toast(describe(error)) });
 	const removePerson = useMutation({ mutationFn: (user: string) => removeCollaborator(item.id, user), onSuccess: refresh, onError: (error) => toast(describe(error)) });
 	const claim = useMutation({
 		mutationFn: () => claimItem(item.id),
@@ -389,23 +383,7 @@ function TaskEditor({ item }: { item: Item }) {
 								</li>
 							))}
 						</ul>
-						{can.manage_people && (
-							<div className="add-row">
-								<select value={adding} aria-label={t("Find a teammate")} onChange={(event) => setAdding(event.target.value)}>
-									<option value="">{t("Find a teammate")}</option>
-									{people
-										.filter((person) => !item.owners.includes(person.user_id) && !item.collaborators.includes(person.user_id))
-										.map((person) => (
-											<option key={person.user_id} value={person.user_id}>
-												{person.display_name || t("Teammate")}
-											</option>
-										))}
-								</select>
-								<button type="button" className="ghost icon-only" aria-label={t("Add collaborator")} disabled={adding === ""} onClick={() => addPerson.mutate()}>
-									<UserPlus size={15} aria-hidden="true" />
-								</button>
-							</div>
-						)}
+						{can.manage_people && <PersonPicker label={t("Add collaborator")} exclude={[...item.owners, ...item.collaborators]} disabled={addPerson.isPending} onPick={(user) => addPerson.mutate(user)} />}
 					</div>
 					{(can.send || can.delete) && (
 						<div className="side-actions">
