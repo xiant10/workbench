@@ -1,11 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Pause, Play, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type UseQueryResult, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlarmClock, ChevronDown, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../lib/i18n.tsx";
 import { Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { type Automation, createAutomation, DAYS, deleteAutomation, type Firing, fromCron, getAutomation, listAutomations, runAutomation, toCron, updateAutomation } from "./api.ts";
+import { TaskForm } from "./TaskForm.tsx";
+import { type Automation, createAutomation, deleteAutomation, type Firing, fromCron, getAutomation, listAutomations, runAutomation, updateAutomation } from "./api.ts";
 
 const DAY_NAMES: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
 const STATE_LABELS: Record<Automation["state"], string> = { active: "On", paused: "Paused", failing: "Stopped after failures", revoked: "Consent ended" };
@@ -14,19 +15,22 @@ const FIRING_LABELS: Record<Firing["state"], string> = { claimed: "Waiting", run
 /** A person's automations: what runs for them, when, and what each run did. */
 export function AutomationsPage() {
 	const { t } = useI18n();
-	const automations = useQuery({ queryKey: ["automations"], queryFn: listAutomations });
+	const automations = useQuery({ queryKey: ["automations"], queryFn: listAutomations, refetchInterval: 10_000 });
+	const [creating, setCreating] = useState(false);
 	const [open, setOpen] = useState<string>();
 	return (
 		<div className="page">
 			<header className="page-head">
 				<h1>{t("Automations")}</h1>
+				<button type="button" className="primary" disabled={creating} onClick={() => setCreating(true)}><Plus size={16} aria-hidden="true" />{t("New automation")}</button>
 			</header>
-			<p className="quiet">{t("Instructions an agent runs for you on a schedule, as you, while you're away. You're told when each run is ready.")}</p>
-			<NewAutomation />
+			<p className="quiet">{t("Reusable tasks an agent runs for you, on demand or on a schedule. Each run acts as you and opens a conversation with its results.")}</p>
+			<NewAutomation visible={creating} onClose={() => setCreating(false)} onCreated={(id) => setOpen(id)} />
 			{automations.isPending && <Skeleton />}
+			{automations.isError && <p role="alert">{t("Couldn't load this. Try again.")} <button type="button" className="link" onClick={() => void automations.refetch()}>{t("Retry")}</button></p>}
 			{automations.data?.length === 0 && (
-				<Empty icon={AlarmClock} title={t("Nothing scheduled yet.")}>
-					{t("A morning brief on weekdays is a good first one.")}
+				<Empty icon={AlarmClock} title={t("No automations yet.")}>
+					{t("Save a task to run when needed, or schedule a recurring brief.")}
 				</Empty>
 			)}
 			<ul className="rows">
@@ -38,77 +42,31 @@ export function AutomationsPage() {
 	);
 }
 
-function NewAutomation() {
-	const { t, describe } = useI18n();
-	const { agents, agent } = useWorkspace();
+function NewAutomation({ visible, onClose, onCreated }: { visible: boolean; onClose(): void; onCreated(id: string): void }) {
+	const { t } = useI18n();
 	const { toast } = useFeedback();
 	const client = useQueryClient();
-	const [name, setName] = useState("");
-	const [instruction, setInstruction] = useState("");
-	const [chosen, setChosen] = useState(agent);
-	const [time, setTime] = useState("08:00");
-	const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
-	const create = useMutation({
-		mutationFn: () => {
-			const [hour, minute] = time.split(":").map(Number);
-			return createAutomation({
-				name,
-				instruction,
-				agent: chosen,
-				cron: toCron({ hour: hour ?? 8, minute: minute ?? 0, days }),
-				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-			});
-		},
-		onSuccess: () => {
-			setName("");
-			setInstruction("");
-			toast(t("Scheduled. It runs as you, so it can do what you can."));
-			void client.invalidateQueries({ queryKey: ["automations"] });
-		},
-		onError: (error) => toast(describe(error)),
-	});
-	const ready = name.trim() !== "" && instruction.trim() !== "" && days.length > 0 && chosen !== "";
-	const submit = (event: FormEvent) => {
-		event.preventDefault();
-		if (ready) create.mutate();
-	};
-	return (
-		<form className="card automation-form" onSubmit={submit}>
-			<h2>{t("New automation")}</h2>
-			<input value={name} maxLength={120} placeholder={t("Name, such as Morning brief")} aria-label={t("Name")} onChange={(event) => setName(event.target.value)} />
-			<textarea value={instruction} maxLength={4000} rows={3} placeholder={t("What the agent should do each time")} aria-label={t("Instruction")} onChange={(event) => setInstruction(event.target.value)} />
-			<div className="automation-when">
-				{agents.length > 1 && (
-					<select aria-label={t("Agent")} value={chosen} onChange={(event) => setChosen(event.target.value)}>
-						{agents.map((entry) => (
-							<option key={entry.name} value={entry.name}>
-								{entry.title ?? entry.name}
-							</option>
-						))}
-					</select>
-				)}
-				<input type="time" aria-label={t("Time")} value={time} onChange={(event) => setTime(event.target.value)} required />
-				<div className="day-picks" role="group" aria-label={t("Days")}>
-					{DAYS.map((day) => (
-						<label key={day} className={days.includes(day) ? "day-pick on" : "day-pick"}>
-							<input type="checkbox" checked={days.includes(day)} onChange={(event) => setDays(event.target.checked ? [...days, day] : days.filter((d) => d !== day))} />
-							{t(DAY_NAMES[day]!)}
-						</label>
-					))}
-				</div>
-				<button type="submit" className="primary" disabled={!ready || create.isPending}>
-					<Plus size={15} aria-hidden="true" />
-					{t("Schedule")}
-				</button>
-			</div>
-		</form>
-	);
+	if (!visible) return null;
+	return <TaskForm onCancel={onClose} onSave={async (draft) => {
+		const created = await createAutomation(draft);
+		onClose();
+		onCreated(created.id);
+		toast(t("Automation saved. It runs with your permissions."));
+		void client.invalidateQueries({ queryKey: ["automations"] });
+	}} />;
 }
 
 function AutomationRow({ automation, open, onToggle }: { automation: Automation; open: boolean; onToggle(): void }) {
+	const [editing, setEditing] = useState(false);
 	const { t, describe } = useI18n();
 	const { confirm, toast } = useFeedback();
 	const client = useQueryClient();
+	const detail = useQuery({
+		queryKey: ["automation", automation.id], queryFn: () => getAutomation(automation.id),
+		enabled: (query) => open || query.state.data?.firings.some((firing) => firing.state === "claimed" || firing.state === "running") === true,
+		refetchInterval: 5_000,
+	});
+	const busy = detail.data?.firings.some((firing) => firing.state === "claimed" || firing.state === "running") === true;
 	const refresh = () => {
 		void client.invalidateQueries({ queryKey: ["automations"] });
 		void client.invalidateQueries({ queryKey: ["automation", automation.id] });
@@ -116,7 +74,9 @@ function AutomationRow({ automation, open, onToggle }: { automation: Automation;
 	const act = useMutation({
 		mutationFn: async (action: "pause" | "resume" | "run" | "delete") => {
 			if (action === "run") {
-				await runAutomation(automation.id);
+				const firing = await runAutomation(automation.id);
+				client.setQueryData<{ automation: Automation; firings: Firing[] }>(["automation", automation.id], (old) => ({ automation, firings: [firing, ...(old?.firings ?? [])].slice(0, 20) }));
+				if (!open) onToggle();
 				toast(t("Started. You'll be told when it's ready."));
 			} else if (action === "delete") await deleteAutomation(automation.id);
 			else await updateAutomation(automation.id, { state: action === "pause" ? "paused" : "active" });
@@ -130,7 +90,7 @@ function AutomationRow({ automation, open, onToggle }: { automation: Automation;
 		<li className="row automation-row">
 			<button type="button" className="row-main as-button" aria-expanded={open} onClick={onToggle}>
 				<span>
-					{automation.name}
+					{automation.name} <ChevronDown size={14} aria-hidden="true" className={open ? "automation-chevron open" : "automation-chevron"} />
 					{automation.state !== "active" && <span className={automation.state === "paused" ? "pill" : "pill warn"}>{t(STATE_LABELS[automation.state])}</span>}
 				</span>
 				<span className="quiet">
@@ -139,13 +99,14 @@ function AutomationRow({ automation, open, onToggle }: { automation: Automation;
 				</span>
 			</button>
 			<div className="row-actions">
+				{automation.state !== "revoked" && <button type="button" className="ghost small" onClick={() => { setEditing(true); if (!open) onToggle(); }}>{t("Edit automation")}</button>}
 				{automation.state !== "revoked" && (
-					<button type="button" className="ghost small" disabled={act.isPending} onClick={() => act.mutate("run")}>
-						{t("Run now")}
+					<button type="button" className="ghost small" disabled={act.isPending || busy} onClick={() => act.mutate("run")}>
+						{busy ? t("Running") : t("Run now")}
 					</button>
 				)}
-				{automation.state === "active" && (
-					<button type="button" className="icon-button" aria-label={t("Pause")} title={t("Pause")} disabled={act.isPending} onClick={() => act.mutate("pause")}>
+				{automation.state === "active" && automation.cron !== "" && (
+					<button type="button" className="icon-button" aria-label={t("Pause schedule")} title={t("Pause schedule")} disabled={act.isPending} onClick={() => act.mutate("pause")}>
 						<Pause size={15} aria-hidden="true" />
 					</button>
 				)}
@@ -154,7 +115,7 @@ function AutomationRow({ automation, open, onToggle }: { automation: Automation;
 						<Play size={15} aria-hidden="true" />
 					</button>
 				)}
-				<button
+				{open && <button
 					type="button"
 					className="icon-button"
 					aria-label={t("Delete")}
@@ -165,14 +126,15 @@ function AutomationRow({ automation, open, onToggle }: { automation: Automation;
 					}}
 				>
 					<Trash2 size={15} aria-hidden="true" />
-				</button>
+				</button>}
 			</div>
-			{open && <Firings automation={automation} />}
+			{open && <Firings detail={detail} automation={automation} editing={editing} setEditing={setEditing} />}
 		</li>
 	);
 }
 
 function describeSchedule(automation: Automation, t: ReturnType<typeof useI18n>["t"]): string {
+	if (automation.cron === "") return t("On demand");
 	const simple = fromCron(automation.cron);
 	if (simple === undefined) return `${automation.cron} (${automation.timezone})`;
 	const time = `${String(simple.hour).padStart(2, "0")}:${String(simple.minute).padStart(2, "0")}`;
@@ -180,14 +142,25 @@ function describeSchedule(automation: Automation, t: ReturnType<typeof useI18n>[
 	return t("{time}, {days}, {zone}", { time, days, zone: automation.timezone });
 }
 
-function Firings({ automation }: { automation: Automation }) {
-	const { t } = useI18n();
+function Firings({ detail, automation, editing, setEditing }: { detail: UseQueryResult<Awaited<ReturnType<typeof getAutomation>>, Error>; automation: Automation; editing: boolean; setEditing(value: boolean): void }) {
+	const { t, describe } = useI18n();
+	const client = useQueryClient();
 	const { path } = useWorkspace();
-	const detail = useQuery({ queryKey: ["automation", automation.id], queryFn: () => getAutomation(automation.id), refetchInterval: 10_000 });
+	if (detail.isError) return <p role="alert">{describe(detail.error)} <button type="button" className="link" onClick={() => void detail.refetch()}>{t("Retry")}</button></p>;
 	if (detail.data === undefined) return <Skeleton rows={1} />;
 	return (
 		<div className="automation-detail">
-			<p className="quiet">{automation.instruction}</p>
+			{editing ? <TaskForm initial={detail.data.automation} onCancel={() => setEditing(false)} onSave={async ({ agent: _agent, ...draft }) => {
+				await updateAutomation(automation.id, draft);
+				setEditing(false);
+				void client.invalidateQueries({ queryKey: ["automations"] });
+				void client.invalidateQueries({ queryKey: ["automation", automation.id] });
+			}} /> : <>
+				<p className="automation-instruction">{automation.instruction}</p>
+				<p className="quiet">{t("Agent")}: {automation.agent} · {t("Maximum runs in 24 hours")}: {automation.runs_per_day}</p>
+			</>}
+			<h3>{t("Recent runs")}</h3>
+			{automation.state === "paused" && automation.cron !== "" && <p className="quiet">{t("The schedule is paused. You can still use Run now.")}</p>}
 			{detail.data.firings.length === 0 && <p className="quiet">{t("It hasn't run yet.")}</p>}
 			<ul className="firings">
 				{detail.data.firings.map((firing) => (

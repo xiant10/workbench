@@ -13,5 +13,9 @@ describe("schedules the form writes", () => {
 	it("leaves anything else as written", () => {
 		expect(fromCron("*/15 9-17 * * 1-5")).toBeUndefined();
 		expect(fromCron("0 8 1 * *")).toBeUndefined();
+		expect(fromCron("")).toBeUndefined();
+		expect(fromCron("60 8 * * *")).toBeUndefined();
+		expect(fromCron("0 24 * * *")).toBeUndefined();
+		expect(fromCron("0 8 * * 1,1")).toBeUndefined();
 	});
 });

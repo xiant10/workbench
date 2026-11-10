@@ -2,7 +2,7 @@ import { postJSON, request } from "../../lib/api.ts";
 
 export type AutomationState = "active" | "paused" | "failing" | "revoked";
 
-/** A person's standing instruction to an agent, on a schedule. */
+/** A person's reusable task, scheduled or on demand. */
 export type Automation = {
 	id: string;
 	name: string;
@@ -13,6 +13,7 @@ export type Automation = {
 	state: AutomationState;
 	next_fire_at: string | null;
 	failures: number;
+	runs_per_day: number;
 };
 
 /** One run of an automation. `problem` is the service's own words, never the agent's. */
@@ -25,7 +26,7 @@ export type Firing = {
 	finished_at: string | null;
 };
 
-export type Draft = { name: string; agent: string; instruction: string; cron: string; timezone: string };
+export type Draft = { name: string; agent: string; instruction: string; cron: string; timezone: string; runs_per_day?: number };
 
 const base = "/api/modules/automations";
 const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -53,7 +54,9 @@ export function toCron({ hour, minute, days }: Simple): string {
 export function fromCron(cron: string): Simple | undefined {
 	const match = /^(\d{1,2}) (\d{1,2}) \* \* (\*|1-5|[0-6](?:,[0-6])*)$/.exec(cron.trim());
 	if (match === null) return undefined;
+	if (Number(match[1]) > 59 || Number(match[2]) > 23) return undefined;
 	const field = match[3]!;
 	const days = field === "*" ? [...DAYS] : field === "1-5" ? [1, 2, 3, 4, 5] : field.split(",").map(Number);
+	if (new Set(days).size !== days.length) return undefined;
 	return { minute: Number(match[1]), hour: Number(match[2]), days };
 }
