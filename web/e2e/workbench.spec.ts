@@ -410,7 +410,7 @@ test.describe("M4: people's work", () => {
 		await page.getByLabel("Add a task").press("Enter");
 		await expect(page.getByRole("link", { name: job })).toBeVisible();
 
-		await page.getByRole("link", { name: "Tasks", exact: true }).first().click();
+		await page.goto("/t/ten_sample-acme/tasks");
 		await page.getByRole("tab", { name: /Up for grabs/ }).click();
 		await page.getByLabel("Search tasks").fill(job);
 		const row = page.locator("li", { has: page.getByRole("link", { name: job }) });
