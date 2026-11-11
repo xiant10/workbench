@@ -42,7 +42,7 @@ function turn(page: Page, text: string): Promise<{ turnId: string; status: strin
 	return page.evaluate(
 		async ({ agent, text }) => {
 			const rpc = async (method: string, params: Record<string, unknown>) => {
-				const session = typeof params.sessionId === "string" ? { "agent-session-id": params.sessionId } : {};
+				const session: Record<string, string> = typeof params.sessionId === "string" ? { "agent-session-id": params.sessionId } : {};
 				const response = await fetch(`/api/agents/${agent}/agent`, {
 					method: "POST",
 					headers: { "content-type": "application/json", accept: "application/json", "agent-method": method, ...session },
