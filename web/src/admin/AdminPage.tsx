@@ -191,6 +191,7 @@ function People() {
 									{nameOf(member)}
 									{member.user_id === me.user_id && <span className="pill">{t("you")}</span>}
 									{member.role === "admin" && <span className="pill accent">{t("Admin")}</span>}
+									{member.kind === "agent" && <span className="pill">{t("Agent teammate")}</span>}
 									{member.user_status !== "active" && <span className="pill warn">{t("Account suspended")}</span>}
 									{member.status !== "active" && <span className="pill warn">{t("Inactive")}</span>}
 								</span>
@@ -210,6 +211,7 @@ function People() {
 								<select
 									aria-label={t("Role")}
 									value={member.role}
+									disabled={member.kind === "agent"}
 									onChange={async (event) => {
 										const next = event.target.value as Role;
 										if (next === "admin" || (await confirm({ title: t("Remove admin rights?"), body: t("They keep their membership, and lose this page."), action: t("Change") })))
@@ -223,7 +225,7 @@ function People() {
 									<ShieldCheck size={14} aria-hidden="true" />
 									{t("Roles")}
 								</button>
-								<button type="button" className="ghost small" onClick={() => reset.mutate(member)}>
+								<button type="button" className="ghost small" disabled={member.kind === "agent"} onClick={() => reset.mutate(member)}>
 									<KeyRound size={14} aria-hidden="true" />
 									{t("Reset link")}
 								</button>

@@ -5,16 +5,20 @@ import { ConnectorsPage } from "../../connectors/ConnectorsPage.tsx";
 import { SkillPage } from "../../skills/SkillPage.tsx";
 import { AdminSkills, SkillsPage } from "../../skills/SkillsPage.tsx";
 import type { WorkbenchModule } from "../types.ts";
+import { AgentPage } from "./AgentPage.tsx";
 import { AgentSettings } from "./AgentSettings.tsx";
 import { ApprovalsPage } from "./ApprovalsPage.tsx";
 import { HomeRows } from "./HomeRows.tsx";
+import { TeammatePage } from "./TeammatePage.tsx";
 
-/** Which agents a tenant uses, its skills and connectors, and the approvals its policy asks people for, from `t10-agent-control`. */
+/** Which agents a tenant uses and how it customized them, its skills and connectors, and the approvals its policy asks people for, from `t10-agent-control`. */
 export const agents: WorkbenchModule = {
 	id: "agents",
 	apiVersion: 1,
 	routes: [
 		{ path: "approvals", element: <ApprovalsPage /> },
+		{ path: "agents/:agent", element: <AgentPage /> },
+		{ path: "teammates/:id", element: <TeammatePage /> },
 		{ path: "skills", element: <SkillsPage /> },
 		{ path: "skills/:agent/:name", element: <SkillPage /> },
 		{ path: "connectors", element: <ConnectorsPage /> },

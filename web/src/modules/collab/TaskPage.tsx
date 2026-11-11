@@ -277,7 +277,9 @@ function TaskEditor({ item }: { item: Item }) {
 									<Avatar name={name(entry.author_id)} size={28} />
 									<div className="comment-body">
 										<div className="quiet">
-											<strong>{name(entry.author_id)}</strong> · {dateTime(entry.created_at)}
+											<strong>{name(entry.author_id)}</strong>
+											{/* An agent account's ID starts with acc_, as auth-server issues them. */}
+											{entry.author_id.startsWith("acc_") && <span className="pill">{t("Agent teammate")}</span>} · {dateTime(entry.created_at)}
 										</div>
 										<div className="plain">{entry.body}</div>
 									</div>

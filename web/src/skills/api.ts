@@ -15,8 +15,11 @@ export type AgentSkill = {
 	source?: SkillEntry["source"];
 };
 
-/** A tool the agent offers this tenant. `tool` is its name on its server, which policy rules use. */
-export type CatalogTool = { name: string; server: string; tool: string; description: string };
+/**
+ * A tool the agent offers this tenant. `tool` is its name on its server, which policy rules use. `owner` is the module or
+ * server that owns it as the tool gateway names it, which a tenant's tool list uses; the harness's own tools have none.
+ */
+export type CatalogTool = { name: string; server: string; tool: string; description: string; owner?: string | null };
 
 /** skills.list's answer as it is: Home and the trace view cache it under the same key, `["skills", agent]`. */
 export const listSkills = (agent: string) => rpc<{ skills: SkillEntry[] }>(agent, "skills.list");
