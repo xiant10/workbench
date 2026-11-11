@@ -297,6 +297,7 @@ function KeyRow({ credential: c }: { credential: Keys["credentials"][number] }) 
 	const { toast } = useFeedback();
 	const refresh = useRefresh();
 	const [replacing, setReplacing] = useState(false);
+	const [editing, setEditing] = useState(false);
 	const toggle = useMutation({ mutationFn: () => patchKey(c.id, { disabled: c.status !== "disabled" }), onSuccess: refresh, onError: (e: Error) => toast(e.message || describe(e)) });
 	const remove = useMutation({ mutationFn: () => deleteKey(c.id), onSuccess: refresh, onError: (e: Error) => toast(e.message || describe(e)) });
 	return (
@@ -327,7 +328,58 @@ function KeyRow({ credential: c }: { credential: Keys["credentials"][number] }) 
 				</button>
 			</span>
 			{replacing && <ReplaceKey id={c.id} label={c.label} onClose={() => setReplacing(false)} />}
+			{editing && <KeySettings credential={c} onClose={() => setEditing(false)} />}
 		</li>
+	);
+}
+
+/** KeySettings changes which agents use a key first, and its weight. No agents means every agent. */
+function KeySettings({ credential: c, onClose }: { credential: Keys["credentials"][number]; onClose(): void }) {
+	const { t, describe } = useI18n();
+	const refresh = useRefresh();
+	const [agents, setAgents] = useState(c.agents.join(", "));
+	const [weight, setWeight] = useState(String(c.weight || 1));
+	const badAgent = agentList(agents).some((a) => !AGENT.test(a));
+	const n = Number(weight);
+	const badWeight = !Number.isInteger(n) || n < 1 || n > 100;
+	const save = useMutation({
+		mutationFn: () => patchKey(c.id, { agents: agentList(agents), weight: n }),
+		onSuccess: () => {
+			refresh();
+			onClose();
+		},
+	});
+	return (
+		<Dialog label={t("Agents and weight")} onClose={onClose}>
+			<h2>{c.label}</h2>
+			<form
+				className="modelkeys-form"
+				onSubmit={(e) => {
+					e.preventDefault();
+					if (!badAgent && !badWeight) save.mutate();
+				}}
+			>
+				<label>
+					<span>{t("Only for these agents")}</span>
+					<input value={agents} placeholder="sales, assistant" autoFocus onChange={(e) => setAgents(e.target.value)} data-testid="model-key-agents" />
+					<span className="quiet">{badAgent ? t("Agents are named by their IDs.") : t("Empty for every agent. Agents listed here use this key before the others.")}</span>
+				</label>
+				<label>
+					<span>{t("Weight")}</span>
+					<input value={weight} inputMode="numeric" onChange={(e) => setWeight(e.target.value)} />
+					<span className="quiet">{badWeight ? t("Weight is from 1 to 100.") : t("Keys for the same agents share calls by weight.")}</span>
+				</label>
+				{save.isError && <p className="danger-text">{save.error.message || describe(save.error)}</p>}
+				<div className="dialog-actions">
+					<button type="button" className="ghost" onClick={onClose}>
+						{t("Cancel")}
+					</button>
+					<button type="submit" className="primary" disabled={save.isPending || badAgent || badWeight}>
+						{t("Save")}
+					</button>
+				</div>
+			</form>
+		</Dialog>
 	);
 }
 
