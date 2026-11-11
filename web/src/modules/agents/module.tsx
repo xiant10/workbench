@@ -9,6 +9,7 @@ import { AgentPage } from "./AgentPage.tsx";
 import { AgentSettings } from "./AgentSettings.tsx";
 import { ApprovalsPage } from "./ApprovalsPage.tsx";
 import { HomeRows } from "./HomeRows.tsx";
+import { TeammatePage } from "./TeammatePage.tsx";
 
 /** Which agents a tenant uses and how it customized them, its skills and connectors, and the approvals its policy asks people for, from `t10-agent-control`. */
 export const agents: WorkbenchModule = {
@@ -17,6 +18,7 @@ export const agents: WorkbenchModule = {
 	routes: [
 		{ path: "approvals", element: <ApprovalsPage /> },
 		{ path: "agents/:agent", element: <AgentPage /> },
+		{ path: "teammates/:id", element: <TeammatePage /> },
 		{ path: "skills", element: <SkillsPage /> },
 		{ path: "skills/:agent/:name", element: <SkillPage /> },
 		{ path: "connectors", element: <ConnectorsPage /> },

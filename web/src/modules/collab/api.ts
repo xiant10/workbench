@@ -52,7 +52,8 @@ export type Offer = {
 
 export type Comment = { id: string; author_id: string; body: string; created_at: string };
 export type ItemEvent = { id: string; item_id: string; actor_user_id: string; kind: string; detail: Record<string, unknown>; at: string };
-export type Person = { user_id: string; display_name: string; org_unit_id: string };
+/** `agent` marks an agent teammate. */
+export type Person = { user_id: string; display_name: string; org_unit_id: string; agent?: boolean };
 export type Unit = { id: string; name: string };
 export type ListRole = "owner" | "member";
 export type TaskList = {

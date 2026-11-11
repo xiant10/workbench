@@ -26,6 +26,8 @@ export type Member = {
 	manager_display_name?: string;
 	org_unit_id?: string;
 	org_unit_name?: string;
+	/** `agent` for an agent teammate's account, which has no sign-in and manages nobody. */
+	kind?: "person" | "agent";
 };
 
 export type UnitKind = "department" | "team";

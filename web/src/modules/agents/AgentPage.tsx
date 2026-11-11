@@ -9,6 +9,7 @@ import { useWorkspace } from "../../shell/workspace.ts";
 import { type CatalogTool, listSkills, listTools } from "../../skills/api.ts";
 import { TestPanel, TestPanelBoundary } from "../../skills/TestPanel.tsx";
 import "../../skills/skills.css";
+import { TeammatesCard } from "./TeammatePage.tsx";
 import {
 	type AgentConfigContent,
 	type AgentConfigVersion,
@@ -101,6 +102,7 @@ export function AgentPage() {
 					</Setting>
 				)}
 			</div>
+			{choice.teammates === true && <TeammatesCard agent={agent} title={title} />}
 			<div className="card">
 				<h2>{t("Skills and connectors")}</h2>
 				<p className="quiet">{t("What else this agent has in this tenant, each on its own page.")}</p>

@@ -3,9 +3,10 @@ import { postJSON, request } from "../../lib/api.ts";
 
 /**
  * One agent the platform lets this tenant use. Agents it doesn't are never listed. `picker` is false for an agent reached
- * only through its own app, which people never pick; `customizable` says whether this tenant may customize it.
+ * only through its own app, which people never pick; `customizable` says whether this tenant may customize it, and
+ * `teammates` whether its admins may build agent teammates on it.
  */
-export type AgentChoice = { name: string; title?: string; enabled: boolean; picker?: boolean; customizable?: boolean };
+export type AgentChoice = { name: string; title?: string; enabled: boolean; picker?: boolean; customizable?: boolean; teammates?: boolean };
 
 export type AgentSettings = {
 	/** Empty keeps the platform's default. */
