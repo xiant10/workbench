@@ -7,11 +7,11 @@ import { expect, test, type Page } from "@playwright/test";
 // t10-agent-control/docs/model-keys.md. MODEL_KEYS_SECRET is a real key for the gateway's "openai" provider.
 test.skip(process.env.MODEL_KEYS_E2E !== "1" || !process.env.MODEL_KEYS_SECRET, "Requires the local cluster with model keys, and MODEL_KEYS_SECRET");
 
-const TENANT = process.env.MODEL_KEYS_TENANT ?? "ten_acme";
+const TENANT = process.env.MODEL_KEYS_TENANT ?? "ten_sample-acme";
 const AGENT = "ti";
 
 function kubectl(...args: string[]): string {
-	return execFileSync("kubectl", ["-n", "t10", ...args], { encoding: "utf8" });
+	return execFileSync("kubectl", ["-n", "t10", ...args], { encoding: "utf8", maxBuffer: 64 << 20 });
 }
 
 /** The platform's leave, as the console would set it, written straight into control's database for the test. */
@@ -42,15 +42,18 @@ function turn(page: Page, text: string): Promise<{ turnId: string; status: strin
 	return page.evaluate(
 		async ({ agent, text }) => {
 			const rpc = async (method: string, params: Record<string, unknown>) => {
+				const session = typeof params.sessionId === "string" ? { "agent-session-id": params.sessionId } : {};
 				const response = await fetch(`/api/agents/${agent}/agent`, {
 					method: "POST",
-					headers: { "content-type": "application/json", accept: "application/json", "agent-method": method },
+					headers: { "content-type": "application/json", accept: "application/json", "agent-method": method, ...session },
 					body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
 				});
-				return ((await response.json()) as { result: Record<string, unknown> }).result;
+				const body = (await response.json().catch(() => ({}))) as { result?: Record<string, unknown>; error?: unknown };
+				if (body.result === undefined) throw new Error(`${method}: ${response.status} ${JSON.stringify(body)}`);
+				return body.result;
 			};
 			const { sessionId } = (await rpc("session.create", { metadata: { title: "model keys e2e" } })) as { sessionId: string };
-			const result = await rpc("session.prompt", { sessionId, input: text });
+			const result = await rpc("session.prompt", { sessionId, input: text, requestId: crypto.randomUUID() });
 			return { turnId: String(result.turnId), status: String(result.status) };
 		},
 		{ agent: AGENT, text },
@@ -59,7 +62,7 @@ function turn(page: Page, text: string): Promise<{ turnId: string; status: strin
 
 /** The gateway's audit records for a turn. */
 function audited(turnId: string): Record<string, unknown>[] {
-	const lines = kubectl("exec", "ai-gateway-llm-0", "--", "sh", "-c", "tail -n 400 /var/lib/ai-gateway/audit.jsonl");
+	const lines = kubectl("exec", "ai-gateway-llm-0", "--", "sh", "-c", `grep -F '${turnId}' /var/lib/ai-gateway/audit.jsonl || true`);
 	return lines
 		.split("\n")
 		.filter((line) => line.includes(turnId))
@@ -94,9 +97,14 @@ test("a tenant's own key pays for its agents' calls, and only after the provider
 		expect((await call(acme, "PUT", `${base}/model-key-policy/llm`, { mode: "strict" })).status).toBe(204);
 		// The gateway polls the feed every 10 seconds.
 		await acme.waitForTimeout(12_000);
-		const { turnId, status } = await turn(acme, "Say hello in five words.");
-		expect(status).toBe("done");
-		const records = audited(turnId);
+		const { turnId } = await turn(acme, "Say hello in five words.");
+		expect(turnId).not.toBe("undefined");
+		// Ti may answer the prompt before the turn ends; its model calls land in the audit as they finish.
+		let records: Record<string, unknown>[] = [];
+		for (let i = 0; i < 30 && records.every((r) => r.status_code !== 200); i++) {
+			await acme.waitForTimeout(2_000);
+			records = audited(turnId);
+		}
 		expect(records.length, `audit for ${turnId}`).toBeGreaterThan(0);
 		for (const record of records) {
 			expect(record.source).toBe("own");
@@ -121,5 +129,23 @@ test("a tenant's own key pays for its agents' calls, and only after the provider
 		await call(acme, "DELETE", `${base}/model-key-policy/llm`);
 		await call(acme, "DELETE", `${base}/model-keys/${id}`);
 		platformPolicy(`DELETE FROM agent_model_keys.platform_policies WHERE tenant_id = '${TENANT}' AND updated_by = 'e2e'`);
+	}
+});
+
+test("a tenant with no keys of its own runs on the platform's, as before", async ({ browser }) => {
+	test.setTimeout(120_000);
+	const globex = await (await browser.newContext()).newPage();
+	await login(globex, "sample-globex-admin");
+	const { turnId } = await turn(globex, "Say hello in five words.");
+	let records: Record<string, unknown>[] = [];
+	for (let i = 0; i < 30 && records.every((r) => r.status_code !== 200); i++) {
+		await globex.waitForTimeout(2_000);
+		records = audited(turnId);
+	}
+	expect(records.length, `audit for ${turnId}`).toBeGreaterThan(0);
+	for (const record of records) {
+		expect(record.source).toBe("shared");
+		expect(record.credential_id).toBe("config:openai");
+		expect(String(record.runtime)).toContain("agent-ti");
 	}
 });

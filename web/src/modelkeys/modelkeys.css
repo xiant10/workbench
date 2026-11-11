@@ -53,3 +53,6 @@
 	.modelkeys-row { grid-template-columns: minmax(0, 1fr); }
 	.modelkeys-step { grid-template-columns: minmax(0, 1fr); }
 }
+.modelkeys-policy-head strong { flex: 0 0 auto; min-width: 7rem; }
+.modelkeys-policy-head select { flex: 0 1 14rem; width: auto; }
+.modelkeys-policy > label select { width: auto; }
