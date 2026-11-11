@@ -1,7 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { Plug, ShieldCheck, Wand2 } from "lucide-react";
+import { KeyRound, Plug, ShieldCheck, Wand2 } from "lucide-react";
 import { ConnectorPage } from "../../connectors/ConnectorPage.tsx";
 import { ConnectorsPage } from "../../connectors/ConnectorsPage.tsx";
+import { ModelKeysSettings } from "../../modelkeys/ModelKeys.tsx";
 import { SkillPage } from "../../skills/SkillPage.tsx";
 import { AdminSkills, SkillsPage } from "../../skills/SkillsPage.tsx";
 import type { WorkbenchModule } from "../types.ts";
@@ -36,5 +37,6 @@ export const agents: WorkbenchModule = {
 	admin: [
 		{ joins: "agents", Settings: AgentSettings },
 		{ id: "skills", label: "Skills", icon: Wand2, Settings: AdminSkills },
+		{ id: "model-keys", label: "Model keys", icon: KeyRound, Settings: ModelKeysSettings },
 	],
 };

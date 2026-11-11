@@ -1,0 +1,58 @@
+/* Administration → Model keys. */
+.modelkeys { display: flex; flex-direction: column; gap: 1.25rem; }
+.modelkeys-notice { padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--sunken); color: var(--muted); }
+.modelkeys-section { display: flex; flex-direction: column; gap: 0.6rem; }
+.modelkeys-section h3 { margin: 0; font-size: 1rem; }
+.modelkeys-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.modelkeys-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--surface);
+}
+.modelkeys-list li + li { border-top: 1px solid var(--line); }
+.modelkeys-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.7rem 0.9rem;
+}
+.modelkeys-name { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.modelkeys-name .quiet { font-size: 0.82rem; overflow-wrap: anywhere; }
+.modelkeys-state { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+.modelkeys-state.rejected { color: var(--danger); }
+.modelkeys-actions { display: flex; gap: 0.35rem; align-items: center; }
+.modelkeys-models { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.2rem; }
+.modelkeys-model { font-size: 0.78rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: var(--sunken); }
+.modelkeys-model .ok { color: var(--ok, var(--text)); }
+.modelkeys-model .no { color: var(--muted); text-decoration: line-through; }
+.modelkeys-policy {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+}
+.modelkeys-policy-head { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 100%; }
+.modelkeys-agent-input { max-width: 10rem; }
+.modelkeys-reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; flex: 1 1 100%; }
+.modelkeys-check { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.88rem; }
+.modelkeys-form { display: flex; flex-direction: column; gap: 0.8rem; }
+.modelkeys-form label { display: flex; flex-direction: column; gap: 0.3rem; }
+.modelkeys-form .quiet { font-size: 0.82rem; }
+.modelkeys-step { display: grid; grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+.modelkeys-changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; }
+@media (max-width: 640px) {
+	.modelkeys-row { grid-template-columns: minmax(0, 1fr); }
+	.modelkeys-step { grid-template-columns: minmax(0, 1fr); }
+}
+.modelkeys-policy-head strong { flex: 0 0 auto; min-width: 7rem; }
+.modelkeys-policy-head select { flex: 0 1 14rem; width: auto; }
+.modelkeys-policy > label select { width: auto; }
