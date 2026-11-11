@@ -1249,7 +1249,7 @@ export const ZH: Record<string, string> = {
 	"Choose a model": "选择模型",
 	"Delete this endpoint, its key and the models mapped to it?": "删除这个端点、它的密钥以及映射到它的模型？",
 	"Delete this key? Calls stop using it at once.": "删除这个密钥？调用会立即停止使用它。",
-	"Empty for every agent.": "留空表示所有智能体。",
+	"Empty for every agent. Agents listed here use this key before the others.": "留空表示所有智能体。列出的智能体优先使用此密钥。",
 	"Endpoints": "端点",
 	"Every agent": "所有智能体",
 	"First": "首选",

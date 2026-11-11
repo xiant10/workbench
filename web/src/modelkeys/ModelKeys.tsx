@@ -441,7 +441,7 @@ function AddKey({ keys, onClose }: { keys: Keys; onClose(): void }) {
 				<label>
 					<span>{t("Only for these agents")}</span>
 					<input value={agents} placeholder="sales, assistant" onChange={(e) => setAgents(e.target.value)} />
-					<span className="quiet">{badAgent ? t("Agents are named by their IDs.") : t("Empty for every agent.")}</span>
+					<span className="quiet">{badAgent ? t("Agents are named by their IDs.") : t("Empty for every agent. Agents listed here use this key before the others.")}</span>
 				</label>
 				<label>
 					<span>{t("Monthly token cap")}</span>
