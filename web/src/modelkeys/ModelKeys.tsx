@@ -424,6 +424,7 @@ function AddKey({ keys, onClose }: { keys: Keys; onClose(): void }) {
 							<option key={p.name} value={p.name}>
 								{p.name}
 								{p.region !== undefined && p.region !== "" ? ` (${p.region})` : ""}
+								{` · ${p.capabilities.join(", ")}`}
 							</option>
 						))}
 					</select>
