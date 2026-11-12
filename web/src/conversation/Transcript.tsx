@@ -2,7 +2,6 @@ import { ArrowDown, Bot, Check, ChevronRight, CirclePlay, FileText, GitBranch, I
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import { CopyButton, Logo } from "../lib/ui.tsx";
-import { load, save } from "../lib/storage.ts";
 import { type Output, outputsOf } from "../results/outputs.ts";
 import { useTypewriter } from "../call/useTypewriter.ts";
 import { useWorkspace } from "../shell/workspace.ts";
@@ -511,16 +510,10 @@ function AssistantFooter({
 	);
 }
 
-function TempFooter({ cost, status }: { cost?: string; status: string }) {
+function TempFooter({ status }: { status: string }) {
 	const { t } = useI18n();
 	return (
 		<div className="working temp-footer" role="status" aria-label={t("Working…")} aria-live="polite" aria-atomic="true" data-temporary="true">
-			{cost !== undefined && (
-				<>
-					<span className="temp-cost">{t("Consumed ✧ {cost}", { cost })}</span>
-					<span className="temp-divider" aria-hidden="true">|</span>
-				</>
-			)}
 			<span className="temp-status">{status}</span>
 		</div>
 	);
@@ -558,6 +551,8 @@ function LineView({
 				</div>
 			);
 		case "assistant": {
+			// A reply that only called a tool has nothing to show.
+			if (line.text === "" && line.error === undefined && line.aborted !== true && !footer) return null;
 			const outputs = outputsOf(line.key, line.text);
 			return (
 				<div className="line assistant">
@@ -633,16 +628,8 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 
 	const [elapsedSec, setElapsedSec] = useState(0);
 	const startRef = useRef(0);
-	const [turnDurations, setTurnDurations] = useState<Record<string, number>>(() => {
-		if (!sessionId) return {};
-		const raw = load(`durations:${sessionId}`);
-		if (!raw) return {};
-		try {
-			return JSON.parse(raw);
-		} catch {
-			return {};
-		}
-	});
+	// How long the run just finished took, for the moment before the transcript read brings its times.
+	const [lastRun, setLastRun] = useState<{ sessionId: string; seconds: number } | undefined>(undefined);
 
 	const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
 
@@ -666,21 +653,11 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 			return () => clearInterval(interval);
 		} else {
 			if (startRef.current > 0) {
-				const finalDuration = Math.max(1, Math.floor((Date.now() - startRef.current) / 1000));
-				const lastUserLine = lastUserIndex >= 0 ? state.lines[lastUserIndex] : undefined;
-				const firstAgentLine = state.lines.slice(lastUserIndex + 1).find((l) => l.role !== "user" && l.role !== "compaction");
-
-				setTurnDurations((prev) => {
-					const next = { ...prev };
-					if (lastUserLine) next[lastUserLine.key] = finalDuration;
-					if (firstAgentLine) next[firstAgentLine.key] = finalDuration;
-					if (sessionId) save(`durations:${sessionId}`, JSON.stringify(next));
-					return next;
-				});
+				setLastRun({ sessionId, seconds: Math.max(1, Math.floor((Date.now() - startRef.current) / 1000)) });
 				startRef.current = 0;
 			}
 		}
-	}, [state.busy, state.lines, lastUserIndex, sessionId]);
+	}, [state.busy, sessionId]);
 
 	useEffect(() => {
 		if (pinned.current && scroller.current !== null) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -703,12 +680,6 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 
 	const hasAgentInCurrentTurn = state.lines.slice(lastUserIndex + 1).some((l) => l.role !== "user" && l.role !== "compaction");
 	const showLiveHeader = !hasAgentInCurrentTurn && (state.busy || state.live !== "" || state.thinking !== "");
-
-	const counted = (value: unknown): number => (value as { totalTokens?: number } | null)?.totalTokens ?? 0;
-	const own = Object.values(details?.usage?.models ?? {}).reduce<number>((sum, usage) => sum + counted(usage), 0);
-	const totalTokens = own + counted(details?.taskUsage);
-	// Usage is for admins, and shows only what the agent counted.
-	const tokenCost = isAdmin && totalTokens > 0 ? (totalTokens / 1000).toFixed(2) : undefined;
 
 	const progressText = [...new Set(Object.values(state.progress).filter(Boolean))].join(" ");
 	const activeTool = [...state.lines].reverse().find((l): l is Extract<Line, { role: "tool" }> => l.role === "tool" && l.state === "running");
@@ -760,6 +731,7 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 							}
 						}
 						const turnLines = state.lines.slice(turnStartIdx, turnEndIdx);
+						const asked = state.lines[turnUserIdx];
 						const firstAgentLineInTurn = turnLines.find((l) => l.role !== "user" && l.role !== "compaction");
 						const turnKey = firstAgentLineInTurn?.key ?? `turn-${turnStartIdx}`;
 						const turnHasTools = turnLines.some((l) => l.role === "tool");
@@ -771,24 +743,22 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 						if (isCurrentTurn && state.busy) {
 							duration = elapsedSec;
 						} else {
-							const userKey = turnUserIdx >= 0 ? state.lines[turnUserIdx]?.key : undefined;
-							duration = turnDurations[line.key] ?? (userKey ? turnDurations[userKey] : undefined);
-
-							// Fallback estimate for historical completed turns if unrecorded
-							if (duration === undefined) {
-								const assistantLine = turnLines.find((l) => l.role === "assistant");
-								if (assistantLine && assistantLine.text.trim() !== "") {
-									const toolsCount = turnLines.filter((l) => l.role === "tool").length;
-									const charCount = assistantLine.text.length;
-									duration = Math.max(2, Math.round(toolsCount * 3 + charCount / 45));
-								}
+							// From when the message was written to when the last reply was, as the agent recorded them.
+							const replied = turnLines.findLast((l) => l.role === "assistant" && l.at !== undefined);
+							const askedAt = asked?.role === "user" ? asked.at : undefined;
+							if (askedAt !== undefined && replied?.role === "assistant" && replied.at !== undefined) {
+								duration = Math.max(1, Math.round((replied.at - askedAt) / 1000));
+							} else if (isCurrentTurn && lastRun?.sessionId === sessionId) {
+								duration = lastRun.seconds;
 							}
 						}
 
-						// One footer per turn, under its last reply, once the turn is over. Usage is the session's, so only the newest turn shows it.
+						// One footer per turn, under its last reply, once the turn is over.
 						const lastReply = turnLines.findLast((l) => l.role === "assistant" && l.text !== "");
 						const footer = line.key === lastReply?.key && !(isCurrentTurn && state.busy);
-						const turnCost = turnEndIdx === state.lines.length ? tokenCost : undefined;
+						// What the turn spent comes on the message that started it. Usage is for admins.
+						const turnTokens = asked?.role === "user" ? (asked.usage?.totalTokens ?? 0) : 0;
+						const turnCost = isAdmin && turnTokens > 0 ? (turnTokens / 1000).toFixed(2) : undefined;
 
 						const hasFinalResponse = getTurnHasFinalResponse(state.lines, index, state.live);
 						const isHiddenTool = line.role === "tool" && line.state !== "running" && hasFinalResponse && !isTurnExpanded;
@@ -882,7 +852,7 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 					)}
 					{spoken !== "" && <SpokenView text={spoken} />}
 					{(state.busy || Object.values(state.progress).some(Boolean)) && spoken === "" && state.live === "" && (
-						<TempFooter cost={tokenCost} status={statusMessage} />
+						<TempFooter status={statusMessage} />
 					)}
 					{state.retry !== undefined && <p className="line quiet">{t("Retrying, attempt {n}", { n: state.retry.attempt })}</p>}
 				</div>

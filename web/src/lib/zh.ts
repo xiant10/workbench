@@ -260,7 +260,6 @@ export const ZH: Record<string, string> = {
 	"Working…": "正在处理…",
 	"Processed {time}": "已处理 {time}",
 	"Completed {time}": "已完成 {time}",
-	"Consumed ✧ {cost}": "已消耗 ✧ {cost}",
 	"Total ✧ {cost}": "共消耗 ✧ {cost}",
 	"View all artifacts ({count})": "查看所有产物 ({count})",
 	Helpful: "有帮助",

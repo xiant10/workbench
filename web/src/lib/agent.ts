@@ -15,8 +15,11 @@ export type SessionInfo = {
 	metadata?: { title?: string; pinned?: boolean; ref?: string; workItemId?: string; skillDraft?: string };
 };
 
+export type TurnUsage = { totalTokens?: number };
+
 export type TranscriptMessage =
-	| { id: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number }
+	/** `usage` is what the turn this message started spent. */
+	| { id: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number; usage?: TurnUsage }
 	| { id: number; role: "assistant"; text: string; stopReason: string; error?: string; source?: string; at?: number; model?: string }
 	| { id: number; role: "tool"; callId: string; name: string; isError: boolean }
 	/** What a background task told its parent. Sent as a user message so the model reads it, but nobody said it. */
@@ -208,7 +211,9 @@ export async function startConversation(
 	const { sessionId } = await rpc<{ sessionId: string }>(agent, "session.create", { profile, metadata: { ...metadata, title } });
 	const turnId = newTurnId();
 	const requestId = crypto.randomUUID();
-	await rpc(agent, "session.prompt", { input, requestId, turnId, wait: false }, sessionId, turnId);
+	// The conversation's stream opens only after this, so the agent is told someone will be watching
+	// and acknowledges the message anyway.
+	await rpc(agent, "session.prompt", { input, requestId, turnId, wait: false, progress: true }, sessionId, turnId);
 	if (text !== undefined) firstPrompts.set(sessionId, { requestId, turnId, text, images: 0, input, state: "sending", sentAt: Date.now() });
 	return sessionId;
 }

@@ -395,8 +395,6 @@ button:disabled { opacity: 0.45; cursor: default; }
 .thinking summary { cursor: pointer; }
 .working { align-items: center; }
 .working.temp-footer { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.82rem; margin-left: 2.2rem; margin-top: 0.6rem; margin-bottom: 0.3rem; }
-.temp-footer .temp-cost { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--muted); }
-.temp-footer .temp-divider { color: var(--line-strong); opacity: 0.6; margin: 0 0.15rem; }
 .temp-footer .temp-status { color: var(--muted); }
 .dots { display: inline-flex; gap: 4px; }
 .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite; }

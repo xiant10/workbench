@@ -1,4 +1,4 @@
-import type { BackgroundTask, FlowRunTrace, TranscriptMessage } from "../lib/agent.ts";
+import type { BackgroundTask, FlowRunTrace, TranscriptMessage, TurnUsage } from "../lib/agent.ts";
 import type { AgentEvent, StreamStatus } from "./stream.ts";
 
 /**
@@ -6,7 +6,7 @@ import type { AgentEvent, StreamStatus } from "./stream.ts";
  * message was written, in Unix milliseconds, as the agent or the arriving event says; older transcripts may have none.
  */
 export type Line =
-	| { key: string; id?: number; seq?: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number }
+	| { key: string; id?: number; seq?: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number; usage?: TurnUsage }
 	| { key: string; id?: number; seq?: number; role: "assistant"; text: string; error?: string; source?: string; aborted?: boolean; at?: number; model?: string }
 	| { key: string; id?: number; seq?: number; role: "tool"; callId: string; name: string; state: "running" | "done" | "failed" }
 	| { key: string; id?: number; seq?: number; role: "task"; name: string; text: string }
