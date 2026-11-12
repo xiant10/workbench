@@ -96,6 +96,13 @@ describe("transcript reads", () => {
 		expect(state.lines.map((line) => line.key)).toEqual(["e3", "e4"]);
 	});
 
+	it("keeps when a reply was written and which model wrote it", () => {
+		const live = reducer(initialState, event({ type: "message.end", text: "Hello", stopReason: "stop" }, 1_800_000_000_000));
+		expect(live.lines).toMatchObject([{ role: "assistant", at: 1_800_000_000_000 }]);
+		const read = run([{ type: "transcript", messages: [{ ...user, at: 5 }, { ...reply, at: 6, model: "qwen3.5-flash" }], since: 0 }]);
+		expect(read.lines).toMatchObject([{ role: "user", at: 5 }, { role: "assistant", at: 6, model: "qwen3.5-flash" }]);
+	});
+
 	it("keeps an event that landed after the read began", () => {
 		const state = run([event({ type: "tool.started", callId: "c9", name: "crm" }), { type: "transcript", messages: [user], since: 0 }]);
 		expect(state.lines.map((line) => line.key)).toEqual(["e3", "tc9"]);

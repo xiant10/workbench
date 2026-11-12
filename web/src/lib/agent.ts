@@ -16,8 +16,8 @@ export type SessionInfo = {
 };
 
 export type TranscriptMessage =
-	| { id: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string }
-	| { id: number; role: "assistant"; text: string; stopReason: string; error?: string; source?: string }
+	| { id: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number }
+	| { id: number; role: "assistant"; text: string; stopReason: string; error?: string; source?: string; at?: number; model?: string }
 	| { id: number; role: "tool"; callId: string; name: string; isError: boolean }
 	/** What a background task told its parent. Sent as a user message so the model reads it, but nobody said it. */
 	| { id: number; role: "task"; kind: "report" | "note"; taskId: string; name: string; status?: string; text: string }
