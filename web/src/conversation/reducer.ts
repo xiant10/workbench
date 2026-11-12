@@ -1,10 +1,13 @@
 import type { BackgroundTask, FlowRunTrace, TranscriptMessage } from "../lib/agent.ts";
 import type { AgentEvent, StreamStatus } from "./stream.ts";
 
-/** What the transcript shows. `seq` marks a line an event added, until a transcript read replaces it. */
+/**
+ * What the transcript shows. `seq` marks a line an event added, until a transcript read replaces it. `at` is when a
+ * message was written, in Unix milliseconds, as the agent or the arriving event says; older transcripts may have none.
+ */
 export type Line =
-	| { key: string; id?: number; seq?: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string }
-	| { key: string; id?: number; seq?: number; role: "assistant"; text: string; error?: string; source?: string; aborted?: boolean }
+	| { key: string; id?: number; seq?: number; role: "user"; text: string; images?: number; turnId?: string; requestId?: string; at?: number }
+	| { key: string; id?: number; seq?: number; role: "assistant"; text: string; error?: string; source?: string; aborted?: boolean; at?: number; model?: string }
 	| { key: string; id?: number; seq?: number; role: "tool"; callId: string; name: string; state: "running" | "done" | "failed" }
 	| { key: string; id?: number; seq?: number; role: "task"; name: string; text: string }
 	| { key: string; id?: number; seq?: number; role: "compaction" }
@@ -100,6 +103,8 @@ function toLine(message: TranscriptMessage): Line {
 				...(message.error === undefined ? {} : { error: message.error }),
 				...(message.source === undefined ? {} : { source: message.source }),
 				...(message.stopReason === "aborted" ? { aborted: true } : {}),
+				...(message.at === undefined ? {} : { at: message.at }),
+				...(message.model === undefined ? {} : { model: message.model }),
 			};
 		case "tool":
 			return { key, id: message.id, role: "tool", callId: message.callId, name: message.name ?? "", state: message.isError ? "failed" : "done" };
@@ -128,7 +133,7 @@ function mergeTranscript(state: ConversationState, messages: TranscriptMessage[]
 	return [...older, ...read, ...newer];
 }
 
-function eventLine(state: ConversationState, seq: number, event: AgentEvent): Line | undefined {
+function eventLine(state: ConversationState, seq: number, event: AgentEvent, at: number): Line | undefined {
 	switch (event.type) {
 		case "message.end":
 			if (event.text === "" && event.error === undefined) return undefined;
@@ -137,6 +142,7 @@ function eventLine(state: ConversationState, seq: number, event: AgentEvent): Li
 				seq,
 				role: "assistant",
 				text: event.text,
+				at,
 				...(event.error === undefined ? {} : { error: event.error }),
 				...(event.source === undefined ? {} : { source: event.source }),
 				...(event.stopReason === "aborted" ? { aborted: true } : {}),
@@ -189,7 +195,7 @@ function applyEvent(state: ConversationState, event: AgentEvent, at: number): Co
 	}
 	const seq = state.seq + 1;
 	const next: ConversationState = { ...state, seq, lastEventAt: at };
-	const line = eventLine(state, seq, event);
+	const line = eventLine(state, seq, event, at);
 	if (line !== undefined) next.lines = [...state.lines, line];
 	switch (event.type) {
 		case "snapshot": {

@@ -196,6 +196,14 @@ function formatDuration(sec: number): string {
 	return `${m}m${s}s`;
 }
 
+/** The time of day, with the date when it isn't today. */
+function formatTime(at: number): string {
+	const date = new Date(at);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+	return date.toDateString() === new Date().toDateString() ? time : `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${time}`;
+}
+
 function getTurnHasFinalResponse(lines: Line[], currentIndex: number, liveText: string): boolean {
 	let turnStart = 0;
 	for (let i = currentIndex; i >= 0; i--) {
@@ -232,8 +240,11 @@ function AgentHeader({
 	onToggle,
 	flow,
 	onOpenWorkflow,
+	note,
 }: {
 	name: string;
+	/** What the agent said it is doing, shown for as long as the turn runs. */
+	note?: string;
 	duration?: number;
 	isBusy?: boolean;
 	hasTools?: boolean;
@@ -269,6 +280,7 @@ function AgentHeader({
 						</span>
 					)
 				)}
+				{note !== undefined && note !== "" && <span className="agent-header-note">{note}</span>}
 				{flow !== undefined && onOpenWorkflow !== undefined && (
 					<button
 						type="button"
@@ -359,12 +371,15 @@ function AssistantFooter({
 	text,
 	tokenCost,
 	timestamp,
+	model,
 	onRegenerate,
 	resultAction,
 }: {
 	text: string;
 	tokenCost?: string;
+	/** When the reply was written, in Unix milliseconds; no time shows without it. */
 	timestamp?: number;
+	model?: string;
 	onRegenerate?(): void;
 	resultAction?: { label: string; icon: LucideIcon; run(text: string): void };
 }) {
@@ -419,8 +434,7 @@ function AssistantFooter({
 		}
 	};
 
-	const date = timestamp ? new Date(timestamp) : new Date();
-	const timeStr = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+	const timeStr = timestamp === undefined ? undefined : formatTime(timestamp);
 
 	return (
 		<div className="assistant-footer">
@@ -489,9 +503,9 @@ function AssistantFooter({
 				{tokenCost !== undefined && <span className="assistant-footer-cost">{t("Total ✧ {cost}", { cost: tokenCost })}</span>}
 				<span className="assistant-footer-model">
 					<Bot size={13} aria-hidden="true" />
-					<span>Auto</span>
+					<span>{model ?? "Auto"}</span>
 				</span>
-				<span className="assistant-footer-time">{timeStr}</span>
+				{timeStr !== undefined && <span className="assistant-footer-time">{timeStr}</span>}
 			</div>
 		</div>
 	);
@@ -515,6 +529,7 @@ function TempFooter({ cost, status }: { cost?: string; status: string }) {
 function LineView({
 	line,
 	hiddenTool,
+	footer = false,
 	tokenCost,
 	onOpenOutput,
 	onRegenerate,
@@ -522,6 +537,8 @@ function LineView({
 }: {
 	line: Line;
 	hiddenTool?: boolean;
+	/** Whether this line ends a finished turn, which gets the one footer the turn has. */
+	footer?: boolean;
 	tokenCost?: string;
 	onRegenerate?(): void;
 } & Pick<Props, "onOpenOutput" | "resultAction">) {
@@ -570,11 +587,12 @@ function LineView({
 								<ChevronRight size={14} aria-hidden="true" />
 							</button>
 						)}
-						{line.text !== "" && (
+						{footer && (
 							<AssistantFooter
 								text={line.text}
-								tokenCost={tokenCost}
-								timestamp={line.id}
+								{...(tokenCost === undefined ? {} : { tokenCost })}
+								{...(line.at === undefined ? {} : { timestamp: line.at })}
+								{...(line.model === undefined ? {} : { model: line.model })}
 								onRegenerate={onRegenerate}
 								resultAction={resultAction}
 							/>
@@ -702,8 +720,6 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 		statusMessage = language === "zh" ? "正在整理分析结果，准备回复…" : "Analyzing results and preparing response…";
 	} else if (state.thinking !== "") {
 		statusMessage = language === "zh" ? "正在深入思考中…" : "Thinking…";
-	} else if (progressText !== "") {
-		statusMessage = progressText;
 	} else {
 		statusMessage = language === "zh" ? "正在理解您的需求…" : "Understanding your request…";
 	}
@@ -769,6 +785,11 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 							}
 						}
 
+						// One footer per turn, under its last reply, once the turn is over. Usage is the session's, so only the newest turn shows it.
+						const lastReply = turnLines.findLast((l) => l.role === "assistant" && l.text !== "");
+						const footer = line.key === lastReply?.key && !(isCurrentTurn && state.busy);
+						const turnCost = turnEndIdx === state.lines.length ? tokenCost : undefined;
+
 						const hasFinalResponse = getTurnHasFinalResponse(state.lines, index, state.live);
 						const isHiddenTool = line.role === "tool" && line.state !== "running" && hasFinalResponse && !isTurnExpanded;
 
@@ -782,6 +803,7 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 										hasTools={turnHasTools}
 										isExpanded={isTurnExpanded}
 										onToggle={() => setExpandedTurns((prev) => ({ ...prev, [turnKey]: !prev[turnKey] }))}
+										{...(isCurrentTurn && state.busy ? { note: progressText } : {})}
 										{...(isCurrentTurn && (state.flow ?? details?.flow) !== undefined ? { flow: state.flow ?? details?.flow } : {})}
 										{...(onOpenWorkflow === undefined ? {} : { onOpenWorkflow })}
 									/>
@@ -789,7 +811,8 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 								<LineView
 									line={line}
 									hiddenTool={isHiddenTool}
-									tokenCost={tokenCost}
+									footer={footer}
+									{...(turnCost === undefined ? {} : { tokenCost: turnCost })}
 									onOpenOutput={onOpenOutput}
 									onRegenerate={onRegenerate}
 									resultAction={resultAction}
@@ -826,6 +849,7 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 							name={agentName}
 							duration={state.busy ? elapsedSec : undefined}
 							isBusy={state.busy}
+							note={progressText}
 							{...((state.flow ?? details?.flow) !== undefined ? { flow: state.flow ?? details?.flow } : {})}
 							{...(onOpenWorkflow === undefined ? {} : { onOpenWorkflow })}
 						/>
