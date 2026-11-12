@@ -26,7 +26,7 @@ test('collapsed navigation leaves space for the settings heading', async ({ page
  await page.getByRole('button', { name: 'Hide sidebar' }).click();
  const menu = await page.getByRole('button', { name: 'Menu', exact: true }).boundingBox();
  const heading = await page.getByRole('heading', { name: 'Settings', exact: true }).boundingBox();
- expect(heading!.y).toBeGreaterThanOrEqual(menu!.y + menu!.height);
+ expect(heading!.x).toBeGreaterThanOrEqual(menu!.x + menu!.width);
  await page.getByRole('button', { name: 'Menu', exact: true }).click();
  await expect(page.getByRole('navigation', { name: 'Workbench', exact: true })).toBeVisible();
 });
