@@ -603,7 +603,7 @@ function LineView({
 	}
 }
 
-export function Transcript({ sessionId = "", state, agentName = "WorkBuddy AI", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
+export function Transcript({ sessionId = "", state, agentName = "Assistant", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
 	const { t, language } = useI18n();
 	const { isAdmin } = useWorkspace();
 	const scroller = useRef<HTMLDivElement>(null);

@@ -34,7 +34,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const { t } = useI18n();
 	const { agent, agents, config, signedOut, path, tenant } = useWorkspace();
 	const agentEntry = agents.find((a) => a.name === agent);
-	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "WorkBuddy AI" : agent);
+	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "Assistant" : agent);
 	const modules = useModules();
 	const resultAction = useResultAction();
 	const open = useSessions();
