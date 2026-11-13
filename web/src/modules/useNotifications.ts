@@ -11,7 +11,15 @@ const POLL_MS = 30_000;
  * The shape every module's `GET /v1/notifications` answers with. `to`, from a module with its own app, is the page it
  * leads to under the app's `/t/<tenant>/`.
  */
-export type Notification = { id: string; read_at: string | null; target?: string; to?: string; event: { kind: string } };
+export type Notification = { id: string; read_at: string | null; target?: string; to?: string; title?: string; event: { kind: string } };
+
+/** The page for the record a notification's target names, `<module>:<type>:<id>`, if a module has one. */
+export function recordPage(modules: WorkbenchModule[], target: string | undefined): string | undefined {
+	const [module, type, id, ...rest] = target?.split(":") ?? [];
+	if (type === undefined || id === undefined || id === "" || rest.length > 0) return undefined;
+	const page = modules.find((other) => other.id === module)?.records?.[type];
+	return page?.replace(":id", encodeURIComponent(id));
+}
 
 /** What's unread, per module and tenant, for the tab: the badge and the bell read the same one. */
 const unread = new Map<string, Map<string, Notification>>();
