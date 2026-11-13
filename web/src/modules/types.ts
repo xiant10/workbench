@@ -67,6 +67,11 @@ export type WorkbenchModule = {
 	nav: ModuleNav[];
 	/** What a notification's event kind means to a reader. */
 	eventLabel(kind: string): string;
+	/**
+	 * Pages for this module's records, by type, with `:id` where the ID goes, such as `{ work_item: "tasks/:id" }`. A
+	 * notification from any module whose target names one of these records opens it.
+	 */
+	records?: Record<string, string>;
 	/** Called when new notifications arrive, to refresh what they change. */
 	onNotifications?(client: QueryClient): void;
 	/** Rows for Home's "Needs you" list. */

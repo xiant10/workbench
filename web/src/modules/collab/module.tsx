@@ -25,6 +25,7 @@ export const collab: WorkbenchModule = {
 		{ key: "lists", label: "Shared lists", to: "lists", icon: ListTodo },
 	],
 	eventLabel,
+	records: { work_item: "tasks/:id", list: "lists/:id" },
 	onNotifications: (client: QueryClient) => void client.invalidateQueries({ queryKey: ["offers"] }),
 	HomeRows,
 	WaitingRows,
