@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { request } from "../lib/api.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { Setting } from "../lib/ui.tsx";
@@ -33,6 +34,10 @@ export function Settings() {
 					</Setting>
 				</section>
 			)}
+			<section className="card">
+				<h2>{t("Calls")}</h2>
+				<GreetingSetting />
+			</section>
 			{modules.length > 0 && (
 				<section className="card">
 					<h2>{t("Notifications")}</h2>
@@ -69,5 +74,33 @@ export function Settings() {
 				</Setting>
 			</section>
 		</div>
+	);
+}
+
+type Greeting = "personal" | "simple" | "off";
+
+/** How an agent greets you on a call. The auth service keeps it, so it's the same in every app. */
+function GreetingSetting() {
+	const { t } = useI18n();
+	const [greeting, setGreeting] = useState<Greeting>();
+	useEffect(() => {
+		request<{ greeting?: Greeting }>("/api/preferences").then(
+			(saved) => setGreeting(saved.greeting ?? "personal"),
+			() => setGreeting("personal"),
+		);
+	}, []);
+	const choose = (next: Greeting) => {
+		const before = greeting;
+		setGreeting(next);
+		void request("/api/preferences", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ greeting: next }) }).catch(() => setGreeting(before));
+	};
+	return (
+		<Setting title={t("Greeting on calls")} hint={t("When you start a call, the agent can greet you by name and mention your work, greet you simply, or wait for you to speak.")}>
+			<select aria-label={t("Greeting on calls")} value={greeting ?? "personal"} disabled={greeting === undefined} onChange={(event) => choose(event.target.value as Greeting)} data-testid="settings-greeting">
+				<option value="personal">{t("By name, with my work")}</option>
+				<option value="simple">{t("Simple")}</option>
+				<option value="off">{t("No greeting")}</option>
+			</select>
+		</Setting>
 	);
 }

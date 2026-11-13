@@ -23,7 +23,18 @@ function lastSnapshot(text: string): string | undefined {
 	}
 }
 
-export function useCall(room: string) {
+/**
+ * What the call tells the agent about itself, for its greeting: the caller's language and time zone, and the screen the
+ * call starts from. The auth service puts them in the room token as t10.client.* attributes.
+ */
+function callClient(language: string): Record<string, string> {
+	const client: Record<string, string> = { locale: language === "zh" ? "zh-Hans" : "en", screen: document.title.slice(0, 200) };
+	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	if (timeZone) client.timeZone = timeZone;
+	return client;
+}
+
+export function useCall(room: string, language = "en") {
 	const [phase, setPhase] = useState<CallPhase>("off");
 	/** The caller's words so far in the utterance being spoken, which the agent revises until it is final. */
 	const [interim, setInterim] = useState("");
@@ -59,7 +70,7 @@ export function useCall(room: string) {
 		const abandoned = () => attempt.current !== mine;
 		setPhase("joining");
 		try {
-			const admission = await postJSON<Admission>("/api/voice/admission", { room });
+			const admission = await postJSON<Admission>("/api/voice/admission", { room, client: callClient(language) });
 			if (abandoned()) return;
 			const lk = new Room({ adaptiveStream: false, audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 			current.current = lk;
@@ -170,7 +181,7 @@ export function useCall(room: string) {
 			if (error instanceof ApiError && error.status === 401) return;
 			setPhase("failed");
 		}
-	}, [end, room]);
+	}, [end, room, language]);
 
 	const toggleMute = useCallback(() => {
 		const next = !muted;

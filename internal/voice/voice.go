@@ -28,9 +28,16 @@ type Refused struct {
 
 func (r Refused) Error() string { return fmt.Sprintf("admission refused: %d %s", r.Status, r.Code) }
 
-// Admit asks for a room in the token's tenant. fixedRoom, when set, wins.
-func Admit(ctx context.Context, auth *session.AuthClient, token, room string) (Admission, error) {
-	status, body, err := auth.Call(ctx, http.MethodPost, "/v1/rooms/admission", token, map[string]string{"room": room})
+// Admit asks for a room in the token's tenant. client is what the browser says
+// about the call, such as the screen it was started from and the caller's
+// language; the auth service checks it and puts it in the room token, for the
+// agent's greeting.
+func Admit(ctx context.Context, auth *session.AuthClient, token, room string, client map[string]string) (Admission, error) {
+	request := map[string]any{"room": room}
+	if len(client) > 0 {
+		request["client"] = client
+	}
+	status, body, err := auth.Call(ctx, http.MethodPost, "/v1/rooms/admission", token, request)
 	if err != nil {
 		return Admission{}, err
 	}
