@@ -99,7 +99,7 @@ The workbench takes its layout from WorkBuddy, its progress and steering from Cl
 
 ```text
 +------------------+-------------------------------------+-----------------------+
-| Sidebar          | Customer brief       Call · Results | Results panel,        |
+| Sidebar          | Customer brief    Workflow · Results | Results panel,       |
 |                  |-------------------------------------| can be hidden         |
 | New conversation |            [Draft a one-page brief] |                       |
 |                  |                                     | Outputs  Background   |
@@ -132,7 +132,7 @@ The composer is the emphasis because it carries the state of the work. Send beco
 | Sign-in | The auth service's hosted page, reached by redirect |
 | Home | Composer, suggestions, then Needs you and Waiting on others, then recent conversations with finished ones first. See [`first-screen.md`](first-screen.md) |
 | Conversation | Transcript, activity lines, composer, results panel |
-| Live call | A call bar over the same conversation, with state, live caption, mute and end |
+| Live call | A call bar over the same conversation, with state, live caption, mute and end. It starts from the composer, on Home as a new conversation. The call belongs to the shell, so it goes on while the person opens other pages, where the bar shows with a way back. A conversation started by voice takes its title from the first thing said, and one that ends with nothing said is deleted |
 | Search | Conversation titles first. Full-text search needs a transcript index, so it comes later |
 | Tasks and inbox | Offers, then owned, sent and collaborating tasks, shared lists and a team view, from milestone 4 |
 | Settings | Language, theme, tenant, browser notifications. Account security links to the auth service's `/v1/account`. Admins get links to Administration, and platform admins to the platform console |
@@ -159,7 +159,7 @@ A module places its settings with `admin` in its `WorkbenchModule`: `joins` puts
 
 | State | Input does | Main button |
 | --- | --- | --- |
-| Idle | Starts a run | Send |
+| Idle | Starts a run | Send, or, with nothing typed and voice on, start a call |
 | Running | Adds to the run, and shows a queued chip | Stop. A menu offers stop and send instead |
 | Waiting, no events for 60 seconds | Stays enabled | Retry |
 | In a call | Typed text still joins the conversation | End call |

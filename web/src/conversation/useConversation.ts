@@ -112,6 +112,7 @@ export function useConversation(agent: string, sessionId: string, archived: bool
 
 	const details = useCallback(() => rpc<SessionDetails>(agent, "session.get", {}, sessionId), [agent, sessionId]);
 	const discard = useCallback((requestId: string) => dispatch({ type: "discard", requestId }), []);
+	const hear = useCallback((id: number, text: string) => dispatch({ type: "heard", id, text }), []);
 
-	return { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard };
+	return { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard, hear };
 }

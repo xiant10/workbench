@@ -20,6 +20,7 @@ import "./shell.css";
 import { Settings } from "./Settings.tsx";
 import { WorkbenchBell } from "./Bell.tsx";
 import { Sidebar, SignOutButton } from "./Sidebar.tsx";
+import { CallElsewhere, CallProvider } from "../call/CallProvider.tsx";
 import { configQuery, type Me, type Workspace, WorkspaceContext, useWorkspace } from "./workspace.ts";
 
 /** Drafts belong to whoever wrote them, so another person signing in here starts clean. */
@@ -212,23 +213,26 @@ function Shell() {
 	return (
 		<WorkspaceContext.Provider value={workspace}>
 			<SavedPreferences />
-			<Frame
-				place={location.pathname}
-				title={t("Workbench")}
-				bell={<WorkbenchBell />}
-				rail={({ open, close, collapse }) => <Sidebar open={open} onClose={close} onCollapse={collapse} onSearch={() => { close(); setSearching(true); }} />}
-			>
-				{signedOut && (
-					<div className="banner" role="alert">
-						{t("You've been signed out. What you typed is kept.")}{" "}
-						<button type="button" className="link" onClick={() => signIn(location.pathname, "ended")}>
-							{t("Sign in again")}
-						</button>
-					</div>
-				)}
-				<Outlet />
-			</Frame>
-			{searching && <Palette onClose={() => { setSearching(false); if (mobile) focusMenuButton(); }} />}
+			<CallProvider>
+				<Frame
+					place={location.pathname}
+					title={t("Workbench")}
+					bell={<WorkbenchBell />}
+					rail={({ open, close, collapse }) => <Sidebar open={open} onClose={close} onCollapse={collapse} onSearch={() => { close(); setSearching(true); }} />}
+				>
+					{signedOut && (
+						<div className="banner" role="alert">
+							{t("You've been signed out. What you typed is kept.")}{" "}
+							<button type="button" className="link" onClick={() => signIn(location.pathname, "ended")}>
+								{t("Sign in again")}
+							</button>
+						</div>
+					)}
+					<CallElsewhere />
+					<Outlet />
+				</Frame>
+				{searching && <Palette onClose={() => { setSearching(false); if (mobile) focusMenuButton(); }} />}
+			</CallProvider>
 		</WorkspaceContext.Provider>
 	);
 }

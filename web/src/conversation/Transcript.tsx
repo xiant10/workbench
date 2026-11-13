@@ -24,8 +24,6 @@ type Props = {
 	onLoadEarlier(): void;
 	/** In a call, the reply being spoken, typed out as it arrives. It gives way to the message once that is read. */
 	spoken?: string;
-	/** In a call, what the caller said, shown at once and replaced by the user's message once that is read. */
-	heard?: string[];
 	/** In a call, the caller's words so far, while they are still speaking. */
 	interim?: string;
 };
@@ -305,17 +303,20 @@ function AgentHeader({
 	);
 }
 
-function SpokenView({ text }: { text: string }) {
+function SpokenView({ text, agentName }: { text: string; agentName?: string }) {
 	const typed = useTypewriter(text, true);
 	return (
-		<div className="line assistant live">
-			<span className="agent-mark sr-only">
-				<Logo size={24} />
-			</span>
-			<div className="line-body">
-				<Markdown text={typed} />
+		<>
+			{agentName !== undefined && <AgentHeader name={agentName} isBusy />}
+			<div className="line assistant live">
+				<span className="agent-mark sr-only">
+					<Logo size={24} />
+				</span>
+				<div className="line-body">
+					<Markdown text={typed} />
+				</div>
 			</div>
-		</div>
+		</>
 	);
 }
 
@@ -616,7 +617,7 @@ function LineView({
 	}
 }
 
-export function Transcript({ sessionId = "", state, agentName = "Assistant", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", heard = [], interim = "" }: Props) {
+export function Transcript({ sessionId = "", state, agentName = "Assistant", details, onOpenOutput, onOpenWorkflow, resultAction, onRegenerate, onRetry, onDiscard, onLoadEarlier, spoken = "", interim = "" }: Props) {
 	const { t, language } = useI18n();
 	const { isAdmin } = useWorkspace();
 	const scroller = useRef<HTMLDivElement>(null);
@@ -840,17 +841,15 @@ export function Transcript({ sessionId = "", state, agentName = "Assistant", det
 							</div>
 						</div>
 					)}
-					{heard.map((text, at) => (
-						<div key={`heard${at}`} className="line user">
-							<div className="bubble">{text}</div>
-						</div>
-					))}
+					{spoken !== "" && (
+						// A reply opens its own turn, as a greeting does, unless a header above already stands for it.
+						<SpokenView text={spoken} {...(showLiveHeader || (state.busy && hasAgentInCurrentTurn) ? {} : { agentName })} />
+					)}
 					{interim !== "" && (
 						<div className="line user interim">
 							<div className="bubble">{interim}</div>
 						</div>
 					)}
-					{spoken !== "" && <SpokenView text={spoken} />}
 					{(state.busy || Object.values(state.progress).some(Boolean)) && spoken === "" && state.live === "" && (
 						<TempFooter status={statusMessage} />
 					)}

@@ -82,6 +82,8 @@ export type Action =
 	| { type: "event"; event: AgentEvent; at: number }
 	| { type: "status"; status: StreamStatus }
 	| { type: "call"; inCall: boolean }
+	/** What the caller said on a call, final but not yet in the transcript. */
+	| { type: "heard"; id: number; text: string }
 	| { type: "transcript"; messages: TranscriptMessage[]; earlier?: string; since: number }
 	| { type: "older"; messages: TranscriptMessage[]; earlier?: string }
 	| { type: "sending"; pending: Pending }
@@ -120,6 +122,8 @@ function held(line: Line, read: readonly Line[]): boolean {
 	const tail = read.slice(-20);
 	if (line.role === "assistant") return tail.some((other) => other.role === "assistant" && other.text === line.text);
 	if (line.role === "tool") return tail.some((other) => other.role === "tool" && other.callId === line.callId);
+	// The agent may join utterances the caller paused between into one message.
+	if (line.role === "user" && line.key.startsWith("h")) return tail.some((other) => other.role === "user" && other.text.includes(line.text));
 	return line.role === "compaction";
 }
 
@@ -292,6 +296,12 @@ export function reducer(state: ConversationState, action: Action): ConversationS
 			if (action.inCall === state.inCall) return state;
 			// What a call hid comes back from the transcript.
 			return { ...state, inCall: action.inCall, live: "", reload: action.inCall ? state.reload : state.reload + 1 };
+		case "heard": {
+			// It starts the turn the agent is about to take, so what that turn does shows under it.
+			if (state.lines.some((line) => line.key === `h${action.id}`)) return state;
+			const seq = state.seq + 1;
+			return { ...state, seq, lines: [...state.lines, { key: `h${action.id}`, seq, role: "user", text: action.text }] };
+		}
 		case "transcript": {
 			const lines = mergeTranscript(state, action.messages, action.since);
 			const inTranscript = new Set(action.messages.flatMap((message) => (message.role === "user" && message.requestId !== undefined ? [message.requestId] : [])));

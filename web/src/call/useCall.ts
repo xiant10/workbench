@@ -34,7 +34,7 @@ function callClient(language: string): Record<string, string> {
 	return client;
 }
 
-export function useCall(room: string, language = "en") {
+export function useCall(language = "en") {
 	const [phase, setPhase] = useState<CallPhase>("off");
 	/** The caller's words so far in the utterance being spoken, which the agent revises until it is final. */
 	const [interim, setInterim] = useState("");
@@ -65,7 +65,7 @@ export function useCall(room: string, language = "en") {
 
 	useEffect(() => end, [end]);
 
-	const start = useCallback(async () => {
+	const start = useCallback(async (room: string) => {
 		const mine = ++attempt.current;
 		const abandoned = () => attempt.current !== mine;
 		setPhase("joining");
@@ -181,7 +181,7 @@ export function useCall(room: string, language = "en") {
 			if (error instanceof ApiError && error.status === 401) return;
 			setPhase("failed");
 		}
-	}, [end, room, language]);
+	}, [end, language]);
 
 	const toggleMute = useCallback(() => {
 		const next = !muted;

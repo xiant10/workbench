@@ -49,6 +49,11 @@ async function ask(page: Page, text: string): Promise<void> {
 	await composer(page).press("Enter");
 }
 
+/** The composer at rest. With voice on and nothing typed, its main button starts a call instead of sending. */
+function idle(page: Page) {
+	return page.locator(".composer").getByRole("button", { name: "Switch to voice" });
+}
+
 async function startFromHome(page: Page, text: string): Promise<void> {
 	await page.getByRole("link", { name: "New conversation" }).click();
 	await ask(page, text);
@@ -72,7 +77,7 @@ test.describe("M1: core conversations", () => {
 		await signIn(page, "sample-member");
 		await startFromHome(page, "hello there");
 		await expect(page.locator(".line.assistant").last()).toContainText("Echo: hello there");
-		await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
+		await expect(idle(page)).toBeVisible();
 		await page.reload();
 		await expect(page.locator(".line.user").last()).toContainText("hello there");
 		await expect(page.locator(".line.assistant").last()).toContainText("Echo: hello there");
@@ -86,7 +91,7 @@ test.describe("M1: core conversations", () => {
 		await expect(page.locator(".line.live")).toBeVisible();
 		await page.getByRole("button", { name: "Stop", exact: true }).click();
 		await expect(page.locator(".line.live")).toHaveCount(0);
-		await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible();
+		await expect(idle(page)).toBeVisible();
 		await expect(page.getByText("Stopped")).toBeVisible();
 	});
 
@@ -97,7 +102,7 @@ test.describe("M1: core conversations", () => {
 		await ask(page, "and use the EU account");
 		await expect(page.locator(".line.user").filter({ hasText: "EU account" })).toBeVisible();
 		await expect(page.locator(".line.tool")).toContainText("Done");
-		await expect(page.getByRole("button", { name: "Send", exact: true })).toBeVisible({ timeout: 15_000 });
+		await expect(idle(page)).toBeVisible({ timeout: 15_000 });
 		await expect(page.locator(".line.assistant").last()).toContainText(/tool finished|Echo: and use the EU account/);
 	});
 
@@ -279,11 +284,68 @@ test.describe("M3: calls", () => {
 	test("joins the room, and says so when no agent is there", async ({ page }) => {
 		await signIn(page, "sample-member");
 		await startFromHome(page, "call me");
-		await page.getByRole("button", { name: "Call", exact: true }).click();
+		await page.getByRole("button", { name: "Switch to voice" }).click();
 		await expect(page.locator(".call-bar")).toBeVisible();
 		await expect(page.getByText("The voice agent hasn't joined this room.")).toBeVisible({ timeout: 25_000 });
 		await page.locator(".call-bar").getByRole("button", { name: "End call" }).click();
 		await expect(page.locator(".call-bar")).toHaveCount(0);
+	});
+});
+
+test.describe("M3: starting by voice", () => {
+	async function talkFromHome(page: Page): Promise<string> {
+		await page.getByRole("link", { name: "New conversation" }).click();
+		await page.getByRole("button", { name: "Start a voice conversation" }).click();
+		await page.waitForURL(/\/c\//);
+		await expect(page.locator(".call-bar")).toBeVisible();
+		return new URL(page.url()).pathname;
+	}
+
+	test("Home starts a call in a new conversation, and an empty one isn't kept", async ({ page }) => {
+		await signIn(page, "sample-member");
+		const conversation = await talkFromHome(page);
+		await expect(page.locator(".conversation-head h1")).toHaveText("Voice conversation");
+		await page.locator(".call-bar").getByRole("button", { name: "End call" }).click();
+		await expect(page.getByText("Call ended. Nothing was said, so it wasn't kept.")).toBeVisible();
+		await expect(page).not.toHaveURL(/\/c\//);
+		await expect(page.locator(`a[href="${conversation}"]`)).toHaveCount(0);
+	});
+
+	test("the call goes on elsewhere, with the way back", async ({ page }) => {
+		await signIn(page, "sample-member");
+		const conversation = await talkFromHome(page);
+		await page.getByRole("link", { name: "Home", exact: true }).click();
+		await expect(page.locator(".call-bar")).toBeVisible();
+		await page.locator(".call-bar").getByRole("link", { name: "Back to the call" }).click();
+		await expect(page).toHaveURL(new RegExp(`${conversation}$`));
+		await page.locator(".call-bar").getByRole("button", { name: "End call" }).click();
+		await expect(page.locator(".call-bar")).toHaveCount(0);
+	});
+
+	test("a refused microphone creates nothing", async ({ page }) => {
+		await page.addInitScript(() => {
+			navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException("denied", "NotAllowedError"));
+		});
+		await signIn(page, "sample-member");
+		let created = 0;
+		page.on("request", (request) => {
+			if (request.headers()["agent-method"] === "session.create") created++;
+		});
+		await page.getByRole("link", { name: "New conversation" }).click();
+		await page.getByRole("button", { name: "Start a voice conversation" }).click();
+		await expect(page.getByText("Allow the microphone to start a voice conversation.")).toBeVisible();
+		await expect(page).not.toHaveURL(/\/c\//);
+		expect(created).toBe(0);
+	});
+
+	test("typing turns the call button back into send", async ({ page }) => {
+		await signIn(page, "sample-member");
+		await page.getByRole("link", { name: "New conversation" }).click();
+		await expect(page.getByRole("button", { name: "Start a voice conversation" })).toBeVisible();
+		await composer(page).fill("hello");
+		await expect(page.getByRole("button", { name: "Start a voice conversation" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+		await composer(page).fill("");
 	});
 });
 
@@ -306,7 +368,7 @@ test.describe("M3: hanging up early", () => {
 			await route.continue();
 			answered = true;
 		});
-		await page.getByRole("button", { name: "Call", exact: true }).click();
+		await page.getByRole("button", { name: "Switch to voice" }).click();
 		await page.locator(".call-bar").getByRole("button", { name: "End call" }).click();
 		await expect(page.locator(".call-bar")).toHaveCount(0);
 		admit();

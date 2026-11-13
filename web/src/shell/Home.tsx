@@ -3,6 +3,7 @@ import { CalendarDays, FileText, type LucideIcon, Mail, MessageSquare, PartyPopp
 import { signIn } from "../kit/session.ts";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { MicrophoneRefused, useCalls } from "../call/CallProvider.tsx";
 import { Composer } from "../conversation/Composer.tsx";
 import { rpc } from "../lib/api.ts";
 import { type SessionInfo, startConversation, titleOf } from "../lib/agent.ts";
@@ -41,7 +42,8 @@ function greeting(): string {
 
 export function Home() {
 	const { t, ago, describe } = useI18n();
-	const { agent, agents, setAgent, profile, me, path, signedOut, isAdmin } = useWorkspace();
+	const { agent, agents, setAgent, profile, me, path, signedOut, isAdmin, config } = useWorkspace();
+	const calls = useCalls();
 	const modules = useModules();
 	const resultAction = useResultAction();
 	const navigate = useNavigate();
@@ -56,6 +58,7 @@ export function Home() {
 			navigate(path(`c/${sessionId}`));
 		},
 	});
+	const talk = useMutation({ mutationFn: calls.startNew });
 	const openTask = useMutation({
 		mutationFn: async (session: SessionInfo) => {
 			const page = await rpc<{ messages: { role: string; text?: string }[] }>(agent, "session.messages", { limit: 10 }, session.sessionId);
@@ -80,7 +83,7 @@ export function Home() {
 
 			<Composer
 				toolbar={<label className="with-label home-agent">{t("Agent")}
-				<select value={agent} disabled={start.isPending} onChange={(event) => setAgent(event.target.value)}>
+				<select value={agent} disabled={start.isPending || talk.isPending} onChange={(event) => setAgent(event.target.value)}>
 					{agents.map((option) => <option key={option.name} value={option.name}>{option.title ?? option.name}</option>)}
 				</select>
 			</label>}
@@ -90,11 +93,17 @@ export function Home() {
 				placeholder={t("Ask the assistant")}
 				autoFocus
 				onSend={async (input, text) => { await start.mutateAsync({ input, text: text || t("New conversation") }); }}
+				{...(config.voice ? { onVoice: () => talk.mutate(), voiceLabel: t("Start a voice conversation"), voiceStarting: talk.isPending } : {})}
 				onSignIn={() => signIn(undefined, "ended")}
 			/>
 			{start.isError && (
 				<p className="inline-error" role="alert">
 					{describe(start.error)}
+				</p>
+			)}
+			{talk.isError && (
+				<p className="inline-error" role="alert">
+					{talk.error instanceof MicrophoneRefused ? t("Allow the microphone to start a voice conversation.") : describe(talk.error)}
 				</p>
 			)}
 			<ul className="starters" aria-label={t("Suggestions")}>

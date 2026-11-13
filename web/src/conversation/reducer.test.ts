@@ -235,3 +235,24 @@ describe("temporary progress", () => {
 		expect(fromSnapshot.flow?.llmCallsSaved).toBe(3);
 	});
 });
+
+describe("on a call", () => {
+	it("puts what the caller said ahead of the tools the agent runs for it", () => {
+		const state = run([{ type: "heard", id: 1, text: "Tell me a joke" }, event({ type: "tool.started", callId: "c1", name: "search" })]);
+		expect(state.lines).toMatchObject([{ role: "user", text: "Tell me a joke" }, { role: "tool", callId: "c1" }]);
+	});
+
+	it("shows each utterance once, and gives way to the message the read brings", () => {
+		const heard = run([{ type: "heard", id: 1, text: "Tell me a joke" }, { type: "heard", id: 1, text: "Tell me a joke" }]);
+		expect(heard.lines).toHaveLength(1);
+		const read = reducer(heard, { type: "transcript", messages: [{ id: 7, role: "user", text: "Tell me a joke" }], since: 0 });
+		expect(read.lines).toMatchObject([{ key: "e7", role: "user" }]);
+	});
+
+	it("keeps an utterance a read began too early to hold, unless the read already has it", () => {
+		const heard = run([{ type: "heard", id: 1, text: "and a short one" }]);
+		expect(reducer(heard, { type: "transcript", messages: [], since: 0 }).lines).toHaveLength(1);
+		const joined = reducer(heard, { type: "transcript", messages: [{ id: 7, role: "user", text: "Tell me a joke and a short one" }], since: 0 });
+		expect(joined.lines).toMatchObject([{ key: "e7" }]);
+	});
+});
