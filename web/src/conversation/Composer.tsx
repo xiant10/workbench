@@ -1,4 +1,4 @@
-import { ArrowUp, CircleAlert, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, AudioLines, CircleAlert, LoaderCircle, Paperclip, Square, X } from "lucide-react";
 import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import type { PromptInput } from "../lib/agent.ts";
@@ -24,7 +24,12 @@ export type ComposerProps = {
 	onStop?(): void;
 	onStopAndSend?(input: PromptInput, text: string, images: number): void;
 	onRetry?(): void;
-	onEndCall?(): void;
+	/** Starts a call. With nothing typed, the send button offers it instead. */
+	onVoice?(): void;
+	/** What the call button says, as a tooltip and to screen readers. */
+	voiceLabel?: string;
+	/** A call is being started, so the button waits. */
+	voiceStarting?: boolean;
 	onSignIn?(): void;
 };
 
@@ -40,7 +45,7 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onEndCall, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onVoice, voiceLabel, voiceStarting = false, onSignIn }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
@@ -134,6 +139,8 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 	};
 
 	const busy = mode === "running" || mode === "stalled";
+	// One button, the right one for what's in the box: send what was typed, or talk when nothing was.
+	const offersVoice = onVoice !== undefined && inCall !== true && mode === "idle" && !submitting && !failed && text.trim() === "" && images.length === 0;
 	const status =
 		mode === "reconnecting" ? t("Sending is paused until the connection returns.") : mode === "stalled" ? t("No reply yet. It may be stalled.") : mode === "signed-out" ? t("You've been signed out. What you typed is kept.") : problem;
 
@@ -225,22 +232,22 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 							{t("Retry")}
 						</button>
 					)}
-					{inCall === true ? (
-						<button type="button" className="danger" onClick={onEndCall}>
-							{t("End call")}
+					{/* A call ends from its own bar, so a run can still be stopped while talking. */}
+					{busy && onStop !== undefined && (
+						<button type="button" className="stop send" aria-label={t("Stop")} onClick={onStop}>
+							<Square size={13} fill="currentColor" aria-hidden="true" />
+						</button>
+					)}
+					{offersVoice ? (
+						<button type="button" className="primary send" aria-label={voiceLabel ?? t("Start a call")} title={voiceLabel ?? t("Start a call")} disabled={voiceStarting} onClick={onVoice}>
+							{voiceStarting ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <AudioLines size={17} aria-hidden="true" />}
 						</button>
 					) : (
-						busy &&
-						onStop !== undefined && (
-							<button type="button" className="stop send" aria-label={t("Stop")} onClick={onStop}>
-								<Square size={13} fill="currentColor" aria-hidden="true" />
+						(mode === "idle" || mode === "reconnecting") && (
+							<button type="button" className="primary send" aria-label={t(failed ? "Retry" : "Send")} disabled={!canSend} onClick={submit}>
+								<ArrowUp size={17} aria-hidden="true" />
 							</button>
 						)
-					)}
-					{(mode === "idle" || mode === "reconnecting") && (
-						<button type="button" className="primary send" aria-label={t(failed ? "Retry" : "Send")} disabled={!canSend} onClick={submit}>
-							<ArrowUp size={17} aria-hidden="true" />
-						</button>
 					)}
 				</div>
 			</div>

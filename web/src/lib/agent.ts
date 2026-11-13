@@ -200,6 +200,12 @@ export function titleOf(text: string): string {
 	return line.length > TITLE_CHARS ? `${line.slice(0, TITLE_CHARS - 1)}…` : line;
 }
 
+/** A conversation with nothing said yet, as one that starts with a call is. */
+export async function createConversation(agent: string, profile: string, title: string, metadata: Record<string, string> = {}): Promise<string> {
+	const { sessionId } = await rpc<{ sessionId: string }>(agent, "session.create", { profile, metadata: { ...metadata, title } });
+	return sessionId;
+}
+
 export async function startConversation(
 	agent: string,
 	profile: string,
@@ -208,7 +214,7 @@ export async function startConversation(
 	metadata: Record<string, string> = {},
 	text?: string,
 ): Promise<string> {
-	const { sessionId } = await rpc<{ sessionId: string }>(agent, "session.create", { profile, metadata: { ...metadata, title } });
+	const sessionId = await createConversation(agent, profile, title, metadata);
 	const turnId = newTurnId();
 	const requestId = crypto.randomUUID();
 	// The conversation's stream opens only after this, so the agent is told someone will be watching

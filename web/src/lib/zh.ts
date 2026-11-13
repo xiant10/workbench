@@ -300,6 +300,7 @@ export const ZH: Record<string, string> = {
 	// Calls
 	Call: "通话",
 	"End call": "结束通话",
+	"Muted. Unmute to talk.": "已静音，取消静音后再说话",
 	Mute: "静音",
 	Unmute: "取消静音",
 	Listening: "正在听",
@@ -309,6 +310,18 @@ export const ZH: Record<string, string> = {
 	"The voice agent hasn't joined this room.": "语音智能体尚未加入此房间。",
 	"This call can't start.": "无法开始此通话。",
 	"Allow the microphone to start a call.": "请允许使用麦克风以开始通话。",
+	"Listening. Go ahead.": "正在听，请说",
+	"Voice conversation": "语音对话",
+	"Start a call": "开始通话",
+	"Switch to voice": "切换到语音",
+	"Start a voice conversation": "开始语音对话",
+	"New voice conversation": "新语音对话",
+	"Allow the microphone to start a voice conversation.": "请允许使用麦克风以开始语音对话。",
+	"Call ended. Nothing was said, so it wasn't kept.": "通话已结束。未说任何内容，因此未保留此对话。",
+	"End the current call?": "结束当前通话？",
+	"A call is going on in another conversation. Starting this one ends it.": "另一个对话正在通话中。开始此通话会将其结束。",
+	"End call and start": "结束并开始",
+	"Back to the call": "回到通话",
 
 	// Tasks
 	Task: "任务",

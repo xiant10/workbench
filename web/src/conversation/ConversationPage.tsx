@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Archive, CircleAlert, GitBranch, MessageSquareOff, PanelRight, Phone, PhoneOff } from "lucide-react";
+import { Archive, CircleAlert, GitBranch, MessageSquareOff, PanelRight } from "lucide-react";
 import { signIn } from "../kit/session.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { CallBar } from "../call/CallBar.tsx";
-import { useCall } from "../call/useCall.ts";
+import { live, useCallOn } from "../call/CallProvider.tsx";
 import { type PromptInput, type SessionInfo, supports } from "../lib/agent.ts";
 import { rpc } from "../lib/api.ts";
 import { RESULTS_BREAKPOINT, useMedia } from "../lib/layout.ts";
@@ -31,7 +31,7 @@ export function ConversationPage() {
 }
 
 function Conversation({ sessionId }: { sessionId: string }) {
-	const { t, language } = useI18n();
+	const { t } = useI18n();
 	const { agent, agents, config, signedOut, path, tenant } = useWorkspace();
 	const agentEntry = agents.find((a) => a.name === agent);
 	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "Assistant" : agent);
@@ -51,20 +51,18 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const session = listed ?? single.data;
 	const archived = session?.archived === true;
 
-	const call = useCall(`conv-${sessionId}`, language);
-	const inCall = call.phase !== "off" && call.phase !== "failed" && call.phase !== "no-microphone";
+	const call = useCallOn(sessionId);
+	const inCall = live(call.phase);
 	const voice = { inCall, speaking: call.phase === "thinking" || call.phase === "speaking" };
-	const { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard } = useConversation(agent, sessionId, archived, voice);
+	const { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard, hear } = useConversation(agent, sessionId, archived, voice);
+	// What the caller said joins the transcript at once, ahead of what the agent does about it, until the read brings the message.
+	useEffect(() => {
+		for (const item of call.heard) hear(item.id, item.text);
+	}, [call.heard, hear]);
 	// The room's reply stands in until the message itself is read, which is when an assistant line appears beyond these.
 	const assistants = state.lines.filter((line) => line.role === "assistant").length;
 	const replyBase = useRef({ id: 0, assistants });
 	if (replyBase.current.id !== call.reply.id) replyBase.current = { id: call.reply.id, assistants };
-	// Likewise for each thing the caller said: it stands in until a user line beyond these has been read.
-	const users = state.lines.filter((line) => line.role === "user").length;
-	const heardBase = useRef(new Map<number, number>());
-	for (const item of call.heard) if (!heardBase.current.has(item.id)) heardBase.current.set(item.id, users);
-	if (call.heard.length === 0) heardBase.current.clear();
-	const heard = call.heard.filter((item) => users <= (heardBase.current.get(item.id) ?? users)).map((item) => item.text);
 	const spoken = assistants > replyBase.current.assistants ? "" : call.reply.text;
 	const [now, setNow] = useState(Date.now);
 	const resultsTrigger = useRef<HTMLButtonElement>(null);
@@ -114,12 +112,6 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					<h1>{title}</h1>
 					{session !== undefined && modules.map(({ id, SessionChip }) => SessionChip !== undefined && <SessionChip key={id} session={session} />)}
 					<span className="spacer" />
-					{config.voice && !archived && (inCall || supports(session, "voice")) && (
-						<button type="button" className="ghost" aria-label={t(call.phase === "off" ? "Call" : "End call")} onClick={() => (call.phase === "off" ? void call.start() : call.end())}>
-							{call.phase === "off" ? <Phone size={15} aria-hidden="true" /> : <PhoneOff size={15} aria-hidden="true" />}
-							<span className="label">{t(call.phase === "off" ? "Call" : "End call")}</span>
-						</button>
-					)}
 					<button
 						type="button"
 						className={`ghost${resultsOpen && tab === "workflow" ? " active" : ""}`}
@@ -145,7 +137,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						{resultCount > 0 && <span className="badge">{resultCount}</span>}
 					</button>
 				</header>
-				{call.phase !== "off" && <CallBar phase={call.phase} muted={call.muted} onToggleMute={call.toggleMute} onEnd={call.end} />}
+				{call.phase !== "off" && <CallBar phase={call.phase} muted={call.muted} quiet={call.quiet} onToggleMute={call.toggleMute} onEnd={call.end} />}
 				{(info.data?.parked ?? 0) > 0 && (
 					<div className="banner">
 						<CircleAlert size={15} aria-hidden="true" />
@@ -161,7 +153,6 @@ function Conversation({ sessionId }: { sessionId: string }) {
 					agentName={agentName}
 					details={info.data}
 					spoken={spoken}
-					heard={heard}
 					interim={call.interim}
 					onOpenOutput={(output) => {
 						setSelected(output);
@@ -207,7 +198,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						onStop={() => void stop()}
 						{...(supports(session, "interrupt") ? { onStopAndSend: (input: PromptInput, text: string, images: number) => void stopAndSend(input, text, images) } : {})}
 						{...(stalled === undefined ? {} : { onRetry: () => void retry(stalled) })}
-						onEndCall={call.end}
+						{...(config.voice && supports(session, "voice") ? { onVoice: () => void call.start(), voiceLabel: t("Switch to voice") } : {})}
 						onSignIn={() => signIn(path(`c/${sessionId}`), "ended")}
 					/>
 				)}
