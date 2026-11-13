@@ -372,13 +372,14 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request, id session.Ide
 
 func (s *Server) handleAdmission(w http.ResponseWriter, r *http.Request, id session.Identity) {
 	var body struct {
-		Room string `json:"room"`
+		Room   string            `json:"room"`
+		Client map[string]string `json:"client"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSONBody)).Decode(&body); err != nil {
 		proxy.WriteError(w, http.StatusBadRequest, "invalid_request", "malformed request")
 		return
 	}
-	admission, err := voice.Admit(r.Context(), s.Auth, id.Access, body.Room)
+	admission, err := voice.Admit(r.Context(), s.Auth, id.Access, body.Room, body.Client)
 	var refused voice.Refused
 	switch {
 	case errors.As(err, &refused):

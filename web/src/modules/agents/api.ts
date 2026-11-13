@@ -1,5 +1,5 @@
 import type { SkillFlow } from "../../lib/agent.ts";
-import { postJSON, request } from "../../lib/api.ts";
+import { postJSON, request, rpc } from "../../lib/api.ts";
 
 /**
  * One agent the platform lets this tenant use. Agents it doesn't are never listed. `picker` is false for an agent reached
@@ -190,7 +190,47 @@ export type AgentConfigContent = {
 	skills?: { off?: string[] };
 	/** One of the model entries the platform allows. Empty keeps the agent's own. */
 	model?: string;
+	/** What the agent says first when someone starts a call (agent-ti's docs/greeting.md). */
+	greeting?: GreetingContent;
+	/** The tenant's own context variables, by name, each from one of the agent's tools. */
+	variables?: Record<string, GreetingVariable>;
 };
+
+/** A greeting: off, or instructions the model writes it from, with a fixed text for when it can't. */
+export type GreetingContent = {
+	off?: boolean;
+	instructions?: string;
+	/** Alternatives per language: the first whose variables all have values is said. */
+	text?: string | string[] | Record<string, string | string[]>;
+};
+
+/** A variable whose value comes from one of the agent's tools, called as the caller, read-only. */
+export type GreetingVariable = { tool: string; args?: Record<string, unknown>; pick?: string; description?: string; ttlMs?: number; trust?: "system" | "content" };
+
+/** A variable the agent offers, for the editor's list. */
+export type VariableInfo = { name: string; description: string; trust: "system" | "content"; source: string; tool?: string };
+
+export const getVariableCatalog = (agent: string) => rpc<{ variables: VariableInfo[] }>(agent, "variables.catalog").then((body) => body.variables);
+
+/** What a greeting would be for the person asking, with how each variable was looked up. Nothing is said or saved. */
+export type GreetingPreview = {
+	text: string | null;
+	by: "model" | "text" | "fallback";
+	instructions: string | null;
+	variables: Record<string, { value: unknown; trust: string; source: string; ms: number }>;
+	wouldSkip: string | null;
+	skipped?: string;
+};
+
+/** Previews the draft's greeting in a private conversation that's closed again at once. */
+export async function previewGreeting(agent: string, title: string, params: { locale: string; timeZone: string; client: Record<string, string> }): Promise<GreetingPreview> {
+	const { sessionId } = await rpc<{ sessionId: string }>(agent, "session.create", { metadata: { title, configDraft: true } });
+	try {
+		return await rpc<GreetingPreview>(agent, "session.greet", { ...params, dryRun: true }, sessionId);
+	} finally {
+		void rpc(agent, "session.close", {}, sessionId).catch(() => undefined);
+	}
+}
 
 /** The published customization, version 0 when there's none. */
 export type AgentConfig = { agent: string; version: number; digest: string; content: AgentConfigContent; updated_by: string; updated_at: string };

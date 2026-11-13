@@ -15,9 +15,14 @@ import {
 	type AgentConfigVersion,
 	type AgentConfigView,
 	discardAgentConfigDraft,
+	type GreetingContent,
+	type GreetingPreview,
+	type GreetingVariable,
 	getAgentConfig,
 	getAgentConfigHistory,
 	getAgentSettings,
+	getVariableCatalog,
+	previewGreeting,
 	publishAgentConfig,
 	saveAgentConfigDraft,
 } from "./api.ts";
@@ -25,11 +30,15 @@ import {
 /** The limits control enforces on publish, shown as the admin types. */
 const MAX_TEXT = 32 * 1024;
 const MAX_CALL_TEXT = 2 * 1024;
+const MAX_GREETING_INSTRUCTIONS = 4 * 1024;
+const MAX_GREETING_TEXT = 300;
+/** The languages the greeting editor offers a fixed text for. */
+const GREETING_LANGUAGES = ["zh", "en"];
 /** A pause in typing this long saves the draft. */
 const SAVE_MS = 800;
 
-type Tab = "instructions" | "tools" | "skills" | "model" | "history";
-const TABS: Record<Tab, string> = { instructions: "Instructions", tools: "Tools", skills: "Skills", model: "Model", history: "History" };
+type Tab = "instructions" | "tools" | "skills" | "model" | "greeting" | "history";
+const TABS: Record<Tab, string> = { instructions: "Instructions", tools: "Tools", skills: "Skills", model: "Model", greeting: "Call greeting", history: "History" };
 
 const glob = (pattern: string, value: string) => new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`).test(value);
 const matches = (patterns: readonly string[] | undefined, name: string) => (patterns ?? []).some((pattern) => glob(pattern, name));
@@ -45,7 +54,32 @@ function tidy(content: AgentConfigContent): AgentConfigContent {
 	if (off.length > 0 || on.length > 0) out.tools = { ...(off.length > 0 ? { off } : {}), ...(on.length > 0 ? { on } : {}) };
 	if ((content.skills?.off ?? []).length > 0) out.skills = { off: content.skills!.off };
 	if ((content.model ?? "") !== "") out.model = content.model;
+	const greeting = tidyGreeting(content.greeting);
+	if (greeting !== undefined) out.greeting = greeting;
+	if (Object.keys(content.variables ?? {}).length > 0) out.variables = content.variables;
 	return out;
+}
+
+/** A greeting's fixed texts as alternatives per language. One text for every language counts for each of them. */
+function greetingTexts(text: GreetingContent["text"]): Record<string, string[]> {
+	if (text === undefined) return {};
+	if (typeof text === "string" || Array.isArray(text)) {
+		const list = typeof text === "string" ? [text] : text;
+		return Object.fromEntries(GREETING_LANGUAGES.map((language) => [language, list]));
+	}
+	return Object.fromEntries(Object.entries(text).map(([language, list]) => [language, typeof list === "string" ? [list] : list]));
+}
+
+function tidyGreeting(greeting: GreetingContent | undefined): GreetingContent | undefined {
+	if (greeting === undefined) return undefined;
+	if (greeting.off === true) return { off: true };
+	const out: GreetingContent = {};
+	if ((greeting.instructions ?? "").trim() !== "") out.instructions = greeting.instructions;
+	const texts = Object.entries(greetingTexts(greeting.text))
+		.map(([language, list]) => [language, list.filter((line) => line.trim() !== "")] as const)
+		.filter(([, list]) => list.length > 0);
+	if (texts.length > 0) out.text = Object.fromEntries(texts);
+	return Object.keys(out).length === 0 ? undefined : out;
 }
 const same = (a: AgentConfigContent, b: AgentConfigContent) => JSON.stringify(tidy(a)) === JSON.stringify(tidy(b));
 
@@ -317,6 +351,7 @@ function Customize({ agent, testing, onTest, prepare }: { agent: string; testing
 				{tab === "tools" && <ToolsTab agent={agent} content={content} keep={data.keep_tools} onChange={change} />}
 				{tab === "skills" && <SkillsTab agent={agent} content={content} published={published} onChange={change} />}
 				{tab === "model" && <ModelTab content={content} models={data.models} onChange={change} />}
+				{tab === "greeting" && <GreetingTab agent={agent} content={content} onChange={change} prepare={() => prepare.current()} />}
 				{tab === "history" && <HistoryTab agent={agent} live={data.config.version} busy={busy} onRevert={(version) => setPublishing({ content: version.content, reason: t("Reverted to version {version}", { version: version.version }) })} />}
 			</section>
 			{publishing !== undefined && (
@@ -499,6 +534,156 @@ function ModelTab({ content, models, onChange }: { content: AgentConfigContent; 
 	);
 }
 
+/**
+ * What the agent says first when someone starts a call: instructions the model writes it from, with the caller's
+ * values put in, and a fixed text for when it can't, or for a greeting that's always the same. Preview runs the draft
+ * for the admin, as if they had called.
+ */
+function GreetingTab({ agent, content, onChange, prepare }: { agent: string; content: AgentConfigContent; onChange(next: AgentConfigContent): void; prepare(): Promise<void> }) {
+	const { t, language, describe } = useI18n();
+	const greeting = content.greeting ?? {};
+	const texts = greetingTexts(greeting.text);
+	const catalog = useQuery({ queryKey: ["agent-variables", agent], queryFn: () => getVariableCatalog(agent), staleTime: 60_000 });
+	const [variablesText, setVariablesText] = useState(() => (content.variables === undefined ? "" : JSON.stringify(content.variables, null, 2)));
+	const [variablesError, setVariablesError] = useState(false);
+	const [preview, setPreview] = useState<GreetingPreview>();
+	const [previewing, setPreviewing] = useState(false);
+	const [previewError, setPreviewError] = useState<string>();
+	const set = (next: GreetingContent) => onChange({ ...content, greeting: next });
+	const setText = (lang: string, value: string) => set({ ...greeting, text: { ...texts, [lang]: value.split("\n") } });
+	const instructions = greeting.instructions ?? "";
+
+	const editVariables = (value: string) => {
+		setVariablesText(value);
+		if (value.trim() === "") {
+			setVariablesError(false);
+			onChange({ ...content, variables: undefined });
+			return;
+		}
+		try {
+			const parsed = JSON.parse(value) as Record<string, GreetingVariable>;
+			if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object");
+			setVariablesError(false);
+			onChange({ ...content, variables: parsed });
+		} catch {
+			setVariablesError(true);
+		}
+	};
+
+	const runPreview = async () => {
+		setPreviewing(true);
+		setPreviewError(undefined);
+		try {
+			await prepare();
+			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+			setPreview(await previewGreeting(agent, t("Greeting preview"), { locale: language === "zh" ? "zh-Hans" : "en", timeZone, client: { screen: t("Agent settings") } }));
+		} catch (failure) {
+			setPreviewError(failure instanceof Error ? describe(failure) : String(failure));
+		} finally {
+			setPreviewing(false);
+		}
+	};
+
+	return (
+		<div className="skills-form">
+			<Setting title={t("Greet callers")} hint={t("The agent speaks first when someone starts a call. Off, it waits for the caller.")}>
+				<label className="switch">
+					<span className="sr-only">{t("Greet callers")}</span>
+					<input type="checkbox" role="switch" checked={greeting.off !== true} onChange={(event) => set({ ...greeting, off: !event.target.checked })} data-testid="agent-greeting-on" />
+					<span aria-hidden="true" />
+				</label>
+			</Setting>
+			{greeting.off !== true && (
+				<>
+					<label>
+						<span>{t("Instructions")}</span>
+						<span className="quiet">{t("The model writes the greeting from these, with each {{variable}} replaced by the caller's value. Leave empty for a fixed greeting. Left empty with no fixed text either, the agent's own greeting applies.")}</span>
+						<textarea rows={6} value={instructions} onChange={(event) => set({ ...greeting, instructions: event.target.value })} data-testid="agent-greeting-instructions" />
+						<span className={bytes(instructions) > MAX_GREETING_INSTRUCTIONS ? "danger-text" : "quiet"}>{t("{used} of {max} KiB", { used: (bytes(instructions) / 1024).toFixed(1), max: MAX_GREETING_INSTRUCTIONS / 1024 })}</span>
+					</label>
+					{GREETING_LANGUAGES.map((lang) => {
+						const lines = texts[lang] ?? [];
+						const tooLong = lines.some((line) => [...line].length > MAX_GREETING_TEXT);
+						return (
+							<label key={lang}>
+								<span>{t("Fixed greeting, {language}", { language: lang === "zh" ? t("Chinese") : t("English") })}</span>
+								<span className="quiet">{t("One per line. The first whose variables all have values is said: end with one that has none. Said when the model is late, or as the greeting when there are no instructions.")}</span>
+								<textarea rows={3} value={lines.join("\n")} onChange={(event) => setText(lang, event.target.value)} data-testid={`agent-greeting-text-${lang}`} />
+								{tooLong && <span className="danger-text">{t("Each greeting is at most {max} characters.", { max: MAX_GREETING_TEXT })}</span>}
+							</label>
+						);
+					})}
+					<label>
+						<span>{t("Your variables")}</span>
+						<span className="quiet">{t("Values from the agent's tools, looked up as the caller and read-only, as JSON: name, then tool, args and pick.")}</span>
+						<textarea
+							rows={5}
+							className="code"
+							spellCheck={false}
+							placeholder={'{ "deals.open": { "tool": "crm:deal_list", "args": { "status": "open" }, "pick": "count" } }'}
+							value={variablesText}
+							onChange={(event) => editVariables(event.target.value)}
+							data-testid="agent-greeting-variables"
+						/>
+						{variablesError && <span className="danger-text">{t("This isn't valid JSON yet, so it isn't saved.")}</span>}
+					</label>
+					<details>
+						<summary>{t("Variables you can use")}</summary>
+						{catalog.isPending ? (
+							<Skeleton rows={3} />
+						) : (
+							<ul className="rows" data-testid="agent-greeting-catalog">
+								{(catalog.data ?? []).map((variable) => (
+									<li key={variable.name} className="row">
+										<div className="row-main">
+											<code>{`{{${variable.name}}}`}</code>
+											<span className="quiet">{variable.description}</span>
+										</div>
+									</li>
+								))}
+							</ul>
+						)}
+					</details>
+				</>
+			)}
+			<div className="row-actions">
+				<button type="button" className="ghost small" disabled={previewing || variablesError} onClick={() => void runPreview()} data-testid="agent-greeting-preview">
+					{previewing ? <Loader2 size={14} className="spin" aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}
+					{t("Preview as me")}
+				</button>
+			</div>
+			{previewError !== undefined && <p className="danger-text">{previewError}</p>}
+			{preview !== undefined && (
+				<div className="card" data-testid="agent-greeting-result">
+					{preview.skipped !== undefined || preview.text === null ? (
+						<p className="quiet">{t("No greeting would be said.")}</p>
+					) : (
+						<p>
+							<strong>{preview.text}</strong>
+						</p>
+					)}
+					<p className="quiet">
+						{preview.by === "model" ? t("Written by the model.") : preview.by === "fallback" ? t("The model was late or failed, so the fixed greeting was used.") : t("The fixed greeting.")}
+						{preview.wouldSkip === "recent" && ` ${t("On a call that came back within a few minutes, nothing would be said.")}`}
+					</p>
+					{Object.keys(preview.variables ?? {}).length > 0 && (
+						<ul className="rows">
+							{Object.entries(preview.variables).map(([name, found]) => (
+								<li key={name} className="row">
+									<div className="row-main">
+										<code>{name}</code>
+										<span className="quiet">{found.value === null ? t("no value") : typeof found.value === "string" ? found.value : JSON.stringify(found.value)}</span>
+									</div>
+								</li>
+							))}
+						</ul>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 /** Every published version, newest first. Revert publishes an older one again, as a new version. */
 function HistoryTab({ agent, live, busy, onRevert }: { agent: string; live: number; busy: boolean; onRevert(version: AgentConfigVersion): void }) {
 	const { t, ago } = useI18n();
@@ -513,6 +698,8 @@ function HistoryTab({ agent, live, busy, onRevert }: { agent: string; live: numb
 		if ((content.tools?.off ?? []).length > 0) parts.push(t("{count} tool patterns off", { count: content.tools!.off!.length }));
 		if ((content.skills?.off ?? []).length > 0) parts.push(t("{count} skills off", { count: content.skills!.off!.length }));
 		if (content.model) parts.push(t("model {name}", { name: content.model }));
+		if (content.greeting?.off) parts.push(t("no call greeting"));
+		else if (content.greeting) parts.push(t("call greeting"));
 		return parts.length === 0 ? t("As the platform ships it") : parts.join(", ");
 	};
 	return (

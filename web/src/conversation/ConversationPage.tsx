@@ -31,7 +31,7 @@ export function ConversationPage() {
 }
 
 function Conversation({ sessionId }: { sessionId: string }) {
-	const { t } = useI18n();
+	const { t, language } = useI18n();
 	const { agent, agents, config, signedOut, path, tenant } = useWorkspace();
 	const agentEntry = agents.find((a) => a.name === agent);
 	const agentName = agentEntry?.title || (agent === "assistant" || !agent ? "Assistant" : agent);
@@ -51,7 +51,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 	const session = listed ?? single.data;
 	const archived = session?.archived === true;
 
-	const call = useCall(`conv-${sessionId}`);
+	const call = useCall(`conv-${sessionId}`, language);
 	const inCall = call.phase !== "off" && call.phase !== "failed" && call.phase !== "no-microphone";
 	const voice = { inCall, speaking: call.phase === "thinking" || call.phase === "speaking" };
 	const { state, send, stopAndSend, retry, stop, resume, loadEarlier, details, discard } = useConversation(agent, sessionId, archived, voice);
