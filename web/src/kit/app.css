@@ -577,6 +577,19 @@ label > input, label > select, label > textarea { color: var(--text); font-size:
 .comment-body { flex: 1; min-width: 0; }
 .comment-body strong { color: var(--text); font-weight: 600; }
 .comment-box { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+.comment-box .mention-field { position: relative; width: 100%; }
+.comment-box .mention-field > textarea { width: 100%; }
+.mention-picker { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: min(280px, 100%); background: var(--surface); box-shadow: var(--shadow-sm); }
+.mention-picker button.active { background: var(--hover); }
+.task-status { margin: 0.6rem 0 0.9rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.task-status .row-main strong { font-weight: 600; }
+.approval-changes { display: grid; gap: 0.25rem; margin: 0.35rem 0 0.15rem; font-size: 0.9rem; }
+.approval-changes > div { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0.6rem; }
+.approval-changes dt { color: var(--muted); }
+.approval-changes dd { margin: 0; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.approval-changes .was { color: var(--muted); text-decoration: line-through; }
+.approval-quote { border-left: 3px solid var(--line-strong); padding-left: 0.6rem; margin: 0.3rem 0; font-size: 0.9rem; }
+@media (max-width: 640px) { .approval-changes > div { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; } }
 .history-box summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
 .history { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.15rem; }
 .history li { font-size: 0.8rem; }

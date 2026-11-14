@@ -16,6 +16,8 @@ type Props = {
 	text?: string;
 	/** Hand over an existing task. */
 	item?: Item;
+	/** Who to send it to and the note, as the person's assistant suggested, for them to check. */
+	suggested?: { to: { id: string; name: string }; note: string };
 	onClose(): void;
 };
 
@@ -23,7 +25,7 @@ type Props = {
  * "Send" hides what happens next, so there are two verbs, and the line above the button says what each will do. The
  * service still decides, and the screen shows what it returned. Once collab returns `relation`, this line can be exact.
  */
-export function SendDialog({ text, item, onClose }: Props) {
+export function SendDialog({ text, item, suggested, onClose }: Props) {
 	const { t, describe } = useI18n();
 	const { me } = useWorkspace();
 	const client = useQueryClient();
@@ -31,9 +33,9 @@ export function SendDialog({ text, item, onClose }: Props) {
 	const [title, setTitle] = useState(() => (text === undefined ? "" : suggestTitle(text)));
 	const [description, setDescription] = useState(() => (text === undefined ? "" : toPlainText(text).slice(0, MAX_DESCRIPTION)));
 	const [query, setQuery] = useState("");
-	const [to, setTo] = useState<{ id: string; name: string }>();
+	const [to, setTo] = useState<{ id: string; name: string } | undefined>(suggested?.to);
 	const [mode, setMode] = useState<"transfer" | "share">("transfer");
-	const [note, setNote] = useState("");
+	const [note, setNote] = useState(suggested?.note ?? "");
 	const [countdown, setCountdown] = useState<number>();
 	const [result, setResult] = useState<Offer>();
 	const clientRef = useRef(crypto.randomUUID());
@@ -86,6 +88,7 @@ export function SendDialog({ text, item, onClose }: Props) {
 	return (
 		<Dialog label={t("Send as task")} {...(counting ? {} : { onClose })}>
 			<h2>{item === undefined ? t("Send as task") : t("Hand over this task")}</h2>
+			{suggested !== undefined && <p className="quiet">{t("Your assistant filled this in. Check it, then send.")}</p>}
 			{item === undefined && (
 				<>
 					<label>

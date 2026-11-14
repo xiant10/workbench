@@ -10,9 +10,11 @@ import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
 import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
+import { CommentBox } from "./CommentBox.tsx";
 import { eventLabel } from "./events.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
 import { SendDialog } from "./SendDialog.tsx";
+import { TaskStatus } from "./TaskStatus.tsx";
 import { usePeople } from "./usePeople.ts";
 
 const POLL_MS = 15_000;
@@ -74,7 +76,7 @@ function TaskEditor({ item }: { item: Item }) {
 	const navigate = useNavigate();
 	const client = useQueryClient();
 	const refreshSessions = useRefreshSessions();
-	const { name } = usePeople();
+	const { name, named } = usePeople();
 	const draftKey = `task-draft:${tenant}:${me.user_id}:${item.id}`;
 	const [restored] = useState(() => {
 		try {
@@ -102,7 +104,7 @@ function TaskEditor({ item }: { item: Item }) {
 	const [conflict, setConflict] = useState<{ field: Editable; theirs: Item }>();
 	const [handing, setHanding] = useState(false);
 	const [preview, setPreview] = useState(false);
-	const [comment, setComment] = useState("");
+	const commentBox = useRef<HTMLTextAreaElement>(null);
 	// Collab says what this person can do. The fallback is for a collab that doesn't yet.
 	const isOwner = item.owners.includes(me.user_id);
 	const can: Can = item.can ?? { edit: isOwner || item.collaborators.includes(me.user_id), cancel: isOwner, claim: false, send: isOwner, delete: isOwner, manage_people: isOwner };
@@ -155,11 +157,13 @@ function TaskEditor({ item }: { item: Item }) {
 		},
 	});
 	const post = useMutation({
-		mutationFn: () => addComment(item.id, comment),
+		mutationFn: ({ body, mentions }: { body: string; mentions: string[] }) => addComment(item.id, body, mentions),
 		onSuccess: () => {
-			setComment("");
 			void client.invalidateQueries({ queryKey: ["comments", item.id] });
+			// Answering a mention clears it from where the task stands.
+			refresh();
 		},
+		onError: (error) => toast(describe(error)),
 	});
 	const remove = useMutation({
 		mutationFn: () => deleteItem(item.id),
@@ -264,6 +268,7 @@ function TaskEditor({ item }: { item: Item }) {
 					{describe(save.error)}
 				</p>
 			)}
+			<TaskStatus item={item} onReply={() => commentBox.current?.focus()} />
 			<div className="task-layout">
 				<div className="task-main">
 					<textarea ref={titleBox} rows={1} className="title-input" value={draft.title} maxLength={300} aria-label={t("Title")} readOnly={!canEdit || save.isPending} onChange={(event) => set("title", event.target.value)} />
@@ -281,29 +286,13 @@ function TaskEditor({ item }: { item: Item }) {
 											{/* An agent account's ID starts with acc_, as auth-server issues them. */}
 											{entry.author_id.startsWith("acc_") && <span className="pill">{t("Agent teammate")}</span>} · {dateTime(entry.created_at)}
 										</div>
-										<div className="plain">{entry.body}</div>
+										<div className="plain">{named(entry.body)}</div>
 									</div>
 								</li>
 							))}
 						</ul>
 						<LoadMore list={comments} label="Show more comments" />
-						<div className="comment-box">
-							<textarea
-								rows={2}
-								value={comment}
-								maxLength={10_000}
-								placeholder={t("Add a comment")}
-								aria-label={t("Add a comment")}
-								onChange={(event) => setComment(event.target.value)}
-								onKeyDown={(event) => {
-									if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && comment.trim() !== "") post.mutate();
-								}}
-							/>
-							<button type="button" className="ghost small" disabled={comment.trim() === "" || post.isPending} onClick={() => post.mutate()}>
-								<Send size={13} aria-hidden="true" />
-								{t("Send")}
-							</button>
-						</div>
+						<CommentBox inputRef={commentBox} pending={post.isPending} onSend={(body, mentions) => post.mutateAsync({ body, mentions })} />
 					</section>
 
 					<details className="history-box">

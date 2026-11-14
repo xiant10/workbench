@@ -6,6 +6,8 @@ const EVENTS: Record<string, string> = {
 	"item.claimed": "Claimed the task",
 	"item.queued": "Waiting for a new owner",
 	"item.reassigned": "Reassigned the task",
+	"item.suggested": "Suggested who to send it to",
+	"item.suggestion_dismissed": "Dismissed a suggested send",
 	"owner.left": "An owner left",
 	"owner.departed": "An owner left the tenant",
 	"offer.sent": "Sent an offer",
