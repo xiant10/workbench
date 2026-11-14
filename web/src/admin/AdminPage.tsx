@@ -191,7 +191,7 @@ function People() {
 									{nameOf(member)}
 									{member.user_id === me.user_id && <span className="pill">{t("you")}</span>}
 									{member.role === "admin" && <span className="pill accent">{t("Admin")}</span>}
-									{member.kind === "agent" && <span className="pill">{t("Agent teammate")}</span>}
+									{member.kind === "agent" && <span className="pill">{t("Agent")}</span>}
 									{member.user_status !== "active" && <span className="pill warn">{t("Account suspended")}</span>}
 									{member.status !== "active" && <span className="pill warn">{t("Inactive")}</span>}
 								</span>

@@ -284,7 +284,7 @@ function TaskEditor({ item }: { item: Item }) {
 										<div className="quiet">
 											<strong>{name(entry.author_id)}</strong>
 											{/* An agent account's ID starts with acc_, as auth-server issues them. */}
-											{entry.author_id.startsWith("acc_") && <span className="pill">{t("Agent teammate")}</span>} · {dateTime(entry.created_at)}
+											{entry.author_id.startsWith("acc_") && <span className="pill">{t("Agent")}</span>} · {dateTime(entry.created_at)}
 										</div>
 										<div className="plain">{named(entry.body)}</div>
 									</div>

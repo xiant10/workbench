@@ -33,7 +33,7 @@ export function TeammatesCard({ agent, title }: { agent: string; title: string }
 	const mine = (teammates.data ?? []).filter((one) => one.agent === agent && one.state !== "removed");
 	return (
 		<div className="card" data-testid="agent-teammates">
-			<h2>{t("Teammates")}</h2>
+			<h2>{t("Agent teammates")}</h2>
 			<p className="quiet">{t("Agents with their own place in the org, built on {agent}. People send them work as tasks, and they answer on the task.", { agent: title })}</p>
 			{teammates.isLoading && <Skeleton rows={2} />}
 			{mine.length > 0 && (
@@ -50,7 +50,7 @@ export function TeammatesCard({ agent, title }: { agent: string; title: string }
 			)}
 			<div className="row-actions">
 				<button type="button" className="button ghost small" onClick={() => setAdding(true)}>
-					<Plus size={13} aria-hidden="true" /> {t("New teammate")}
+					<Plus size={13} aria-hidden="true" /> {t("New agent teammate")}
 				</button>
 			</div>
 			{adding && <NewTeammateDialog agent={agent} onClose={() => setAdding(false)} />}
@@ -77,8 +77,8 @@ function NewTeammateDialog({ agent, onClose }: { agent: string; onClose(): void 
 	});
 	const ready = title.trim() !== "" && manager !== "" && !create.isPending;
 	return (
-		<Dialog label={t("New teammate")} onClose={onClose}>
-			<h2>{t("New teammate")}</h2>
+		<Dialog label={t("New agent teammate")} onClose={onClose}>
+			<h2>{t("New agent teammate")}</h2>
 			<label className="field">
 				<span>{t("Name")}</span>
 				<input value={title} maxLength={100} placeholder={t("Such as Lead desk")} onChange={(event) => setTitle(event.target.value)} />
@@ -108,7 +108,7 @@ function NewTeammateDialog({ agent, onClose }: { agent: string; onClose(): void 
 			<p className="quiet">{t("It starts with no business roles, so it reads only the tasks it's on. Give it roles under Administration, People.")}</p>
 			{create.isError && (
 				<p className="error" role="alert">
-					{t("It wasn't created fully. Open it under Teammates to finish.")}
+					{t("It wasn't created fully. Open it under Agent teammates to finish.")}
 				</p>
 			)}
 			<div className="dialog-actions">

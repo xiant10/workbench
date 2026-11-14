@@ -32,7 +32,7 @@ export function PersonPicker({ label, exclude, disabled, onPick }: { label: stri
 								<Avatar name={person.display_name || t("Teammate")} size={26} />
 								<span>{person.display_name || t("Teammate")}</span>
 								{person.org_unit_id !== "" && <span className="quiet">{unit(person.org_unit_id)}</span>}
-								{person.agent === true && <span className="pill">{t("Agent teammate")}</span>}
+								<span className="pill">{t(person.agent === true ? "Agent" : "Person")}</span>
 							</button>
 						</li>
 					))}
