@@ -299,6 +299,9 @@ button:disabled { opacity: 0.45; cursor: default; }
 .picker { max-height: 168px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 0.2rem; }
 .picker button { width: 100%; background: none; color: var(--text); justify-content: flex-start; gap: 0.55rem; padding: 0.3rem 0.45rem; font-weight: 500; }
 .picker button:hover { background: var(--hover); }
+/* A long name shortens, so the Person or Agent label always shows. */
+.picker button > span:not(.avatar):not(.pill) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker button > .pill { margin-left: auto; flex: none; }
 .picker-none { padding: 0.5rem; }
 .segmented { display: inline-flex; background: var(--sunken); border-radius: 9px; padding: 2px; width: fit-content; gap: 2px; }
 .segmented button { background: none; color: var(--muted); padding: 0.26rem 0.7rem; font-size: 0.84rem; border-radius: 7px; }

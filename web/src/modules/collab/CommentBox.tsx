@@ -109,7 +109,7 @@ export function CommentBox({ inputRef, pending, onSend }: { inputRef: RefObject<
 								<button type="button" tabIndex={-1} className={index === active ? "active" : undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => pick(person)}>
 									<Avatar name={person.display_name} size={22} />
 									<span>{person.display_name}</span>
-									{person.agent === true && <span className="pill">{t("Agent teammate")}</span>}
+									<span className="pill">{t(person.agent === true ? "Agent" : "Person")}</span>
 								</button>
 							</li>
 						))}

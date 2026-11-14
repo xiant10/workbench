@@ -476,7 +476,7 @@ function UnitDetail({ org, unitId, selected, setSelected, actions }: { org: Org;
 										{nameOf(member)}
 										<Login member={member} />
 										{member.user_id === unit?.lead_user_id && <span className="pill accent">{t("Lead")}</span>}
-										{member.kind === "agent" && <span className="pill">{t("Agent teammate")}</span>}
+										{member.kind === "agent" && <span className="pill">{t("Agent")}</span>}
 										{!isActive(member) && <span className="pill warn">{t("Inactive")}</span>}
 									</span>
 									<span className="quiet">
