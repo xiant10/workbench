@@ -6,7 +6,16 @@ import { postJSON, request, rpc } from "../../lib/api.ts";
  * only through its own app, which people never pick; `customizable` says whether this tenant may customize it, and
  * `teammates` whether its admins may build agent teammates on it.
  */
-export type AgentChoice = { name: string; title?: string; enabled: boolean; picker?: boolean; customizable?: boolean; teammates?: boolean };
+export type AgentChoice = {
+	name: string;
+	title?: string;
+	enabled: boolean;
+	picker?: boolean;
+	customizable?: boolean;
+	teammates?: boolean;
+	/** It runs outside t10: its teammates' work is leased by a runner beside the team's code. */
+	external?: boolean;
+};
 
 export type AgentSettings = {
 	/** Empty keeps the platform's default. */

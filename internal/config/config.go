@@ -51,6 +51,9 @@ type Config struct {
 	// LiveKitURL is empty when calls are off. It goes in the content security
 	// policy, because the browser connects to it directly.
 	LiveKitURL string
+	// ToolsURL is TOOLS_URL, the tool gateway, where external agent teammates'
+	// runners reach t10's tools through this service. Empty turns that off.
+	ToolsURL string
 	// OTLPEndpoint is an OTLP/HTTP URL, such as http://collector:4318. Empty turns telemetry off.
 	OTLPEndpoint string
 }
@@ -68,6 +71,7 @@ func Load(getenv func(string) string) (Config, error) {
 		LiveKitURL:    strings.TrimRight(getenv("LIVEKIT_URL"), "/"),
 		ModulesDir:    getenv("MODULES_DIR"),
 		OTLPEndpoint:  getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		ToolsURL:      strings.TrimRight(getenv("TOOLS_URL"), "/"),
 	}
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = ":8083"
@@ -110,6 +114,11 @@ func Load(getenv func(string) string) (Config, error) {
 			if !moduleID.MatchString(module.Name) {
 				return Config{}, fmt.Errorf("MODULE_URLS: %q is not a module ID", module.Name)
 			}
+		}
+	}
+	if cfg.ToolsURL != "" {
+		if _, err := baseURL(cfg.ToolsURL); err != nil {
+			return Config{}, fmt.Errorf("TOOLS_URL: %w", err)
 		}
 	}
 	// A bad entry at startup is a deploy mistake to fix, as in MODULE_URLS.

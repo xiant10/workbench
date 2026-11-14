@@ -53,8 +53,11 @@ type Proxy struct {
 	mu      sync.RWMutex
 	modules []config.Agent
 	auth    *url.URL
-	rp      *httputil.ReverseProxy
-	client  *http.Client
+	// Tools is the tool gateway, which external teammates' runners reach
+	// through Runner. Nil turns that off.
+	Tools  *url.URL
+	rp     *httputil.ReverseProxy
+	client *http.Client
 }
 
 // New builds a Proxy for these agents and business modules, and the auth

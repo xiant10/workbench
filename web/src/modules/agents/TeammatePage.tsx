@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Bot, CircleAlert, LockKeyhole, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Bot, CircleAlert, Copy, KeyRound, LockKeyhole, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMemberName } from "../../admin/members.ts";
@@ -7,6 +7,7 @@ import { useI18n } from "../../lib/i18n.tsx";
 import { Dialog, Empty, Setting, Skeleton } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
 import { PersonPicker } from "../collab/PersonPicker.tsx";
+import { getAgentSettings } from "./api.ts";
 import {
 	createTeammate,
 	finishTeammate,
@@ -14,10 +15,12 @@ import {
 	getTeammate,
 	getTeammateHistory,
 	listTeammates,
+	newRunnerKey,
 	partsOf,
 	publishTeammateConfig,
 	putIntake,
 	removeTeammate,
+	revokeRunnerKey,
 	setTeammatePaused,
 	type Teammate,
 } from "./teammates.ts";
@@ -25,7 +28,7 @@ import {
 const MAX_TEXT = 32 * 1024;
 
 /** The Teammates card on an agent's page: the teammates built on it, and a way to add one. */
-export function TeammatesCard({ agent, title }: { agent: string; title: string }) {
+export function TeammatesCard({ agent, title, external = false }: { agent: string; title: string; external?: boolean }) {
 	const { t } = useI18n();
 	const { path } = useWorkspace();
 	const [adding, setAdding] = useState(false);
@@ -35,6 +38,7 @@ export function TeammatesCard({ agent, title }: { agent: string; title: string }
 		<div className="card" data-testid="agent-teammates">
 			<h2>{t("Agent teammates")}</h2>
 			<p className="quiet">{t("Agents with their own place in the org, built on {agent}. People send them work as tasks, and they answer on the task.", { agent: title })}</p>
+			{external && <p className="quiet">{t("{agent} runs outside t10: each teammate's work is done by a runner your team runs beside its code, with a runner key from the teammate's page.", { agent: title })}</p>}
 			{teammates.isLoading && <Skeleton rows={2} />}
 			{mine.length > 0 && (
 				<ul className="plain-list">
@@ -53,12 +57,12 @@ export function TeammatesCard({ agent, title }: { agent: string; title: string }
 					<Plus size={13} aria-hidden="true" /> {t("New agent teammate")}
 				</button>
 			</div>
-			{adding && <NewTeammateDialog agent={agent} onClose={() => setAdding(false)} />}
+			{adding && <NewTeammateDialog agent={agent} external={external} onClose={() => setAdding(false)} />}
 		</div>
 	);
 }
 
-function NewTeammateDialog({ agent, onClose }: { agent: string; onClose(): void }) {
+function NewTeammateDialog({ agent, external, onClose }: { agent: string; external: boolean; onClose(): void }) {
 	const { t } = useI18n();
 	const { tenant, path } = useWorkspace();
 	const navigate = useNavigate();
@@ -67,9 +71,11 @@ function NewTeammateDialog({ agent, onClose }: { agent: string; onClose(): void 
 	const [title, setTitle] = useState("");
 	const [manager, setManager] = useState("");
 	const [instructions, setInstructions] = useState("");
-	const [everyone, setEveryone] = useState(true);
+	// An external teammate's agent has a shell beside the team's code, so only its manager sends it work until
+	// someone opens it up.
+	const [everyone, setEveryone] = useState(!external);
 	const create = useMutation({
-		mutationFn: () => createTeammate({ tenant, agent, title: title.trim(), manager, unit: "", instructions, everyone }),
+		mutationFn: () => createTeammate({ tenant, agent, title: title.trim(), manager, unit: "", instructions, everyone, external }),
 		onSuccess: (made) => {
 			void client.invalidateQueries({ queryKey: ["teammates"] });
 			navigate(path(`teammates/${encodeURIComponent(made.id)}`));
@@ -105,6 +111,7 @@ function NewTeammateDialog({ agent, onClose }: { agent: string; onClose(): void 
 				<input type="checkbox" checked={everyone} onChange={(event) => setEveryone(event.target.checked)} />
 				<span>{t("Anyone in the organization can send it work")}</span>
 			</label>
+			{external && <p className="quiet">{t("Its agent can run commands beside your code, so let only the people who own that code send it work.")}</p>}
 			<p className="quiet">{t("It starts with no business roles, so it reads only the tasks it's on. Give it roles under Administration, People.")}</p>
 			{create.isError && (
 				<p className="error" role="alert">
@@ -136,12 +143,14 @@ export function TeammatePage() {
 	const parts = useQuery({ queryKey: ["teammate-parts", teammate?.account], queryFn: () => partsOf(teammate!.account), enabled: teammate !== undefined });
 	const automation = parts.data?.automation;
 	const firings = useQuery({ queryKey: ["teammate-firings", automation?.id], queryFn: () => getIntakeAutomation(automation!.id), enabled: automation !== undefined });
+	const settings = useQuery({ queryKey: ["agent-settings"], queryFn: getAgentSettings, enabled: isAdmin });
+	const external = settings.data?.agents.find((entry) => entry.name === teammate?.agent)?.external === true;
 	const refresh = () => {
 		void client.invalidateQueries({ queryKey: ["teammate", id] });
 		void client.invalidateQueries({ queryKey: ["teammate-parts"] });
 		void client.invalidateQueries({ queryKey: ["teammates"] });
 	};
-	const finish = useMutation({ mutationFn: (t: Teammate) => finishTeammate(t, { everyone: false, notify: "" }), onSuccess: refresh });
+	const finish = useMutation({ mutationFn: (t: Teammate) => finishTeammate(t, { everyone: false, notify: "", external }), onSuccess: refresh });
 	const pause = useMutation({ mutationFn: ({ t, paused }: { t: Teammate; paused: boolean }) => setTeammatePaused(t, paused), onSuccess: refresh });
 	const [removing, setRemoving] = useState(false);
 	const remove = useMutation({
@@ -185,7 +194,10 @@ export function TeammatePage() {
 					<h1>
 						<Bot size={20} aria-hidden="true" /> {teammate.title}
 					</h1>
-					<span className="quiet">{t("Built on {agent}", { agent: teammate.agent })}</span>
+					<span className="quiet">
+						{t("Built on {agent}", { agent: teammate.agent })}
+						{external && ` · ${t("Runs outside t10")}`}
+					</span>
 				</div>
 				{!removed && (
 					<div className="row-actions">
@@ -215,6 +227,7 @@ export function TeammatePage() {
 				</Setting>
 				{automation?.notify_user !== undefined && automation.notify_user !== "" && <Setting title={t("Its notices go to")}>{nameOf(automation.notify_user)}</Setting>}
 			</div>
+			{!removed && automation?.target === "external" && <RunnerCard automation={automation.id} />}
 			{!removed && <TeammateInstructions id={id} view={view.data} onPublished={refresh} />}
 			{!removed && <WhoMaySend account={teammate.account} everyone={parts.data?.intake?.everyone === true} onSaved={refresh} />}
 			<div className="card">
@@ -299,6 +312,127 @@ function WhoMaySend({ account, everyone, onSaved }: { account: string; everyone:
 				<span>{t("Anyone in the organization")}</span>
 			</label>
 			<p className="quiet">{t("Its manager can always give it work. With this off, nobody else can.")}</p>
+		</div>
+	);
+}
+
+/**
+ * An external teammate's runner: whether one is connected, the key it leases work with, and the command that starts
+ * one. The runner calls out to this address, so it needs no open port. The key is shown once, when it's made. Making
+ * a new one, or revoking it, cuts off the runner using the old one, so both ask first.
+ */
+function RunnerCard({ automation }: { automation: string }) {
+	const { t, dateTime } = useI18n();
+	const client = useQueryClient();
+	const [shown, setShown] = useState("");
+	const [asking, setAsking] = useState<"" | "replace" | "revoke">("");
+	const [copied, setCopied] = useState("");
+	// Polled, so the card turns to connected once someone starts a runner.
+	const view = useQuery({ queryKey: ["teammate-firings", automation], queryFn: () => getIntakeAutomation(automation), refetchInterval: 30_000 });
+	const key = view.data?.runner_key ?? null;
+	const refresh = () => void client.invalidateQueries({ queryKey: ["teammate-firings", automation] });
+	const make = useMutation({
+		mutationFn: () => newRunnerKey(automation),
+		onSuccess: (made) => {
+			setShown(made.key);
+			setAsking("");
+			refresh();
+		},
+	});
+	const revoke = useMutation({
+		mutationFn: () => revokeRunnerKey(automation),
+		onSuccess: () => {
+			setShown("");
+			setAsking("");
+			refresh();
+		},
+	});
+	const copy = (what: string, text: string) => {
+		void navigator.clipboard?.writeText(text).then(() => {
+			setCopied(what);
+			window.setTimeout(() => setCopied(""), 2000);
+		});
+	};
+	const command = [`T10_RUNNER_KEY=${shown === "" ? "<runner key>" : shown} \\`, `T10_URL=${window.location.origin} \\`, "t10-runner -repo <your repository>"].join("\n");
+	const waiting = (view.data?.firings ?? []).filter((firing) => firing.state === "claimed").length;
+	return (
+		<div className="card" data-testid="teammate-runner">
+			<h2>{t("Runner")}</h2>
+			<p className="quiet">
+				{t("Its work is done outside t10, by t10-runner on a machine your team chooses, next to the code. The runner connects to t10 at this address, so it needs no open port. It leases each task with this key, works on it in its own git branch, and answers on the task.")}
+			</p>
+			<Setting title={t("Connection")}>
+				{key?.connected === true ? <span className="pill">{t("Connected")}</span> : <span className="pill warn">{t("Not connected")}</span>}
+			</Setting>
+			{key?.connected !== true && waiting > 0 && <p className="error">{t("Tasks waiting for a runner: {count}", { count: String(waiting) })}</p>}
+			<Setting title={t("Runner key")}>
+				{key === null ? (
+					<span className="pill warn">{t("None")}</span>
+				) : (
+					<span className="quiet">
+						{t("Made {when}", { when: dateTime(key.created_at) })}
+						{" · "}
+						{key.last_used_at === null ? t("not used yet") : t("last used {when}", { when: dateTime(key.last_used_at) })}
+					</span>
+				)}
+			</Setting>
+			{shown !== "" && (
+				<div className="card warn" role="status">
+					<p>{t("Copy the key now. It isn't shown again.")}</p>
+					<code style={{ wordBreak: "break-all" }}>{shown}</code>
+					<div className="row-actions">
+						<button type="button" className="ghost small" onClick={() => copy("key", shown)}>
+							<Copy size={13} aria-hidden="true" /> {copied === "key" ? t("Copied") : t("Copy")}
+						</button>
+					</div>
+				</div>
+			)}
+			<div className="row-actions">
+				<button type="button" className="ghost small" disabled={make.isPending} onClick={() => (key === null ? make.mutate() : setAsking("replace"))}>
+					<KeyRound size={13} aria-hidden="true" /> {key === null ? t("Make a runner key") : t("Replace the key")}
+				</button>
+				{key !== null && (
+					<button type="button" className="ghost small danger" disabled={revoke.isPending} onClick={() => setAsking("revoke")}>
+						{t("Revoke the key")}
+					</button>
+				)}
+			</div>
+			<p className="quiet">{t("Start a runner with:")}</p>
+			<pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{command}</pre>
+			<div className="row-actions">
+				<button type="button" className="ghost small" onClick={() => copy("command", command)}>
+					<Copy size={13} aria-hidden="true" /> {copied === "command" ? t("Copied") : t("Copy the command")}
+				</button>
+			</div>
+			<p className="quiet">
+				{t("By default the agent may only edit files, commit, push its own branch and open a pull request. Add your build and test commands with -allow, such as -allow 'Bash(npm test:*)'.")}
+			</p>
+			<p className="quiet">{t("Run it where it can reach your repository and nothing it shouldn't. Pull requests it opens still need your team's review.")}</p>
+			{asking !== "" && (
+				<Dialog label={asking === "replace" ? t("Replace the runner key?") : t("Revoke the runner key?")} onClose={() => setAsking("")}>
+					<h2>{asking === "replace" ? t("Replace the runner key?") : t("Revoke the runner key?")}</h2>
+					<p>
+						{asking === "replace"
+							? t("The runner using the current key stops getting work. Start it again with the new key.")
+							: t("The runner using it stops getting work, and the teammate's tasks wait until you make a new key.")}
+					</p>
+					{key?.connected === true && <p className="error">{t("A runner is connected now. A task it's working on is stopped.")}</p>}
+					<div className="dialog-actions">
+						<button type="button" onClick={() => setAsking("")}>
+							{t("Cancel")}
+						</button>
+						{asking === "replace" ? (
+							<button type="button" className="primary" disabled={make.isPending} onClick={() => make.mutate()}>
+								{t("Replace the key")}
+							</button>
+						) : (
+							<button type="button" className="primary danger" disabled={revoke.isPending} onClick={() => revoke.mutate()}>
+								{t("Revoke the key")}
+							</button>
+						)}
+					</div>
+				</Dialog>
+			)}
 		</div>
 	);
 }

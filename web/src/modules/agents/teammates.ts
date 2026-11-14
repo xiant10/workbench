@@ -41,6 +41,18 @@ export type IntakeAutomation = {
 	principal: string;
 	notify_user?: string;
 	runs_per_day: number;
+	/** external: a runner outside t10 leases its firings with a runner key. */
+	target?: "new_session" | "session_per_ref" | "external";
+};
+
+/** An external teammate's runner key, as an admin sees it: never its secret. */
+export type RunnerKey = {
+	id: string;
+	created_by: string;
+	created_at: string;
+	last_used_at: string | null;
+	/** A runner called with it in the last 3 minutes. */
+	connected: boolean;
 };
 
 export type Firing = { id: string; state: string; scheduled_for: string; problem?: string; session_id?: string; finished_at?: string | null };
@@ -78,7 +90,11 @@ export const putIntake = (intake: Intake) => request<Intake>(intakePath(intake.u
 const automations = "/api/modules/automations/admin/automations";
 export const listIntakeAutomations = (account: string) =>
 	request<{ automations: IntakeAutomation[] }>(`${automations}?principal=${encodeURIComponent(account)}`).then((body) => body.automations);
-export const getIntakeAutomation = (id: string) => request<{ automation: IntakeAutomation; firings: Firing[] }>(`${automations}/${encodeURIComponent(id)}`);
+export const getIntakeAutomation = (id: string) =>
+	request<{ automation: IntakeAutomation; firings: Firing[]; runner_key?: RunnerKey | null }>(`${automations}/${encodeURIComponent(id)}`);
+/** Makes the runner key, revoking the last one. The key comes back this once. */
+export const newRunnerKey = (id: string) => postJSON<{ key: string; runner_key: RunnerKey }>(`${automations}/${encodeURIComponent(id)}/runner-key`, {});
+export const revokeRunnerKey = (id: string) => request<unknown>(`${automations}/${encodeURIComponent(id)}/runner-key`, { method: "DELETE" });
 export const updateIntakeAutomation = (id: string, change: { state?: "active" | "paused"; notify_user?: string }) =>
 	request<IntakeAutomation>(`${automations}/${encodeURIComponent(id)}`, json("PATCH", change));
 export const deleteIntakeAutomation = (id: string) => request<unknown>(`${automations}/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -95,6 +111,8 @@ export type NewTeammate = {
 	unit: string;
 	instructions: string;
 	everyone: boolean;
+	/** Its agent runs outside t10, so a runner leases its work. */
+	external?: boolean;
 };
 
 /** Which parts a teammate has: a missing one means it doesn't receive work, and finishing adds it. */
@@ -107,8 +125,12 @@ export async function partsOf(account: string): Promise<Parts> {
 	return { intake: set, automation: list[0] };
 }
 
-/** Adds what a teammate is missing: who may send it work (only when asked to open it to everyone) and its intake automation. */
-export async function finishTeammate(t: Teammate, options: { everyone: boolean; notify: string }) {
+/**
+ * Adds what a teammate is missing: who may send it work (only when asked to open it to everyone) and its intake
+ * automation. An external teammate's automation has target external: its runner leases the work, with one session per
+ * item kept on the runner.
+ */
+export async function finishTeammate(t: Teammate, options: { everyone: boolean; notify: string; external?: boolean }) {
 	const parts = await partsOf(t.account);
 	if (parts.intake === undefined && options.everyone) await putIntake({ user_id: t.account, everyone: true, units: [], lists: [] });
 	if (parts.automation === undefined) {
@@ -118,7 +140,7 @@ export async function finishTeammate(t: Teammate, options: { everyone: boolean; 
 			agent: t.agent,
 			trigger: "event",
 			event_kinds: INTAKE_EVENTS,
-			target: "session_per_ref",
+			target: options.external === true ? "external" : "session_per_ref",
 			instruction: INTAKE_INSTRUCTION,
 			...(options.notify === "" ? {} : { notify_user: options.notify }),
 		});
@@ -134,7 +156,7 @@ export async function createTeammate(n: NewTeammate): Promise<Teammate> {
 	const account = await postJSON<Account>(org(n.tenant, "agent-accounts"), { display_name: n.title, manager_user_id: n.manager, org_unit_id: n.unit });
 	const content: AgentConfigContent = n.instructions.trim() === "" ? {} : { instructions: n.instructions };
 	const teammate = await postJSON<Teammate>(control, { account: account.user_id, agent: n.agent, title: n.title, content });
-	await finishTeammate(teammate, { everyone: n.everyone, notify: n.manager });
+	await finishTeammate(teammate, { everyone: n.everyone, notify: n.manager, external: n.external });
 	return teammate;
 }
 
