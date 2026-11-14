@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Clock, UserCheck, UserX } from "lucide-react";
+import { Clock, Sparkles, UserCheck, UserX } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../lib/i18n.tsx";
 import { usePaged } from "../../lib/paged.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { dueDay, itemsPage, listOffers, today } from "./api.ts";
+import { dueDay, type Item, itemsPage, listOffers, today } from "./api.ts";
 import { OfferRow, WaitingRow } from "./offers.tsx";
+import { SendDialog } from "./SendDialog.tsx";
 import { usePeople } from "./usePeople.ts";
 
 export function HomeRows() {
@@ -18,6 +20,7 @@ export function HomeRows() {
 	const pending = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "pending");
 	const assigned = (Array.isArray(inbox.data) ? inbox.data : []).filter((offer) => offer.state === "assigned" && offer.to_user_id === me.user_id);
 	const declined = (Array.isArray(sent.data) ? sent.data : []).filter((offer) => offer.state === "declined");
+	const suggested = (Array.isArray(owned.data) ? owned.data : []).filter((item) => item.suggestion !== undefined);
 	const due = (Array.isArray(owned.data) ? owned.data : []).filter((item) => item.due_at !== null && dueDay(item.due_at) <= today() && (item.status === "todo" || item.status === "doing"));
 	return (
 		<>
@@ -27,6 +30,9 @@ export function HomeRows() {
 			</li>}
 			{pending.map((offer) => (
 				<OfferRow key={offer.id} offer={offer} />
+			))}
+			{suggested.map((item) => (
+				<SuggestionRow key={item.id} item={item} />
 			))}
 			{assigned.map((offer) => (
 				<li key={offer.id} className="row">
@@ -79,5 +85,32 @@ export function WaitingRows() {
 				<WaitingRow key={offer.id} offer={offer} />
 			))}
 		</>
+	);
+}
+
+/** A task the person's assistant drafted for someone, ready for the person to check and send. */
+function SuggestionRow({ item }: { item: Item }) {
+	const { t } = useI18n();
+	const { path } = useWorkspace();
+	const { name } = usePeople();
+	const [sending, setSending] = useState(false);
+	const suggestion = item.suggestion;
+	if (suggestion === undefined) return null;
+	return (
+		<li className="row">
+			<span className="row-icon accent">
+				<Sparkles size={16} aria-hidden="true" />
+			</span>
+			<div className="row-main">
+				<Link to={path(`tasks/${item.id}`)}>{t("Ready to send: {title} to {name}", { title: item.title, name: name(suggestion.to) })}</Link>
+				{suggestion.note !== "" && <span className="plain quiet">{suggestion.note}</span>}
+			</div>
+			<div className="row-actions">
+				<button type="button" className="primary" onClick={() => setSending(true)}>
+					{t("Review and send")}
+				</button>
+			</div>
+			{sending && <SendDialog item={item} suggested={{ to: { id: suggestion.to, name: name(suggestion.to) }, note: suggestion.note }} onClose={() => setSending(false)} />}
+		</li>
 	);
 }

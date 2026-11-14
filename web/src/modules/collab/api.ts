@@ -20,6 +20,14 @@ export type Item = {
 	updated_at: string;
 	/** What the caller may do to it. Only a single read has it. */
 	can?: Can;
+	/** A send the person's assistant suggested. Only owners get it. */
+	suggestion?: { to: string; note: string; at: string };
+	/** Offers on it nobody has answered. Only a single read has it. */
+	pending_offers?: Offer[];
+	/** Agent teammates told about it lately that haven't acted since. Only a single read has it. */
+	working?: { user_id: string; since: string }[];
+	/** The latest comment that mentioned the reader, if they've done nothing on it since. Only a single read has it. */
+	mention?: { from: string; body: string; at: string };
 };
 
 export type Can = { edit: boolean; cancel: boolean; claim: boolean; send: boolean; delete: boolean; manage_people: boolean };
@@ -90,7 +98,8 @@ export const claimItem = (id: string) => postJSON<Item>(`${base}/work-items/${id
 export const stopOwning = (id: string) => send<void>("DELETE", `/work-items/${id}/owners/me`);
 export const addCollaborator = (id: string, user: string) => send<void>("PUT", `/work-items/${id}/collaborators/${user}`);
 export const removeCollaborator = (id: string, user: string) => send<void>("DELETE", `/work-items/${id}/collaborators/${user}`);
-export const addComment = (id: string, body: string) => postJSON<Comment>(`${base}/work-items/${id}/comments`, { body });
+export const addComment = (id: string, body: string, mentions: string[] = []) => postJSON<Comment>(`${base}/work-items/${id}/comments`, { body, mentions });
+export const dismissSuggestion = (id: string) => send<void>("DELETE", `/work-items/${id}/suggestion`);
 export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
 
 export const listOffers = async (box: "inbox" | "sent") => (await request<{ offers: Offer[] }>(`${base}/offers?box=${box}&limit=100`)).offers;
