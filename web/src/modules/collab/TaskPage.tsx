@@ -14,6 +14,7 @@ import { CommentBox } from "./CommentBox.tsx";
 import { eventLabel } from "./events.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
 import { SendDialog } from "./SendDialog.tsx";
+import { TaskLinks } from "./TaskLinks.tsx";
 import { TaskStatus } from "./TaskStatus.tsx";
 import { usePeople } from "./usePeople.ts";
 
@@ -376,6 +377,7 @@ function TaskEditor({ item }: { item: Item }) {
 						</ul>
 						{can.manage_people && <PersonPicker label={t("Add collaborator")} exclude={[...item.owners, ...item.collaborators]} disabled={addPerson.isPending} onPick={(user) => addPerson.mutate(user)} />}
 					</div>
+					<TaskLinks item={item} canEdit={can.edit} />
 					{(can.send || can.delete) && (
 						<div className="side-actions">
 							{can.send && (

@@ -83,6 +83,11 @@ func run() error {
 	}
 	modules, _ := cfg.AllModules()
 	upstream := proxy.New(cfg.Agents, modules, authURL)
+	if cfg.ToolsURL != "" {
+		if upstream.Tools, err = url.Parse(cfg.ToolsURL); err != nil {
+			return err
+		}
+	}
 	if cfg.ModulesDir != "" {
 		go watchModules(ctx, cfg, upstream)
 	}

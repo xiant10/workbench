@@ -115,7 +115,7 @@ export function AgentPage() {
 	const title = choice.title ?? choice.name;
 	const isDefault = (settings.data.default_agent || settings.data.platform_default) === agent;
 	return (
-		<AgentLayout agent={agent} title={title} customizable={choice.customizable === true}>
+		<AgentLayout agent={agent} title={title} customizable={choice.customizable === true && choice.external !== true}>
 			<Link to={back} className="skills-back">
 				<ArrowLeft size={14} aria-hidden="true" /> {t("Agents")}
 			</Link>
@@ -127,7 +127,16 @@ export function AgentPage() {
 			</header>
 			<div className="card">
 				<h2>{t("Access")}</h2>
-				<Setting title={t("People can use it")} hint={choice.picker === false ? t("Through its own app. People don't pick it in conversations.") : t("Turned on or off under Administration, Agents.")}>
+				<Setting
+					title={t("People can use it")}
+					hint={
+						choice.external === true
+							? t("Through its agent teammates only. It runs outside t10, beside your team's code.")
+							: choice.picker === false
+								? t("Through its own app. People don't pick it in conversations.")
+								: t("Turned on or off under Administration, Agents.")
+					}
+				>
 					<span className={choice.enabled ? "pill" : "pill warn"}>{choice.enabled ? t("On") : t("Off")}</span>
 				</Setting>
 				{choice.picker !== false && (
@@ -136,7 +145,7 @@ export function AgentPage() {
 					</Setting>
 				)}
 			</div>
-			{choice.teammates === true && <TeammatesCard agent={agent} title={title} />}
+			{choice.teammates === true && <TeammatesCard agent={agent} title={title} external={choice.external === true} />}
 			<div className="card">
 				<h2>{t("Skills and connectors")}</h2>
 				<p className="quiet">{t("What else this agent has in this tenant, each on its own page.")}</p>

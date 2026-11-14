@@ -18,6 +18,8 @@ const EVENTS: Record<string, string> = {
 	"collaborator.added": "Added a collaborator",
 	"collaborator.removed": "Removed a collaborator",
 	"comment.added": "Added a comment",
+	"link.added": "Added a link",
+	"link.removed": "Removed a link",
 	"list.created": "Created a list",
 	"list.linked": "Linked a list to a team",
 	"list.member_set": "Changed a list's members",

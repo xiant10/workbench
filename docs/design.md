@@ -408,6 +408,7 @@ web/src/modules/agents/  a tenant's agent settings, from t10-agent-control
 | `GET`, `POST`, `DELETE /api/agents/{agent}/agent` | Passes through to that agent's `/agent`, adding the bearer token and trace headers |
 | `POST /api/voice/admission` | Calls room admission and returns only the room fields |
 | `/api/modules/{id}/*` | Passes through to the business module named in `MODULE_URLS`, mapping to its `/v1/*` routes |
+| `POST /runner/v1/*`, `/runner/mcp` | External agent teammates' runners, with no session: to `t10-automations`' `/v1/runner/*` and the tool gateway's `/mcp/collab` (`TOOLS_URL`), with their runner key or token passed through |
 | `/api/org/{tenant}`, `/api/org/{tenant}/*` | Passes through to the auth service's `/v1/tenants/{tenant}/*`, for Administration. Only `members`, `invitations`, `units`, `grants`, `audit`, `roles` and `permission-catalog` |
 | `GET /api/config` | Agents, modules, voice, and the account address. `console_url` too, for a platform admin |
 

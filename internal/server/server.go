@@ -97,6 +97,13 @@ func (s *Server) Handler() http.Handler {
 	handle("/api/org/{tenant}", org)
 	handle("/api/org/{tenant}/{path...}", org)
 
+	// External agent teammates' runners: no session and no browser, so no
+	// origin check. Their key or token passes through, and is checked behind.
+	handle("POST /runner/v1/{path...}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.Proxy.Runner(w, r, r.PathValue("path"))
+	}))
+	handle("/runner/mcp", http.HandlerFunc(s.Proxy.RunnerMCP))
+
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		proxy.WriteError(w, http.StatusNotFound, "not_found", "no such route")
 	})

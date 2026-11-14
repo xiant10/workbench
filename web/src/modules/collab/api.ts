@@ -28,7 +28,12 @@ export type Item = {
 	working?: { user_id: string; since: string }[];
 	/** The latest comment that mentioned the reader, if they've done nothing on it since. Only a single read has it. */
 	mention?: { from: string; body: string; at: string };
+	/** Where its work happens elsewhere, such as the pull request an agent teammate opened. */
+	links?: ItemLink[];
 };
+
+export type LinkKind = "pull_request" | "commit" | "build" | "document" | "other";
+export type ItemLink = { id: string; url: string; title: string; kind: LinkKind; added_by: string; created_at: string };
 
 export type Can = { edit: boolean; cancel: boolean; claim: boolean; send: boolean; delete: boolean; manage_people: boolean };
 
@@ -99,6 +104,9 @@ export const stopOwning = (id: string) => send<void>("DELETE", `/work-items/${id
 export const addCollaborator = (id: string, user: string) => send<void>("PUT", `/work-items/${id}/collaborators/${user}`);
 export const removeCollaborator = (id: string, user: string) => send<void>("DELETE", `/work-items/${id}/collaborators/${user}`);
 export const addComment = (id: string, body: string, mentions: string[] = []) => postJSON<Comment>(`${base}/work-items/${id}/comments`, { body, mentions });
+/** Collab takes the title and kind from the URL when they're left out. */
+export const addLink = (id: string, link: { url: string; title?: string; kind?: LinkKind }) => postJSON<ItemLink>(`${base}/work-items/${id}/links`, link);
+export const removeLink = (id: string, link: string) => send<void>("DELETE", `/work-items/${id}/links/${link}`);
 export const dismissSuggestion = (id: string) => send<void>("DELETE", `/work-items/${id}/suggestion`);
 export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
 
