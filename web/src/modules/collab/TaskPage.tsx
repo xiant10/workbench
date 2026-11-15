@@ -11,12 +11,13 @@ import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
 import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
 import { CommentBox } from "./CommentBox.tsx";
-import { eventLabel } from "./events.ts";
+import { eventLabel, eventKey } from "./events.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
 import { SendDialog } from "./SendDialog.tsx";
 import { TaskLinks } from "./TaskLinks.tsx";
 import { TaskStatus } from "./TaskStatus.tsx";
 import { usePeople } from "./usePeople.ts";
+import { TaskWorkflow } from "./Workflow.tsx";
 
 const POLL_MS = 15_000;
 
@@ -270,6 +271,7 @@ function TaskEditor({ item }: { item: Item }) {
 				</p>
 			)}
 			<TaskStatus item={item} onReply={() => commentBox.current?.focus()} />
+			<TaskWorkflow item={item} />
 			<div className="task-layout">
 				<div className="task-main">
 					<textarea ref={titleBox} rows={1} className="title-input" value={draft.title} maxLength={300} aria-label={t("Title")} readOnly={!canEdit || save.isPending} onChange={(event) => set("title", event.target.value)} />
@@ -301,7 +303,8 @@ function TaskEditor({ item }: { item: Item }) {
 						<ul className="history quiet">
 							{events.data?.map((event) => (
 								<li key={event.id}>
-									{dateTime(event.at)} · {name(event.actor_user_id)} · {t(eventLabel(event.kind))}
+									{dateTime(event.at)} · {name(event.actor_user_id)} · {t(eventLabel(eventKey(event)))}
+									{event.kind === "workflow.moved" && stageMove(event.detail, item)}
 								</li>
 							))}
 						</ul>
@@ -423,4 +426,12 @@ function TaskEditor({ item }: { item: Item }) {
 			)}
 		</div>
 	);
+}
+
+/** The stages a workflow move went between, by name while the workflow still has them. */
+function stageMove(detail: Record<string, unknown>, item: Item): string {
+	const stages = item.workflow?.workflow.stages ?? [];
+	const named = (id: unknown) => stages.find((stage) => stage.id === id)?.name;
+	const from = named(detail.from_stage), to = named(detail.to_stage);
+	return from === undefined && to === undefined ? "" : ` · ${from ?? "…"} → ${to ?? "…"}`;
 }

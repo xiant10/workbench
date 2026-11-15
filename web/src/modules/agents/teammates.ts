@@ -59,6 +59,12 @@ export type Firing = { id: string; state: string; scheduled_for: string; problem
 
 /** The events that fire an intake automation, as t10-collab posts them. */
 export const INTAKE_EVENTS = ["work.offered", "work.assigned", "work.accepted", "work.declined", "work.commented", "list.item_added"];
+/**
+ * An external teammate's: each run is a coding agent's, in time and model cost, so it works on what's sent to it. It
+ * isn't woken because someone accepted what it sent them, or because an item was added to a list it's on, such as its
+ * team's, which would start every agent on the list.
+ */
+export const EXTERNAL_INTAKE_EVENTS = INTAKE_EVENTS.filter((kind) => kind !== "work.accepted" && kind !== "list.item_added");
 
 /**
  * What every intake run is told, before the event. The teammate's own instructions, in its configuration, say what work
@@ -73,6 +79,34 @@ export const INTAKE_INSTRUCTION = [
 	"If you can't finish, send the item to your manager with work_send and a note saying why.",
 ].join("\n");
 
+/**
+ * Starting instructions for an external teammate's role. Its runner says how to work in a worktree; the role says what
+ * to do with an item and to whom to send it, by teammate name, which a team changes to its own.
+ */
+export const EXTERNAL_ROLES = {
+	builder: [
+		"You build. Make the change the item asks for, with tests, and run them.",
+		"Open a pull request, add it to the item with work_link, and comment what you changed and how you checked it.",
+		"When it's ready, pass your stage if the item is on a workflow; otherwise send the item to Reviewer.",
+		"When it comes back with changes, fix what was found on the same branch.",
+		"If the item is unclear, ask in a comment and send it back to whoever sent it to you.",
+	].join("\n"),
+	reviewer: [
+		"You review. Read the item, then the pull request on its branch with gh pr diff and git log.",
+		"Comment on the pull request with gh pr review --comment. Don't approve or merge: people do.",
+		"Write one comment on the item with what you found.",
+		"If it needs changes, send it back with what to fix: changes on a workflow, or else send the item to Builder. If it's ready, pass your stage, or else send it to Tester.",
+	].join("\n"),
+	tester: [
+		"You test. Run the full and end-to-end tests on the item's branch.",
+		"Add tests that are missing, commit them and push.",
+		"Comment on the item what you ran and what passed or failed.",
+		"If something fails that the code must fix, send it back with what failed: changes on a workflow, or else send the item to Builder. If it all passes, pass your stage, or else send it to the person who leads the work.",
+	].join("\n"),
+} as const;
+
+export type ExternalRole = keyof typeof EXTERNAL_ROLES;
+
 const control = "/api/modules/agents/admin/teammates";
 const json = (method: string, body: unknown) => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
@@ -86,6 +120,9 @@ export const getTeammateHistory = (id: string) => request<{ versions: AgentConfi
 const intakePath = (account: string) => `/api/modules/collab/admin/agents/${encodeURIComponent(account)}/intake`;
 export const getIntake = (account: string) => request<Intake>(intakePath(account));
 export const putIntake = (intake: Intake) => request<Intake>(intakePath(intake.user_id), json("PUT", intake));
+/** Every shared list an intake can name, by name, including lists the admin isn't on. */
+export const intakeLists = () =>
+	request<{ lists: { id: string; name: string; archived: boolean }[] }>("/api/modules/collab/admin/intake-lists").then((body) => body.lists);
 
 const automations = "/api/modules/automations/admin/automations";
 export const listIntakeAutomations = (account: string) =>
@@ -139,7 +176,7 @@ export async function finishTeammate(t: Teammate, options: { everyone: boolean; 
 			name: `${t.title} intake`,
 			agent: t.agent,
 			trigger: "event",
-			event_kinds: INTAKE_EVENTS,
+			event_kinds: options.external === true ? EXTERNAL_INTAKE_EVENTS : INTAKE_EVENTS,
 			target: options.external === true ? "external" : "session_per_ref",
 			instruction: INTAKE_INSTRUCTION,
 			...(options.notify === "" ? {} : { notify_user: options.notify }),

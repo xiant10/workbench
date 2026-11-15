@@ -11,6 +11,7 @@ import { claimItem, createItem, createList, getList, type Item, itemsPage, type 
 import { PersonPicker } from "./PersonPicker.tsx";
 import { isClosed, ItemRow } from "./TasksPage.tsx";
 import { usePeople } from "./usePeople.ts";
+import { ListWorkflow } from "./Workflow.tsx";
 
 export function ListsPage() {
 	const { t, describe } = useI18n();
@@ -218,6 +219,7 @@ export function ListPage() {
 			)}
 			{showDone && <ul className="rows">{done.map(row)}</ul>}
 			<LoadMore list={items} label="Load more tasks" />
+			{list.data !== undefined && <ListWorkflow list={list.data} isOwner={isOwner && !isArchived} onSaved={refresh} />}
 			<section>
 				<h2>{t("Members")}</h2>
 				<ul className="people">
