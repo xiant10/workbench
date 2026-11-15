@@ -26,6 +26,21 @@ export type Firing = {
 	finished_at: string | null;
 };
 
+/** A firing's state, as its owner reads it. */
+export const FIRING_LABELS: Record<Firing["state"], string> = { claimed: "Waiting", running: "Running", done: "Done", failed: "Failed", skipped: "Skipped" };
+
+/**
+ * A run an agent teammate's automation made for one record, such as a task. `cause_firing` is the run that handed the
+ * record on, when an agent's did, so the runs read as a chain.
+ */
+export type RecordRun = Firing & {
+	automation_name: string;
+	principal: string;
+	event?: { kind?: string; actor?: string };
+	hops?: number;
+	cause_firing?: string;
+};
+
 export type Draft = { name: string; agent: string; instruction: string; cron: string; timezone: string; runs_per_day?: number };
 
 const base = "/api/modules/automations";
@@ -37,6 +52,8 @@ export const createAutomation = (draft: Draft) => postJSON<Automation>(`${base}/
 export const updateAutomation = (id: string, change: Partial<Omit<Draft, "agent">> & { state?: "active" | "paused" }) =>
 	request<Automation>(`${base}/automations/${encodeURIComponent(id)}`, json("PATCH", change));
 export const deleteAutomation = (id: string) => request<void>(`${base}/automations/${encodeURIComponent(id)}`, { method: "DELETE" });
+/** A record's teammate runs, newest first: every one for a tenant admin, and for anyone else those whose notices reach them. */
+export const recordRuns = (ref: string) => request<{ firings: RecordRun[] }>(`${base}/firings?ref=${encodeURIComponent(ref)}`).then((body) => body.firings);
 export const runAutomation = (id: string) => postJSON<Firing>(`${base}/automations/${encodeURIComponent(id)}/run`, {});
 
 /** Days of the week as cron numbers, Monday first. */

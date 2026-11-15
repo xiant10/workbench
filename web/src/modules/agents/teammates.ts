@@ -55,7 +55,21 @@ export type RunnerKey = {
 	connected: boolean;
 };
 
-export type Firing = { id: string; state: string; scheduled_for: string; problem?: string; session_id?: string; finished_at?: string | null };
+/**
+ * One intake run. An event's run names its record (`ref`), the event's IDs as the run got them, and the agent hops
+ * since a person last acted on the record.
+ */
+export type Firing = {
+	id: string;
+	state: string;
+	scheduled_for: string;
+	problem?: string;
+	session_id?: string;
+	finished_at?: string | null;
+	ref?: string;
+	event?: { kind?: string; actor?: string };
+	hops?: number;
+};
 
 /** The events that fire an intake automation, as t10-collab posts them. */
 export const INTAKE_EVENTS = ["work.offered", "work.assigned", "work.accepted", "work.declined", "work.commented", "list.item_added"];

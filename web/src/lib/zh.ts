@@ -280,6 +280,17 @@ export const ZH: Record<string, string> = {
 	"This conversation is archived.": "此对话已归档。",
 	"Send as task": "作为任务发送",
 	"Open task": "打开任务",
+	"to {name}": "交给{name}",
+	"to {name} instead of {meant}, because agents passed it on too often": "交给{name}，而不是{meant}：智能体之间转手次数过多",
+	"Offered work by {name}": "{name}派来的工作",
+	"Assigned work by {name}": "{name}指派的工作",
+	"{name} accepted what it sent": "{name}接受了它发出的工作",
+	"{name} declined what it sent": "{name}拒绝了它发出的工作",
+	"Comment by {name}": "{name}的评论",
+	"{name} added a task to its list": "{name}在它的清单中添加了任务",
+	"Hand-offs between agents before it: {count}": "此前智能体之间的转手：{count} 次",
+	"Agent runs": "智能体运行记录",
+	"After {name}'s run at {time}": "接在{name} {time} 的运行之后",
 	"The linked task has gone": "关联的任务已不存在",
 
 	// Results

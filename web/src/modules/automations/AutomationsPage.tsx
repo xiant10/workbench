@@ -6,11 +6,10 @@ import { useI18n } from "../../lib/i18n.tsx";
 import { Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
 import { TaskForm } from "./TaskForm.tsx";
-import { type Automation, createAutomation, deleteAutomation, type Firing, fromCron, getAutomation, listAutomations, runAutomation, updateAutomation } from "./api.ts";
+import { type Automation, createAutomation, deleteAutomation, FIRING_LABELS, type Firing, fromCron, getAutomation, listAutomations, runAutomation, updateAutomation } from "./api.ts";
 
 const DAY_NAMES: Record<number, string> = { 0: "Sun", 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat" };
 const STATE_LABELS: Record<Automation["state"], string> = { active: "On", paused: "Paused", failing: "Stopped after failures", revoked: "Consent ended" };
-const FIRING_LABELS: Record<Firing["state"], string> = { claimed: "Waiting", running: "Running", done: "Done", failed: "Failed", skipped: "Skipped" };
 
 /** A person's automations: what runs for them, when, and what each run did. */
 export function AutomationsPage() {

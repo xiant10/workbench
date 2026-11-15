@@ -58,3 +58,23 @@ export function eventKey(event: { kind: string; detail: Record<string, unknown> 
 	if (Array.isArray(event.detail.skipped)) return "workflow.moved.skip";
 	return typeof event.detail.result === "string" ? `workflow.moved.${event.detail.result}` : event.kind;
 }
+
+/** What woke an agent teammate's run, from the kind of event t10-collab posted and who caused it. */
+export function runCause(kind: string, name: string, t: (text: string, vars?: Record<string, string | number>) => string): string {
+	switch (kind) {
+		case "work.offered":
+			return t("Offered work by {name}", { name });
+		case "work.assigned":
+			return t("Assigned work by {name}", { name });
+		case "work.accepted":
+			return t("{name} accepted what it sent", { name });
+		case "work.declined":
+			return t("{name} declined what it sent", { name });
+		case "work.commented":
+			return t("Comment by {name}", { name });
+		case "list.item_added":
+			return t("{name} added a task to its list", { name });
+		default:
+			return kind;
+	}
+}
