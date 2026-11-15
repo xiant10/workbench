@@ -38,12 +38,15 @@ export type Item = {
 	workflow?: Place;
 };
 
-/** A step of a list's workflow. `on_changes` is the earlier stage an item goes back to when its holder finds something. */
-export type Stage = { id?: string; name: string; holder: string; on_changes?: string; guide?: string };
-export type Workflow = { list_id: string; version: number; stages: Stage[]; rounds: number; lead: string; updated_by: string; updated_at: string };
-/** Where a result takes an item: a stage and its holder, done, or the lead when it went back too often. */
-export type Step = { stage?: string; name?: string; to?: string; done?: boolean; reason?: "rounds" | "holder_gone" };
-export type Place = { workflow: Workflow; stage: Stage | null; pass?: Step; changes?: Step; rounds: number };
+/**
+ * A step of a list's workflow. The item goes to one of `holders` (`holder` is the first): the one that held it before, or else the least busy.
+ * `on_changes` is the earlier stage an item goes back to when its holder finds something; `skip_when` says when the holder before may pass over it.
+ */
+export type Stage = { id?: string; name: string; holders: string[]; holder: string; on_changes?: string; guide?: string; skip_when?: string };
+export type Workflow = { list_id: string; version: number; stages: Stage[]; rounds: number; lead: string; auto_start: boolean; updated_by: string; updated_at: string };
+/** Where a result takes an item: a stage and its holder (or holders, one picked at the move), done, or the lead when it went back too often. */
+export type Step = { stage?: string; name?: string; to?: string; holders?: string[]; skips?: string[]; done?: boolean; reason?: "rounds" | "holder_gone" };
+export type Place = { workflow: Workflow; stage: Stage | null; pass?: Step; changes?: Step; skip?: Step[]; rounds: number };
 
 export type LinkKind = "pull_request" | "commit" | "build" | "document" | "other";
 export type ItemLink = { id: string; url: string; title: string; kind: LinkKind; added_by: string; created_at: string };
@@ -87,9 +90,12 @@ export type TaskList = {
 	name: string;
 	org_unit_id?: string;
 	archived_at?: string | null;
-	members?: { user_id: string; role: ListRole; source: "manual" | "org" }[];
+	/** `holds`: a plain member who agreed to hold stages of the list's workflow; owners and agents need not. */
+	members?: { user_id: string; role: ListRole; source: "manual" | "org"; holds?: boolean }[];
 	/** Only on a page of lists. */
 	counts?: { open: number; unclaimed: number; members: number };
+	/** Only on a page of lists. */
+	has_workflow?: boolean;
 	/** Only on a single read, when the list has one. */
 	workflow?: Workflow;
 };
@@ -114,6 +120,10 @@ export const getItem = (id: string) => request<Item>(`${base}/work-items/${id}`)
 export const createItem = (body: Record<string, unknown>) => postJSON<Item>(`${base}/work-items`, body);
 export const updateItem = (id: string, body: Record<string, unknown>) => send<Item>("PATCH", `/work-items/${id}`, body);
 export const deleteItem = (id: string) => send<void>("DELETE", `/work-items/${id}`);
+/** Agree to hold stages of a list's workflow, or stop. */
+export const setHolding = (id: string, agree: boolean) => send<void>(agree ? "PUT" : "DELETE", `/lists/${id}/holding`);
+/** Put a task you own on a shared list you're on, or take it off with "". */
+export const setItemList = (id: string, list: string) => send<Item>("PUT", `/work-items/${id}/list`, { list_id: list });
 export const claimItem = (id: string) => postJSON<Item>(`${base}/work-items/${id}/claim`, {});
 export const stopOwning = (id: string) => send<void>("DELETE", `/work-items/${id}/owners/me`);
 export const addCollaborator = (id: string, user: string) => send<void>("PUT", `/work-items/${id}/collaborators/${user}`);
@@ -125,7 +135,7 @@ export const removeLink = (id: string, link: string) => send<void>("DELETE", `/w
 export const dismissSuggestion = (id: string) => send<void>("DELETE", `/work-items/${id}/suggestion`);
 export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
 /** Finish the caller's stage: pass to the next, or send back with what to fix. */
-export const advanceItem = (id: string, result: "pass" | "changes", note: string) => postJSON<Item>(`${base}/work-items/${id}/advance`, { result, note });
+export const advanceItem = (id: string, result: "pass" | "changes", note: string, to?: string) => postJSON<Item>(`${base}/work-items/${id}/advance`, { result, note, to });
 /** Start an item on its list's workflow, the first stage when `stage` is left out, or put it at a stage. */
 export const putAtStage = (id: string, stage?: string, note = "") => postJSON<Item>(`${base}/work-items/${id}/stage`, { stage, note });
 
@@ -143,7 +153,7 @@ export const putListMember = (id: string, user: string, role: ListRole = "member
 /** Rename, archive, or link a team. An empty `org_unit_id` clears the link. */
 export const updateList = (id: string, patch: { name?: string; archived?: boolean; org_unit_id?: string }) => send<TaskList>("PATCH", `/lists/${id}`, patch);
 export const removeListMember = (id: string, user: string) => send<void>("DELETE", `/lists/${id}/members/${user}`);
-export const setWorkflow = (id: string, workflow: { stages: Stage[]; rounds: number; lead: string }) => send<Workflow>("PUT", `/lists/${id}/workflow`, workflow);
+export const setWorkflow = (id: string, workflow: { stages: Omit<Stage, "holder">[]; rounds: number; lead: string; auto_start: boolean }) => send<Workflow>("PUT", `/lists/${id}/workflow`, workflow);
 export const removeWorkflow = (id: string) => send<void>("DELETE", `/lists/${id}/workflow`);
 
 export const getSettings = () => request<{ manager_visibility: Visibility }>(`${base}/settings`);

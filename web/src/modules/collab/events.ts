@@ -33,7 +33,13 @@ const EVENTS: Record<string, string> = {
 	"workflow.moved.changes": "Sent it back with changes",
 	"workflow.moved.done": "Finished the last stage",
 	"workflow.moved.lead": "Sent it to the workflow's lead",
+	"workflow.moved.skip": "Passed it over a stage",
+	"workflow.moved.auto": "Started it on the workflow",
 	"workflow.left": "It left the workflow: its stage was removed",
+	"workflow.left.list_changed": "It left the workflow: it moved off the list",
+	"item.list_changed": "Moved it to another list",
+	"list.holder_named": "Named you a holder on a list's workflow",
+	"list.holding_changed": "Changed whether they take a list's workflow tasks",
 	"list.workflow_changed": "Changed a list's workflow",
 	"list.workflow_removed": "Removed a list's workflow",
 };
@@ -42,10 +48,13 @@ export function eventLabel(kind: string): string {
 	return EVENTS[kind] ?? kind;
 }
 
-/** A workflow move reads by its result: passed, sent back, finished, or to the lead past its rounds. */
+/** A workflow move reads by its result: passed, skipped, sent back, finished, started as it was made, or to the lead past its rounds. */
 export function eventKey(event: { kind: string; detail: Record<string, unknown> }): string {
+	if (event.kind === "workflow.left" && event.detail.reason === "list_changed") return "workflow.left.list_changed";
 	if (event.kind !== "workflow.moved") return event.kind;
 	if (event.detail.done === true) return "workflow.moved.done";
+	if (event.detail.reason === "auto_start") return "workflow.moved.auto";
 	if (typeof event.detail.reason === "string") return "workflow.moved.lead";
+	if (Array.isArray(event.detail.skipped)) return "workflow.moved.skip";
 	return typeof event.detail.result === "string" ? `workflow.moved.${event.detail.result}` : event.kind;
 }
