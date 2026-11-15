@@ -27,6 +27,7 @@ export function usePaged<T>(queryKey: QueryKey, fetchPage: (cursor: string) => P
 		isPending: query.isPending,
 		isSuccess: query.isSuccess,
 		isError: query.isError,
+		error: query.error,
 		refetch: query.refetch,
 		hasMore: query.hasNextPage,
 		loadingMore: query.isFetchingNextPage,

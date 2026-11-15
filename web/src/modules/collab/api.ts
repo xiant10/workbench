@@ -156,6 +156,17 @@ export const removeListMember = (id: string, user: string) => send<void>("DELETE
 export const setWorkflow = (id: string, workflow: { stages: Omit<Stage, "holder">[]; rounds: number; lead: string; auto_start: boolean }) => send<Workflow>("PUT", `/lists/${id}/workflow`, workflow);
 export const removeWorkflow = (id: string) => send<void>("DELETE", `/lists/${id}/workflow`);
 
+/** A task whose owners left or are suspended, as an admin sees it: its title and owners, never the work. */
+export type QueuedItem = { id: string; title: string; status: Status; owners: string[]; reason: "no_successor" | "owner_suspended"; queued_at: string };
+/** A shared list nobody active can manage, or with open tasks and nobody active on it. */
+export type QueuedList = { id: string; name: string; reason: "no_active_owner" | "no_active_members"; queued_at: string };
+export const queuedItemsPage = (cursor: string) => page<QueuedItem>("/admin/departures", "items", cursor);
+export const queuedListsPage = (cursor: string) => page<QueuedList>("/admin/departures/lists", "lists", cursor);
+/** Give a waiting task to someone, who owns it at once. */
+export const reassignItem = (id: string, to: string) => postJSON<unknown>(`${base}/admin/departures/${id}/reassign`, { to });
+/** Make someone the owner of a waiting list. */
+export const setListOwner = (id: string, to: string) => send<void>("POST", `/admin/departures/lists/${id}/owner`, { to });
+
 export const getSettings = () => request<{ manager_visibility: Visibility }>(`${base}/settings`);
 export const putSettings = (manager_visibility: Visibility) => send<{ manager_visibility: Visibility }>("PUT", "/admin/settings", { manager_visibility });
 
