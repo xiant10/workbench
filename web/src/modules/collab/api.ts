@@ -30,7 +30,20 @@ export type Item = {
 	mention?: { from: string; body: string; at: string };
 	/** Where its work happens elsewhere, such as the pull request an agent teammate opened. */
 	links?: ItemLink[];
+	/** Its stage on its list's workflow; left out off it. */
+	stage?: string;
+	/** Times it went back since it was started or put at a stage. */
+	rounds?: number;
+	/** Where it stands on its list's workflow. Only a single read of an item on a list with one has it. */
+	workflow?: Place;
 };
+
+/** A step of a list's workflow. `on_changes` is the earlier stage an item goes back to when its holder finds something. */
+export type Stage = { id?: string; name: string; holder: string; on_changes?: string; guide?: string };
+export type Workflow = { list_id: string; version: number; stages: Stage[]; rounds: number; lead: string; updated_by: string; updated_at: string };
+/** Where a result takes an item: a stage and its holder, done, or the lead when it went back too often. */
+export type Step = { stage?: string; name?: string; to?: string; done?: boolean; reason?: "rounds" | "holder_gone" };
+export type Place = { workflow: Workflow; stage: Stage | null; pass?: Step; changes?: Step; rounds: number };
 
 export type LinkKind = "pull_request" | "commit" | "build" | "document" | "other";
 export type ItemLink = { id: string; url: string; title: string; kind: LinkKind; added_by: string; created_at: string };
@@ -77,6 +90,8 @@ export type TaskList = {
 	members?: { user_id: string; role: ListRole; source: "manual" | "org" }[];
 	/** Only on a page of lists. */
 	counts?: { open: number; unclaimed: number; members: number };
+	/** Only on a single read, when the list has one. */
+	workflow?: Workflow;
 };
 export type Visibility = "none" | "direct_reports" | "all_reports";
 
@@ -109,6 +124,10 @@ export const addLink = (id: string, link: { url: string; title?: string; kind?: 
 export const removeLink = (id: string, link: string) => send<void>("DELETE", `/work-items/${id}/links/${link}`);
 export const dismissSuggestion = (id: string) => send<void>("DELETE", `/work-items/${id}/suggestion`);
 export const sendItem = (id: string, body: Record<string, unknown>) => postJSON<Offer>(`${base}/work-items/${id}/send`, body);
+/** Finish the caller's stage: pass to the next, or send back with what to fix. */
+export const advanceItem = (id: string, result: "pass" | "changes", note: string) => postJSON<Item>(`${base}/work-items/${id}/advance`, { result, note });
+/** Start an item on its list's workflow, the first stage when `stage` is left out, or put it at a stage. */
+export const putAtStage = (id: string, stage?: string, note = "") => postJSON<Item>(`${base}/work-items/${id}/stage`, { stage, note });
 
 export const listOffers = async (box: "inbox" | "sent") => (await request<{ offers: Offer[] }>(`${base}/offers?box=${box}&limit=100`)).offers;
 export const acceptOffer = (id: string) => postJSON<Offer>(`${base}/offers/${id}/accept`, {});
@@ -124,6 +143,8 @@ export const putListMember = (id: string, user: string, role: ListRole = "member
 /** Rename, archive, or link a team. An empty `org_unit_id` clears the link. */
 export const updateList = (id: string, patch: { name?: string; archived?: boolean; org_unit_id?: string }) => send<TaskList>("PATCH", `/lists/${id}`, patch);
 export const removeListMember = (id: string, user: string) => send<void>("DELETE", `/lists/${id}/members/${user}`);
+export const setWorkflow = (id: string, workflow: { stages: Stage[]; rounds: number; lead: string }) => send<Workflow>("PUT", `/lists/${id}/workflow`, workflow);
+export const removeWorkflow = (id: string) => send<void>("DELETE", `/lists/${id}/workflow`);
 
 export const getSettings = () => request<{ manager_visibility: Visibility }>(`${base}/settings`);
 export const putSettings = (manager_visibility: Visibility) => send<{ manager_visibility: Visibility }>("PUT", "/admin/settings", { manager_visibility });

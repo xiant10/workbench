@@ -28,8 +28,24 @@ const EVENTS: Record<string, string> = {
 	"list.members_departed": "Members left the tenant",
 	"list.owner_assigned": "Gave the list a new owner",
 	"settings.changed": "Changed task visibility",
+	"workflow.moved": "Put it at a stage of the workflow",
+	"workflow.moved.pass": "Passed a stage",
+	"workflow.moved.changes": "Sent it back with changes",
+	"workflow.moved.done": "Finished the last stage",
+	"workflow.moved.lead": "Sent it to the workflow's lead",
+	"workflow.left": "It left the workflow: its stage was removed",
+	"list.workflow_changed": "Changed a list's workflow",
+	"list.workflow_removed": "Removed a list's workflow",
 };
 
 export function eventLabel(kind: string): string {
 	return EVENTS[kind] ?? kind;
+}
+
+/** A workflow move reads by its result: passed, sent back, finished, or to the lead past its rounds. */
+export function eventKey(event: { kind: string; detail: Record<string, unknown> }): string {
+	if (event.kind !== "workflow.moved") return event.kind;
+	if (event.detail.done === true) return "workflow.moved.done";
+	if (typeof event.detail.reason === "string") return "workflow.moved.lead";
+	return typeof event.detail.result === "string" ? `workflow.moved.${event.detail.result}` : event.kind;
 }

@@ -10,10 +10,15 @@ import { PersonPicker } from "../collab/PersonPicker.tsx";
 import { getAgentSettings } from "./api.ts";
 import {
 	createTeammate,
+	EXTERNAL_ROLES,
+	type ExternalRole,
 	finishTeammate,
+	getIntake,
 	getIntakeAutomation,
 	getTeammate,
+	type Intake,
 	getTeammateHistory,
+	intakeLists,
 	listTeammates,
 	newRunnerKey,
 	partsOf,
@@ -105,9 +110,25 @@ function NewTeammateDialog({ agent, external, onClose }: { agent: string; extern
 			</div>
 			<label className="field">
 				<span>{t("Instructions")}</span>
-				<textarea rows={6} value={instructions} maxLength={MAX_TEXT} placeholder={t("What work it takes, what it declines, and how it works on a task.")} onChange={(event) => setInstructions(event.target.value)} />
+				<textarea rows={6} value={instructions} maxLength={MAX_TEXT} placeholder={t("What work it takes, what it declines, and how it works on a task.")} onChange={(event) => setInstructions(event.target.value)} data-testid="teammate-instructions" />
 			</label>
-			<label className="check">
+			{external && (
+				<div>
+					<p className="quiet">
+						{t("Start from a role:")}{" "}
+						{(Object.keys(EXTERNAL_ROLES) as ExternalRole[]).map((role, i) => (
+							<span key={role}>
+								{i > 0 && " · "}
+								<button type="button" className="link" onClick={() => setInstructions(EXTERNAL_ROLES[role])}>
+									{{ builder: t("Builder"), reviewer: t("Reviewer"), tester: t("Tester") }[role]}
+								</button>
+							</span>
+						))}
+					</p>
+					<p className="quiet">{t("Roles name the teammates they send work to, such as Reviewer. Change the names to your teammates'. With no instructions, it builds and sends the item back.")}</p>
+				</div>
+			)}
+			<label className="with-label permission">
 				<input type="checkbox" checked={everyone} onChange={(event) => setEveryone(event.target.checked)} />
 				<span>{t("Anyone in the organization can send it work")}</span>
 			</label>
@@ -229,7 +250,7 @@ export function TeammatePage() {
 			</div>
 			{!removed && automation?.target === "external" && <RunnerCard automation={automation.id} />}
 			{!removed && <TeammateInstructions id={id} view={view.data} onPublished={refresh} />}
-			{!removed && <WhoMaySend account={teammate.account} everyone={parts.data?.intake?.everyone === true} onSaved={refresh} />}
+			{!removed && <WhoMaySend account={teammate.account} onSaved={refresh} />}
 			<div className="card">
 				<h2>{t("Recent runs")}</h2>
 				{(firings.data?.firings ?? []).length === 0 ? (
@@ -301,17 +322,67 @@ function TeammateInstructions({ id, view, onPublished }: { id: string; view: Awa
 	);
 }
 
-function WhoMaySend({ account, everyone, onSaved }: { account: string; everyone: boolean; onSaved(): void }) {
+/**
+ * Who may send the teammate work besides its manager: anyone, or the members of shared lists, such as a team's list,
+ * so its people and agent teammates pass work along without opening it to everyone. Saving keeps any units set
+ * outside Workbench.
+ */
+function WhoMaySend({ account, onSaved }: { account: string; onSaved(): void }) {
 	const { t } = useI18n();
-	const save = useMutation({ mutationFn: (open: boolean) => putIntake({ user_id: account, everyone: open, units: [], lists: [] }), onSuccess: onSaved });
+	const client = useQueryClient();
+	const intake = useQuery({ queryKey: ["teammate-intake", account], queryFn: () => getIntake(account).catch(() => undefined) });
+	const lists = useQuery({ queryKey: ["intake-lists"], queryFn: intakeLists });
+	const current: Intake = intake.data ?? { user_id: account, everyone: false, units: [], lists: [] };
+	const save = useMutation({
+		mutationFn: (next: Partial<Intake>) => putIntake({ ...current, ...next, user_id: account }),
+		onSuccess: () => {
+			void client.invalidateQueries({ queryKey: ["teammate-intake", account] });
+			onSaved();
+		},
+	});
+	const nameOf = (id: string) => lists.data?.find((l) => l.id === id)?.name ?? t("A list that's gone");
+	const addable = (lists.data ?? []).filter((l) => !l.archived && !current.lists.includes(l.id));
 	return (
 		<div className="card">
 			<h2>{t("Who can send it work")}</h2>
-			<label className="check">
-				<input type="checkbox" checked={everyone} disabled={save.isPending} onChange={(event) => save.mutate(event.target.checked)} />
+			<label className="with-label permission">
+				<input type="checkbox" checked={current.everyone} disabled={save.isPending || !intake.isFetched} onChange={(event) => save.mutate({ everyone: event.target.checked })} />
 				<span>{t("Anyone in the organization")}</span>
 			</label>
-			<p className="quiet">{t("Its manager can always give it work. With this off, nobody else can.")}</p>
+			{!current.everyone && (
+				<div className="field">
+					<span>{t("Members of these shared lists")}</span>
+					{current.lists.length > 0 && (
+						<p>
+							{current.lists.map((id) => (
+								<span key={id} className="chip">
+									{nameOf(id)}{" "}
+									<button type="button" className="link" disabled={save.isPending} aria-label={t("Remove {name}", { name: nameOf(id) })} onClick={() => save.mutate({ lists: current.lists.filter((l) => l !== id) })}>
+										×
+									</button>
+								</span>
+							))}
+						</p>
+					)}
+					{addable.length > 0 && (
+						<select value="" disabled={save.isPending} aria-label={t("Add a list")} onChange={(event) => event.target.value !== "" && save.mutate({ lists: [...current.lists, event.target.value] })}>
+							<option value="">{t("Add a list…")}</option>
+							{addable.map((l) => (
+								<option key={l.id} value={l.id}>
+									{l.name}
+								</option>
+							))}
+						</select>
+					)}
+					<span className="quiet">{t("Such as your team's list: put its people and agent teammates on it, and they can pass work to each other.")}</span>
+				</div>
+			)}
+			<p className="quiet">{t("Its manager can always give it work.")}</p>
+			{save.isError && (
+				<p className="error" role="alert">
+					{t("It wasn't saved. Reload and try again.")}
+				</p>
+			)}
 		</div>
 	);
 }
