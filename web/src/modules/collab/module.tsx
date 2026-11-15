@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { CheckSquare, Inbox, ListTodo } from "lucide-react";
+import { CheckSquare, Inbox, ListTodo, ShieldCheck } from "lucide-react";
 import type { WorkbenchModule } from "../types.ts";
+import { AdminPage } from "./AdminPage.tsx";
 import { itemsPage } from "./api.ts";
 import { eventLabel } from "./events.ts";
 import { HomeRows, WaitingRows } from "./HomeRows.tsx";
@@ -20,10 +21,12 @@ export const collab: WorkbenchModule = {
 		{ path: "tasks/:id", element: <TaskPage /> },
 		{ path: "lists", element: <ListsPage /> },
 		{ path: "lists/:id", element: <ListPage /> },
+		{ path: "task-admin", element: <AdminPage /> },
 	],
 	nav: [
 		{ key: "tasks", label: "Tasks", to: "tasks", icon: CheckSquare, unread: true },
 		{ key: "lists", label: "Shared lists", to: "lists", icon: ListTodo },
+		{ key: "task-admin", label: "Task admin", to: "task-admin", icon: ShieldCheck, moduleAdmin: true },
 	],
 	eventLabel,
 	records: { work_item: "tasks/:id", list: "lists/:id" },

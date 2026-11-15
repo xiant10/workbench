@@ -115,6 +115,11 @@ export function ModuleGate({ id, children }: { id: string; children: ReactNode }
 	return children;
 }
 
+/** Whether the auth service says this person's business roles administer a module. Tenant admins administer every one. */
+function administers(config: AppConfig, id: string): boolean {
+	return config.access?.module_admin.includes(id) ?? false;
+}
+
 /** A module's settings in Administration, however it declared them. */
 export function adminsOf(module: WorkbenchModule): ModuleAdmin[] {
 	return module.admin === undefined ? [] : Array.isArray(module.admin) ? module.admin : [module.admin];
@@ -146,9 +151,12 @@ export function useModuleMenu(): { module: WorkbenchModule; available: boolean }
 
 /** The sidebar's and the palette's entries for this person. */
 export function useModuleNav(): { module: WorkbenchModule; entry: ModuleNav; available: boolean }[] {
-	const { isAdmin } = useWorkspace();
+	const { isAdmin, config } = useWorkspace();
 	const menu = useModuleMenu();
-	return useMemo(() => menu.flatMap(({ module, available }) => module.nav.filter((entry) => isAdmin || entry.adminOnly !== true).map((entry) => ({ module, entry, available }))), [menu, isAdmin]);
+	return useMemo(() => {
+		const shown = (module: WorkbenchModule, entry: ModuleNav) => isAdmin || (entry.adminOnly !== true && (entry.moduleAdmin !== true || administers(config, module.id)));
+		return menu.flatMap(({ module, available }) => module.nav.filter((entry) => shown(module, entry)).map((entry) => ({ module, entry, available })));
+	}, [menu, isAdmin, config]);
 }
 
 /** The first module offering an action on an agent's reply. */

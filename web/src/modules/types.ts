@@ -26,6 +26,8 @@ export type ModuleNav = {
 	unread?: boolean;
 	/** For tenant admins. The page still checks for itself. */
 	adminOnly?: boolean;
+	/** For tenant admins and this module's admins, who hold its `<prefix>:admin` business permission. The page still checks for itself. */
+	moduleAdmin?: boolean;
 };
 
 /** Something a person can do with an agent's reply, such as sending it to a teammate. */
