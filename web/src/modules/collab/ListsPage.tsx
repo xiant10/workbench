@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ChevronLeft, ChevronRight, FileQuestion, ListTodo, LogOut, Plus, Settings, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../../lib/api.ts";
 import { useI18n } from "../../lib/i18n.tsx";
 import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
-import { claimItem, createItem, createList, getList, type Item, itemsPage, type ListRole, listsPage, listUnits, putListMember, removeListMember, type TaskList, updateList } from "./api.ts";
+import { claimItem, createItem, createList, getList, type Item, itemsPage, type ListRole, listsPage, listUnits, putAtStage, putListMember, removeListMember, type TaskList, updateList } from "./api.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
 import { isClosed, ItemRow } from "./TasksPage.tsx";
 import { usePeople } from "./usePeople.ts";
-import { ListWorkflow } from "./Workflow.tsx";
+import { ListWorkflow, workflowImpact } from "./Workflow.tsx";
 
 export function ListsPage() {
 	const { t, describe } = useI18n();
@@ -63,6 +63,7 @@ export function ListsPage() {
 							<Link to={path(`lists/${list.id}`)}>{list.name}</Link>
 							<span className="quiet">{summary(list, t, unit)}</span>
 						</div>
+						{list.has_workflow === true && <span className="pill">{t("Workflow")}</span>}
 						{(list.counts?.unclaimed ?? 0) > 0 && <span className="pill doing">{t("{n} to claim", { n: list.counts?.unclaimed ?? 0 })}</span>}
 						<ChevronRight size={16} className="quiet" aria-hidden="true" />
 					</li>
@@ -111,6 +112,7 @@ export function ListPage() {
 		},
 	});
 	const claim = useMutation({ mutationFn: claimItem, onSuccess: refresh, onError: failed });
+	const start = useMutation({ mutationFn: (item: string) => putAtStage(item), onSuccess: refresh, onError: failed });
 	const addMember = useMutation({ mutationFn: (user: string) => putListMember(id, user), onSuccess: refresh, onError: failed });
 	const setRole = useMutation({ mutationFn: ({ user, role }: { user: string; role: ListRole }) => putListMember(id, user, role), onSuccess: refresh, onError: failed });
 	const removeMember = useMutation({ mutationFn: (user: string) => removeListMember(id, user), onSuccess: refresh, onError: failed });
@@ -143,6 +145,24 @@ export function ListPage() {
 	// Open work first, and what's still unclaimed before what someone has taken.
 	const open = loaded.filter((item) => !isClosed(item)).toSorted((a, b) => Number(a.owners.length > 0) - Number(b.owners.length > 0));
 	const done = loaded.filter(isClosed);
+	const workflow = list.data?.workflow;
+	const first = workflow?.stages[0];
+	// On a list with a workflow, open tasks group by stage in the route's order, then those not on it.
+	const groups =
+		workflow === undefined
+			? []
+			: [
+					...workflow.stages.map((stage) => ({ key: stage.id ?? stage.name, title: t("{stage} · {holders}", { stage: stage.name, holders: stage.holders.map(nameOf).join(" / ") }), items: open.filter((item) => item.stage === stage.id) })),
+					{ key: "off", title: t("Not on the workflow"), items: open.filter((item) => item.stage === undefined || !workflow.stages.some((stage) => stage.id === item.stage)) },
+				].filter((group) => group.items.length > 0);
+	const askRemove = async (user: string) => {
+		const impact = workflowImpact(workflow, user, true, t, nameOf);
+		if (impact.length === 0 || (await confirm({ title: t("Remove {name}?", { name: nameOf(user) }), body: impact.join(" "), action: t("Remove") }))) removeMember.mutate(user);
+	};
+	const askRole = async (user: string, role: ListRole) => {
+		const impact = role === "member" ? workflowImpact(workflow, user, false, t, nameOf) : [];
+		if (impact.length === 0 || (await confirm({ title: t("Make {name} a member?", { name: nameOf(user) }), body: impact.join(" "), action: t("Change") }))) setRole.mutate({ user, role });
+	};
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
 		if (title.trim() !== "" && !add.isPending) add.mutate();
@@ -151,16 +171,22 @@ export function ListPage() {
 		if (await confirm({ title: t("Leave this list?"), body: t("You keep tasks you own or collaborate on. An owner can add you back."), action: t("Leave") })) leave.mutate();
 	};
 	const askArchive = async () => {
-		if (await confirm({ title: t("Archive this list?"), body: t("Nobody can add to it, and it moves to archived lists. You can restore it."), action: t("Archive") })) archive.mutate(true);
+		const body = t("Nobody can add to it, and it moves to archived lists. You can restore it.");
+		if (await confirm({ title: t("Archive this list?"), body: workflow === undefined ? body : `${body} ${t("Tasks on its workflow keep moving to their holders.")}`, action: t("Archive") })) archive.mutate(true);
 	};
 	const row = (item: Item) => (
 		<ItemRow key={item.id} item={item} editable>
 			{item.owners.length === 0 ? (
-				!isClosed(item) && (
+				!isClosed(item) &&
+				(first !== undefined && !isArchived ? (
+					<button type="button" className="ghost small" disabled={start.isPending} onClick={() => start.mutate(item.id)}>
+						{t("Start at {stage}", { stage: first.name })}
+					</button>
+				) : (
 					<button type="button" className="ghost small" disabled={claim.isPending} onClick={() => claim.mutate(item.id)}>
 						{t("Claim")}
 					</button>
-				)
+				))
 			) : (
 				<span className="avatars" title={item.owners.map(nameOf).join(t(", "))}>
 					{item.owners.map((user) => (
@@ -197,6 +223,7 @@ export function ListPage() {
 					)}
 				</p>
 			)}
+			{list.data !== undefined && <ListWorkflow list={list.data} isOwner={isOwner && !isArchived} onSaved={refresh} />}
 			{!isArchived && (
 				<form className="add-row" onSubmit={submit}>
 					<input value={title} maxLength={300} placeholder={t("Add a task")} aria-label={t("Add a task")} onChange={(event) => setTitle(event.target.value)} />
@@ -209,7 +236,22 @@ export function ListPage() {
 			{add.isError && <p className="inline-error" role="alert">{describe(add.error)}</p>}
 			{items.isPending && <Skeleton />}
 			{items.isSuccess && open.length === 0 && <Empty icon={ListTodo} title={t(done.length === 0 ? "Nothing here." : "Everything on this list is done.")} />}
-			<ul className="rows">{open.map(row)}</ul>
+			{workflow === undefined ? (
+				<ul className="rows">{open.map(row)}</ul>
+			) : (
+				<ul className="rows">
+					{groups.map((group) => (
+						<Fragment key={group.key}>
+							<li className="rows-heading">
+								<h2>
+									{group.title} <span className="quiet">{group.items.length}</span>
+								</h2>
+							</li>
+							{group.items.map(row)}
+						</Fragment>
+					))}
+				</ul>
+			)}
 			{done.length > 0 && (
 				<p>
 					<button type="button" className="link" aria-expanded={showDone} onClick={() => setShowDone(!showDone)}>
@@ -219,7 +261,6 @@ export function ListPage() {
 			)}
 			{showDone && <ul className="rows">{done.map(row)}</ul>}
 			<LoadMore list={items} label="Load more tasks" />
-			{list.data !== undefined && <ListWorkflow list={list.data} isOwner={isOwner && !isArchived} onSaved={refresh} />}
 			<section>
 				<h2>{t("Members")}</h2>
 				<ul className="people">
@@ -232,7 +273,7 @@ export function ListPage() {
 								<span>{who}</span>
 								{member.source === "org" && <span className="quiet">{t("From a linked team")}</span>}
 								{isOwner && !lastOwner ? (
-									<select className="compact" value={member.role} aria-label={t("Role of {name}", { name: who })} disabled={setRole.isPending} onChange={(event) => setRole.mutate({ user: member.user_id, role: event.target.value as ListRole })}>
+									<select className="compact" value={member.role} aria-label={t("Role of {name}", { name: who })} disabled={setRole.isPending} onChange={(event) => void askRole(member.user_id, event.target.value as ListRole)}>
 										<option value="owner">{t("Owner")}</option>
 										<option value="member">{t("Member")}</option>
 									</select>
@@ -240,7 +281,7 @@ export function ListPage() {
 									<span className="quiet">{t(member.role === "owner" ? "Owner" : "Member")}</span>
 								)}
 								{isOwner && member.source === "manual" && !lastOwner && member.user_id !== me.user_id && (
-									<button type="button" className="icon-button" aria-label={t("Remove {name}", { name: who })} onClick={() => removeMember.mutate(member.user_id)}>
+									<button type="button" className="icon-button" aria-label={t("Remove {name}", { name: who })} onClick={() => void askRemove(member.user_id)}>
 										<X size={14} aria-hidden="true" />
 									</button>
 								)}

@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { CheckSquare, Inbox, ListTodo } from "lucide-react";
 import type { WorkbenchModule } from "../types.ts";
+import { itemsPage } from "./api.ts";
 import { eventLabel } from "./events.ts";
 import { HomeRows, WaitingRows } from "./HomeRows.tsx";
 import { ListPage, ListsPage } from "./ListsPage.tsx";
@@ -33,4 +34,10 @@ export const collab: WorkbenchModule = {
 	admin: { joins: "organization", Settings: ManagerVisibility },
 	resultAction: { label: "Send as task", icon: Inbox, Dialog: SendDialog },
 	SessionChip: SessionTaskChip,
+	// Task titles this person can see, through collab's own text filter, open ones first.
+	search: async (query) =>
+		(await itemsPage(`q=${encodeURIComponent(query)}`, "")).items
+			.toSorted((a, b) => Number(a.status === "done" || a.status === "cancelled") - Number(b.status === "done" || b.status === "cancelled"))
+			.slice(0, 6)
+			.map((item) => ({ key: item.id, label: item.title, to: `tasks/${item.id}` })),
 };

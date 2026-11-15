@@ -1,4 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
+import { useState } from "react";
 import { AudioLines, Home as HomeIcon, Languages, MessageSquare, MessageSquarePlus, Moon, Settings as SettingsIcon, Sun, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Palette as KitPalette, type PaletteEntry } from "../kit/command.tsx";
@@ -6,7 +7,7 @@ import { MicrophoneRefused, useCalls } from "../call/CallProvider.tsx";
 import { useI18n } from "../lib/i18n.tsx";
 import { useFeedback } from "../lib/ui.tsx";
 import { appHref, navQuery } from "../modules/fromManifest.tsx";
-import { useModuleNav } from "../modules/index.tsx";
+import { useModuleNav, useModules } from "../modules/index.tsx";
 import { setTheme, useTheme } from "./theme.ts";
 import { useSessions, useWorkspace } from "./workspace.ts";
 
@@ -15,6 +16,8 @@ const MAX_CONVERSATIONS = 8;
 const RECENT_CONVERSATIONS = 4;
 /** Other apps' sections are for finding by name, so they wait for something typed. */
 const MAX_SECTIONS = 8;
+/** Records are found by name, so search waits for this much typed. */
+const MIN_RECORD_QUERY = 2;
 
 /** One place to jump anywhere, from the keyboard or a tap on Search: conversations, Workbench, and other apps' sections. */
 export function Palette({ onClose }: { onClose(): void }) {
@@ -29,6 +32,18 @@ export function Palette({ onClose }: { onClose(): void }) {
 	// The apps that list sections, read the same way as under their Apps entries.
 	const apps = nav.filter(({ entry, available }) => available && entry.href !== undefined && entry.Sections !== undefined);
 	const sections = useQueries({ queries: apps.map(({ module }) => navQuery(module.id, tenant)) });
+	// The kit's palette owns what's typed and asks for entries as it renders, so the record search, which is a
+	// network read, follows the last query it asked for: set after that render, it draws again once records arrive.
+	const [asked, setAsked] = useState("");
+	const searchable = useModules().filter((module) => module.search !== undefined);
+	const records = useQueries({
+		queries: searchable.map((module) => ({
+			queryKey: ["palette-search", tenant, module.id, asked],
+			queryFn: () => module.search?.(asked) ?? Promise.resolve([]),
+			enabled: asked.length >= MIN_RECORD_QUERY,
+			staleTime: 30_000,
+		})),
+	});
 
 	const search = (query: string): PaletteEntry[] => {
 		const go = (to: string) => () => navigate(path(to));
@@ -57,14 +72,24 @@ export function Palette({ onClose }: { onClose(): void }) {
 				run: () => window.location.assign(appHref(entry.href ?? "", tenant, section.to)),
 			})),
 		);
-		const needle = query.trim().toLowerCase();
+		const typed = query.trim();
+		if (typed !== asked) queueMicrotask(() => setAsked(typed));
+		const found: PaletteEntry[] =
+			typed.length < MIN_RECORD_QUERY || typed !== asked
+				? []
+				: searchable.flatMap((module, index) => {
+						const entry = nav.find((each) => each.module.id === module.id)?.entry;
+						return (records[index]?.data ?? []).map((hit) => ({ key: `${module.id}:record:${hit.key}`, label: hit.label, icon: entry?.icon ?? MessageSquare, hint: hit.hint ?? (entry === undefined ? undefined : t(entry.label)), run: go(hit.to) }));
+					});
+		const needle = typed.toLowerCase();
 		const matches = (entry: PaletteEntry) => entry.label.toLowerCase().includes(needle);
 		return [
 			...conversations.filter(matches).slice(0, needle === "" ? RECENT_CONVERSATIONS : MAX_CONVERSATIONS),
 			...actions.filter(matches),
+			...found,
 			...(needle === "" ? [] : elsewhere.filter((entry) => matches(entry) || (entry.hint ?? "").toLowerCase().includes(needle)).slice(0, MAX_SECTIONS)),
 		];
 	};
 
-	return <KitPalette search={search} placeholder={t("Search conversations and actions")} scope={t("Searches open conversation titles, actions, and your apps' sections.")} onClose={onClose} />;
+	return <KitPalette search={search} placeholder={t("Search conversations, tasks and actions")} scope={t("Searches open conversation titles, task titles, actions, and your apps' sections.")} onClose={onClose} />;
 }

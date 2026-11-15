@@ -9,7 +9,7 @@ import { useI18n } from "../../lib/i18n.tsx";
 import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
-import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, removeCollaborator, updateItem, workItemPrompt, workItemRef } from "./api.ts";
+import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, listsPage, removeCollaborator, setItemList, updateItem, workItemPrompt, workItemRef } from "./api.ts";
 import { CommentBox } from "./CommentBox.tsx";
 import { eventLabel, eventKey } from "./events.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
@@ -345,6 +345,7 @@ function TaskEditor({ item }: { item: Item }) {
 							/>
 						</label>
 					</div>
+					<TaskListPicker item={item} isOwner={isOwner} current={list.data?.name} />
 					<div className="side-group">
 						<h2>{t("Owners")}</h2>
 						{item.owners.length === 0 && <p className="quiet">{t(item.list_id ? "Open for anyone on this list" : "Unowned")}</p>}
@@ -434,4 +435,45 @@ function stageMove(detail: Record<string, unknown>, item: Item): string {
 	const named = (id: unknown) => stages.find((stage) => stage.id === id)?.name;
 	const from = named(detail.from_stage), to = named(detail.to_stage);
 	return from === undefined && to === undefined ? "" : ` · ${from ?? "…"} → ${to ?? "…"}`;
+}
+
+/** The task's shared list, and for an owner, a way to put it on one they're on, or take it off. A list's workflow may start it there. */
+function TaskListPicker({ item, isOwner, current }: { item: Item; isOwner: boolean; current?: string }) {
+	const { t, describe } = useI18n();
+	const { toast } = useFeedback();
+	const client = useQueryClient();
+	const closed = item.status === "done" || item.status === "cancelled";
+	const editable = isOwner && !closed;
+	const lists = useQuery({ queryKey: ["lists", "pick"], queryFn: () => listsPage(""), enabled: editable, staleTime: 60_000 });
+	const move = useMutation({
+		mutationFn: (list: string) => setItemList(item.id, list),
+		onSuccess: () => {
+			void client.invalidateQueries({ queryKey: ["item", item.id] });
+			void client.invalidateQueries({ queryKey: ["items"] });
+			void client.invalidateQueries({ queryKey: ["events", item.id] });
+		},
+		onError: (error: Error) => toast(describe(error)),
+	});
+	if (!editable) return null;
+	const options = lists.data?.items ?? [];
+	return (
+		<div className="side-group">
+			<h2>{t("Shared list")}</h2>
+			<select
+				value={item.list_id ?? ""}
+				aria-label={t("Shared list")}
+				disabled={move.isPending || lists.isPending}
+				onChange={(event) => move.mutate(event.target.value)}
+			>
+				<option value="">{t("Not on a list")}</option>
+				{item.list_id !== undefined && item.list_id !== "" && !options.some((each) => each.id === item.list_id) && <option value={item.list_id}>{current ?? item.list_id}</option>}
+				{options.map((each) => (
+					<option key={each.id} value={each.id}>
+						{each.name}
+					</option>
+				))}
+			</select>
+			{item.stage !== undefined && <p className="quiet">{t("Moving it takes it off its list's workflow.")}</p>}
+		</div>
+	);
 }

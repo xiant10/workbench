@@ -56,6 +56,9 @@ export type SetupStep = {
  * Everything the shell knows about a business module. Only this object and the module's own folder know its routes,
  * so a new module adds a folder and one line in `index.tsx`.
  */
+/** One record search found: its name, and its page in the module. */
+export type SearchHit = { key: string; label: string; to: string; hint?: string };
+
 export type WorkbenchModule = {
 	/** The ID in its manifest, and in `MODULE_URLS`. */
 	id: string;
@@ -81,6 +84,8 @@ export type WorkbenchModule = {
 	admin?: ModuleAdmin | ModuleAdmin[];
 	setup?: SetupStep[];
 	resultAction?: ResultAction;
+	/** Records whose names match what's typed in search, as pages in this module, best first. Search waits for two characters. */
+	search?(query: string): Promise<SearchHit[]>;
 	/** A chip in a conversation's header, when the conversation came from this module. */
 	SessionChip?: ComponentType<{ session: SessionInfo }>;
 };
