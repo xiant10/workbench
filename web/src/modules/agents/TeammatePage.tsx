@@ -6,12 +6,15 @@ import { useMemberName } from "../../admin/members.ts";
 import { useI18n } from "../../lib/i18n.tsx";
 import { Dialog, Empty, Setting, Skeleton } from "../../lib/ui.tsx";
 import { useWorkspace } from "../../shell/workspace.ts";
+import { workItemOf } from "../collab/api.ts";
+import { runCause } from "../collab/events.ts";
 import { PersonPicker } from "../collab/PersonPicker.tsx";
 import { getAgentSettings } from "./api.ts";
 import {
 	createTeammate,
 	EXTERNAL_ROLES,
 	type ExternalRole,
+	type Firing,
 	finishTeammate,
 	getIntake,
 	getIntakeAutomation,
@@ -260,7 +263,15 @@ export function TeammatePage() {
 						{firings.data!.firings.map((f) => (
 							<li key={f.id}>
 								<span className={f.state === "failed" ? "pill warn" : "pill"}>{f.state}</span> {new Date(f.scheduled_for).toLocaleString()}
+								<RunCause firing={f} nameOf={nameOf} />
 								{f.problem !== undefined && f.problem !== "" && <span className="quiet"> {f.problem}</span>}
+								{/* Its conversation is its account's, which nobody opens directly: the task shows its work. */}
+								{workItemOf(f.ref) !== undefined && (
+									<span className="quiet">
+										{" · "}
+										<Link to={path(`tasks/${workItemOf(f.ref)}`)}>{t("Open task")}</Link>
+									</span>
+								)}
 							</li>
 						))}
 					</ul>
@@ -281,6 +292,20 @@ export function TeammatePage() {
 				</Dialog>
 			)}
 		</div>
+	);
+}
+
+/** What woke an intake run: the event, who caused it, and how many agents passed the task on before it. */
+function RunCause({ firing, nameOf }: { firing: Firing; nameOf(id: string): string }) {
+	const { t } = useI18n();
+	const kind = firing.event?.kind;
+	if (kind === undefined) return null;
+	return (
+		<span className="quiet">
+			{" · "}
+			{runCause(kind, nameOf(firing.event?.actor ?? ""), t)}
+			{(firing.hops ?? 0) > 0 && <> · {t("Hand-offs between agents before it: {count}", { count: firing.hops! })}</>}
+		</span>
 	);
 }
 

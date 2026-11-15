@@ -10,6 +10,7 @@ import { LoadMore, usePaged } from "../../lib/paged.tsx";
 import { Avatar, Dialog, Empty, Skeleton, useFeedback } from "../../lib/ui.tsx";
 import { useRefreshSessions, useWorkspace } from "../../shell/workspace.ts";
 import { addCollaborator, addComment, type Can, claimItem, deleteItem, dueDay, getItem, getList, type Item, commentsPage, eventsPage, listsPage, removeCollaborator, setItemList, updateItem, workItemPrompt, workItemRef } from "./api.ts";
+import { AgentRuns } from "./AgentRuns.tsx";
 import { CommentBox } from "./CommentBox.tsx";
 import { eventLabel, eventKey } from "./events.ts";
 import { PersonPicker } from "./PersonPicker.tsx";
@@ -303,8 +304,11 @@ function TaskEditor({ item }: { item: Item }) {
 						<ul className="history quiet">
 							{events.data?.map((event) => (
 								<li key={event.id}>
-									{dateTime(event.at)} · {name(event.actor_user_id)} · {t(eventLabel(eventKey(event)))}
+									{dateTime(event.at)} · {name(event.actor_user_id)}
+									{/* An agent account's ID starts with acc_, as auth-server issues them. */}
+									{event.actor_user_id.startsWith("acc_") && <span className="pill">{t("Agent")}</span>} · {t(eventLabel(eventKey(event)))}
 									{event.kind === "workflow.moved" && stageMove(event.detail, item)}
+									{handedTo(event, name, t)}
 								</li>
 							))}
 						</ul>
@@ -382,6 +386,7 @@ function TaskEditor({ item }: { item: Item }) {
 						{can.manage_people && <PersonPicker label={t("Add collaborator")} exclude={[...item.owners, ...item.collaborators]} disabled={addPerson.isPending} onPick={(user) => addPerson.mutate(user)} />}
 					</div>
 					<TaskLinks item={item} canEdit={can.edit} />
+					<AgentRuns item={item.id} />
 					{(can.send || can.delete) && (
 						<div className="side-actions">
 							{can.send && (
@@ -435,6 +440,21 @@ function stageMove(detail: Record<string, unknown>, item: Item): string {
 	const named = (id: unknown) => stages.find((stage) => stage.id === id)?.name;
 	const from = named(detail.from_stage), to = named(detail.to_stage);
 	return from === undefined && to === undefined ? "" : ` · ${from ?? "…"} → ${to ?? "…"}`;
+}
+
+/**
+ * Who a send, reassignment or workflow move went to, so a hand-off between teammates reads in the history. A send that would have
+ * passed the task between agents once too often went to the sender's manager instead, and says so.
+ */
+function handedTo(event: { kind: string; detail: Record<string, unknown> }, name: (id: string) => string, t: (text: string, values?: Record<string, string>) => string): string {
+	if (!["offer.sent", "offer.assigned", "item.reassigned", "workflow.moved"].includes(event.kind)) return "";
+	const to = event.detail.to;
+	if (typeof to !== "string" || to === "") return "";
+	const meant = event.detail.redirected_from;
+	if (event.detail.reason === "agent_loop" && typeof meant === "string" && meant !== "") {
+		return ` · ${t("to {name} instead of {meant}, because agents passed it on too often", { name: name(to), meant: name(meant) })}`;
+	}
+	return ` · ${t("to {name}", { name: name(to) })}`;
 }
 
 /** The task's shared list, and for an owner, a way to put it on one they're on, or take it off. A list's workflow may start it there. */
