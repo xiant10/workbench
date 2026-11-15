@@ -219,7 +219,8 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 			})}
 		</ul>
 	);
-	// A module with its own app is a place of its own, listed with Workbench, not one of Workbench's sections.
+	// A module with its own app is a place of its own, listed with Workbench, not one of Workbench's sections. Its own
+	// sections stay in the app, and in search, so its entry here is one line.
 	const apps: RailApp[] = [
 		{ id: WORKBENCH_APP, label: t("Workbench"), href: path() },
 		...nav.flatMap(({ module, entry, available }) => entry.href === undefined ? [] : [{
@@ -229,7 +230,6 @@ export function Sidebar({ open, onClose, onCollapse, onSearch }: Props) {
 			icon: entry.icon,
 			unavailable: !available,
 			badge: available && entry.unread === true ? <UnreadBadge module={module} /> : undefined,
-			...(entry.Sections === undefined ? {} : { Sections: entry.Sections }),
 		}]),
 		...(config.console_url === undefined ? [] : [{ id: CONSOLE_APP, label: t("Platform console"), href: config.console_url }]),
 	];
