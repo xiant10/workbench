@@ -17,7 +17,7 @@ import (
 // See t10-agent-control's docs/external-teammates.md.
 
 // runnerRoutes are the first parts of t10-automations' runner routes.
-var runnerRoutes = []string{"lease", "firings"}
+var runnerRoutes = []string{"lease", "firings", "disconnect"}
 
 // runnerForwarded is what a runner may pass on: an MCP client's headers too.
 var runnerForwarded = []string{"Accept", "Content-Type", "Last-Event-ID", "Mcp-Session-Id", "Mcp-Protocol-Version"}

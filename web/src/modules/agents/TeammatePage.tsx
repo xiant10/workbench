@@ -11,6 +11,7 @@ import { runCause } from "../collab/events.ts";
 import { PersonPicker } from "../collab/PersonPicker.tsx";
 import { getAgentSettings } from "./api.ts";
 import {
+	connectedRunners,
 	createTeammate,
 	EXTERNAL_ROLES,
 	type ExternalRole,
@@ -42,6 +43,8 @@ export function TeammatesCard({ agent, title, external = false }: { agent: strin
 	const [adding, setAdding] = useState(false);
 	const teammates = useQuery({ queryKey: ["teammates"], queryFn: listTeammates });
 	const mine = (teammates.data ?? []).filter((one) => one.agent === agent && one.state !== "removed");
+	// Polled, so a runner shows up here as soon as someone starts one.
+	const runners = useQuery({ queryKey: ["connected-runners"], queryFn: connectedRunners, enabled: external, refetchInterval: 10_000 });
 	return (
 		<div className="card" data-testid="agent-teammates">
 			<h2>{t("Agent teammates")}</h2>
@@ -56,6 +59,9 @@ export function TeammatesCard({ agent, title, external = false }: { agent: strin
 								<Bot size={14} aria-hidden="true" /> {one.title}
 							</Link>
 							{one.state === "paused" && <span className="pill warn">{t("Paused")}</span>}
+							{external && runners.data !== undefined && (
+								<RunnerPill count={runners.data[one.account] ?? 0} />
+							)}
 						</li>
 					))}
 				</ul>
@@ -417,15 +423,24 @@ function WhoMaySend({ account, onSaved }: { account: string; onSaved(): void }) 
  * one. The runner calls out to this address, so it needs no open port. The key is shown once, when it's made. Making
  * a new one, or revoking it, cuts off the runner using the old one, so both ask first.
  */
+/** Whether an external teammate has a runner connected, and how many when more than one. */
+function RunnerPill({ count }: { count: number }) {
+	const { t } = useI18n();
+	if (count === 0) return <span className="pill warn">{t("No runner")}</span>;
+	return <span className="pill" data-testid="runner-connected">{count === 1 ? t("Runner connected") : t("{count} runners connected", { count: String(count) })}</span>;
+}
+
 function RunnerCard({ automation }: { automation: string }) {
 	const { t, dateTime } = useI18n();
+	const { path } = useWorkspace();
 	const client = useQueryClient();
 	const [shown, setShown] = useState("");
 	const [asking, setAsking] = useState<"" | "replace" | "revoke">("");
 	const [copied, setCopied] = useState("");
-	// Polled, so the card turns to connected once someone starts a runner.
-	const view = useQuery({ queryKey: ["teammate-firings", automation], queryFn: () => getIntakeAutomation(automation), refetchInterval: 30_000 });
+	// Polled, so a runner shows up here within seconds of someone starting it, and leaves when it stops.
+	const view = useQuery({ queryKey: ["teammate-firings", automation], queryFn: () => getIntakeAutomation(automation), refetchInterval: 5_000 });
 	const key = view.data?.runner_key ?? null;
+	const runners = view.data?.runners ?? [];
 	const refresh = () => void client.invalidateQueries({ queryKey: ["teammate-firings", automation] });
 	const make = useMutation({
 		mutationFn: () => newRunnerKey(automation),
@@ -460,6 +475,41 @@ function RunnerCard({ automation }: { automation: string }) {
 			<Setting title={t("Connection")}>
 				{key?.connected === true ? <span className="pill">{t("Connected")}</span> : <span className="pill warn">{t("Not connected")}</span>}
 			</Setting>
+			{runners.length > 0 && (
+				<ul className="plain-list" data-testid="runner-list">
+					{runners.map((one) => (
+						<li key={one.instance === "" ? "-" : one.instance} data-testid="runner-row">
+							<div>
+								<strong>{one.host === "" ? t("A runner") : one.host}</strong>
+								{one.repo !== "" && <span className="quiet"> · {one.repo}</span>}
+							</div>
+							<div className="quiet">
+								{[
+									one.agent,
+									one.version === "" ? t("an older version") : one.version,
+									one.parallel > 1 ? t("{count} at once", { count: String(one.parallel) }) : "",
+									t("connected since {when}", { when: dateTime(one.first_seen_at) }),
+								]
+									.filter((part) => part !== "")
+									.join(" · ")}
+							</div>
+							<div className="quiet">
+								{one.working.length === 0
+									? t("Waiting for work")
+									: one.working.map((ref, i) => {
+											const item = workItemOf(ref);
+											return (
+												<span key={ref}>
+													{i === 0 ? t("Working on") + " " : ", "}
+													{item === undefined ? ref : <Link to={path(`tasks/${item}`)}>{t("a task")}</Link>}
+												</span>
+											);
+										})}
+							</div>
+						</li>
+					))}
+				</ul>
+			)}
 			{key?.connected !== true && waiting > 0 && <p className="error">{t("Tasks waiting for a runner: {count}", { count: String(waiting) })}</p>}
 			<Setting title={t("Runner key")}>
 				{key === null ? (

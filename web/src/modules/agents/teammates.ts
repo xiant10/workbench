@@ -51,8 +51,25 @@ export type RunnerKey = {
 	created_by: string;
 	created_at: string;
 	last_used_at: string | null;
-	/** A runner called with it in the last 3 minutes. */
+	/** One of its runners called in the last 3 minutes and didn't say it stopped. */
 	connected: boolean;
+};
+
+/** A runner connected with a teammate's key: where it runs, and what it's working on now. */
+export type ConnectedRunner = {
+	/** Random per runner process; empty for a runner from before runners named themselves. */
+	instance: string;
+	host: string;
+	/** Its repository's origin, or the folder's name. */
+	repo: string;
+	/** The coding agent's command, such as claude. */
+	agent: string;
+	version: string;
+	parallel: number;
+	first_seen_at: string;
+	last_seen_at: string;
+	/** The refs of the firings it holds now. */
+	working: string[];
 };
 
 /**
@@ -142,7 +159,14 @@ const automations = "/api/modules/automations/admin/automations";
 export const listIntakeAutomations = (account: string) =>
 	request<{ automations: IntakeAutomation[] }>(`${automations}?principal=${encodeURIComponent(account)}`).then((body) => body.automations);
 export const getIntakeAutomation = (id: string) =>
-	request<{ automation: IntakeAutomation; firings: Firing[]; runner_key?: RunnerKey | null }>(`${automations}/${encodeURIComponent(id)}`);
+	request<{ automation: IntakeAutomation; firings: Firing[]; runner_key?: RunnerKey | null; runners?: ConnectedRunner[] }>(`${automations}/${encodeURIComponent(id)}`);
+/** How many runners are connected now, by teammate account, for the tenant's external teammates. */
+export const connectedRunners = () =>
+	request<{ automations: IntakeAutomation[]; runners?: Record<string, number> }>(automations).then((body) => {
+		const byAccount: Record<string, number> = {};
+		for (const a of body.automations) if (a.target === "external") byAccount[a.principal] = body.runners?.[a.id] ?? 0;
+		return byAccount;
+	});
 /** Makes the runner key, revoking the last one. The key comes back this once. */
 export const newRunnerKey = (id: string) => postJSON<{ key: string; runner_key: RunnerKey }>(`${automations}/${encodeURIComponent(id)}/runner-key`, {});
 export const revokeRunnerKey = (id: string) => request<unknown>(`${automations}/${encodeURIComponent(id)}/runner-key`, { method: "DELETE" });
