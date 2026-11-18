@@ -176,7 +176,7 @@ configMapGenerator:
 
 `config.Load` takes only `getenv`, so it also needs the environment list to find these keys. `MODULE_URLS` stays for Compose. Order comes from the code's `compiled` list, not the config. The generator's hash suffix restarts the workbench when the set changes, so removing a module takes one line and one apply.
 
-Roles and assignments survive removal, as "Module lifecycle" in [`auth-custom-roles.md`](../../proposals/auth-custom-roles.md) already requires. A `make check` confirms that each module's permission copy matches its source.
+Roles and assignments survive removal, as "Module lifecycle" in [the business roles proposal](../../auth-server/docs/records/business-roles-proposal.md) already requires. A `make check` confirms that each module's permission copy matches its source.
 
 ### 7. Load each module's pages on demand
 
