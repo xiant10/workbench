@@ -19,6 +19,7 @@ import { TaskLinks } from "./TaskLinks.tsx";
 import { TaskStatus } from "./TaskStatus.tsx";
 import { usePeople } from "./usePeople.ts";
 import { TaskWorkflow } from "./Workflow.tsx";
+import { stateLabel, TypedFields, TypedMoves, TypedState, useItemType } from "./TypedItem.tsx";
 
 const POLL_MS = 15_000;
 
@@ -112,6 +113,12 @@ function TaskEditor({ item }: { item: Item }) {
 	const isOwner = item.owners.includes(me.user_id);
 	const can: Can = item.can ?? { edit: isOwner || item.collaborators.includes(me.user_id), cancel: isOwner, claim: false, send: isOwner, delete: isOwner, manage_people: isOwner };
 	const canEdit = can.edit;
+	// A module's typed item: its type draws the state, fields and moves. One with states moves only by them.
+	const type = useItemType(item);
+	const typed = item.type !== undefined && item.type !== "collab.task";
+	const stateful = item.state !== undefined && item.state !== "";
+	// Only its participants read it, so it never goes on a list or takes collaborators.
+	const participants = item.visibility === "participants";
 	const list = useQuery({ queryKey: ["list", item.list_id], queryFn: () => getList(item.list_id as string), enabled: item.list_id !== undefined && item.list_id !== "", retry: false, staleTime: 60_000 });
 	const comments = usePaged(["comments", item.id], (cursor) => commentsPage(item.id, cursor), { refetchInterval: POLL_MS });
 	const events = usePaged(["events", item.id], (cursor) => eventsPage(item.id, cursor), { refetchInterval: POLL_MS });
@@ -308,7 +315,9 @@ function TaskEditor({ item }: { item: Item }) {
 									{/* An agent account's ID starts with acc_, as auth-server issues them. */}
 									{event.actor_user_id.startsWith("acc_") && <span className="pill">{t("Agent")}</span>} · {t(eventLabel(eventKey(event)))}
 									{event.kind === "workflow.moved" && stageMove(event.detail, item)}
+									{event.kind === "item.state_changed" && ` · ${stateLabel(type, String(event.detail.from_state ?? ""))} → ${stateLabel(type, String(event.detail.to_state ?? ""))}`}
 									{handedTo(event, name, t)}
+									{event.kind === "item.state_changed" && <MoveResult detail={event.detail} />}
 								</li>
 							))}
 						</ul>
@@ -317,8 +326,10 @@ function TaskEditor({ item }: { item: Item }) {
 				</div>
 
 				<aside className="task-side">
+					{typed && <TypedState item={item} type={type} />}
+					<TypedMoves item={item} type={type} />
 					<div className="fields">
-						<label>
+						{!stateful && <label>
 							{t("Status")}
 							{/* Only an owner or the creator cancels, or reopens what they cancelled. */}
 							<select value={draft.status} disabled={!canEdit || save.isPending || (base.status === "cancelled" && !can.cancel)} onChange={(event) => set("status", event.target.value as Item["status"])}>
@@ -328,7 +339,7 @@ function TaskEditor({ item }: { item: Item }) {
 									</option>
 								))}
 							</select>
-						</label>
+						</label>}
 						<label>
 							{t("Priority")}
 							<select value={draft.priority} disabled={!canEdit || save.isPending} onChange={(event) => set("priority", event.target.value as Item["priority"])}>
@@ -349,7 +360,8 @@ function TaskEditor({ item }: { item: Item }) {
 							/>
 						</label>
 					</div>
-					<TaskListPicker item={item} isOwner={isOwner} current={list.data?.name} />
+					<TypedFields item={item} type={type} canEdit={canEdit} />
+					{!participants && <TaskListPicker item={item} isOwner={isOwner} current={list.data?.name} />}
 					<div className="side-group">
 						<h2>{t("Owners")}</h2>
 						{item.owners.length === 0 && <p className="quiet">{t(item.list_id ? "Open for anyone on this list" : "Unowned")}</p>}
@@ -383,7 +395,7 @@ function TaskEditor({ item }: { item: Item }) {
 								</li>
 							))}
 						</ul>
-						{can.manage_people && <PersonPicker label={t("Add collaborator")} exclude={[...item.owners, ...item.collaborators]} disabled={addPerson.isPending} onPick={(user) => addPerson.mutate(user)} />}
+						{can.manage_people && !participants && <PersonPicker label={t("Add collaborator")} exclude={[...item.owners, ...item.collaborators]} disabled={addPerson.isPending} onPick={(user) => addPerson.mutate(user)} />}
 					</div>
 					<TaskLinks item={item} canEdit={can.edit} />
 					<AgentRuns item={item.id} />
@@ -430,6 +442,26 @@ function TaskEditor({ item }: { item: Item }) {
 					</div>
 				</Dialog>
 			)}
+		</div>
+	);
+}
+
+/** What a typed item's move said and carried: its note, a reply and links, as its type let it. */
+function MoveResult({ detail }: { detail: Record<string, unknown> }) {
+	const payload = (detail.payload ?? {}) as { reply?: unknown; links?: unknown };
+	const links = Array.isArray(payload.links) ? (payload.links as { url?: unknown; title?: unknown }[]).filter((link) => typeof link.url === "string" && link.url.startsWith("https://")) : [];
+	const note = typeof detail.note === "string" ? detail.note : "";
+	const reply = typeof payload.reply === "string" ? payload.reply : "";
+	if (note === "" && reply === "" && links.length === 0) return null;
+	return (
+		<div className="move-result">
+			{note !== "" && <div className="plain">{note}</div>}
+			{reply !== "" && <div className="plain">{reply}</div>}
+			{links.map((link) => (
+				<a key={String(link.url)} href={String(link.url)} target="_blank" rel="noreferrer noopener">
+					{typeof link.title === "string" && link.title !== "" ? link.title : String(link.url)}
+				</a>
+			))}
 		</div>
 	);
 }
