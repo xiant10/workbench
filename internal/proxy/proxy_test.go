@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -354,5 +355,69 @@ func TestSessionGetFailsRatherThanPassUnreadableAnswer(t *testing.T) {
 	p.Agent(w, r, "assistant", "tok", func() bool { return false })
 	if w.Code != http.StatusBadGateway || strings.Contains(w.Body.String(), "totalTokens") {
 		t.Fatalf("status %d: %s", w.Code, w.Body)
+	}
+}
+
+// A voice message's socket reaches the gateway's /agent/voice with the person's
+// token and the session as a header, and bytes flow both ways once it's open.
+func TestVoiceRelaysTheSocketWithTheToken(t *testing.T) {
+	var got atomic.Pointer[http.Request]
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got.Store(r)
+		conn, rw, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n")
+		_ = rw.Flush()
+		line, _ := rw.ReadString('\n')
+		_, _ = rw.WriteString("echo " + line)
+		_ = rw.Flush()
+	}))
+	defer upstream.Close()
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, upstream.URL)}}, nil, nil)
+	front := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p.Voice(w, r, "assistant", "user-token")
+	}))
+	defer front.Close()
+
+	conn, err := (&net.Dialer{Timeout: time.Second}).Dial("tcp", strings.TrimPrefix(front.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	_, _ = io.WriteString(conn, "GET /api/agents/assistant/voice?session=assistant.a.7&lang=zh&other=x HTTP/1.1\r\nHost: wb\r\n"+
+		"Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"+
+		"Cookie: wb_session=secret\r\n\r\n")
+	reader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(reader, nil)
+	if err != nil || resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("handshake: %v %v", resp, err)
+	}
+	_, _ = io.WriteString(conn, "hello\n")
+	if line, _ := reader.ReadString('\n'); line != "echo hello\n" {
+		t.Fatalf("relay: %q", line)
+	}
+
+	r := got.Load()
+	if r.URL.Path != "/agent/voice" || r.URL.RawQuery != "lang=zh" {
+		t.Errorf("target %s?%s", r.URL.Path, r.URL.RawQuery)
+	}
+	if r.Header.Get("Authorization") != "Bearer user-token" || r.Header.Get("Agent-Session-Id") != "assistant.a.7" || r.Header.Get("Cookie") != "" {
+		t.Errorf("headers %v", r.Header)
+	}
+	if r.Header.Get("Sec-WebSocket-Key") == "" || !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		t.Errorf("handshake headers %v", r.Header)
+	}
+}
+
+func TestVoiceNeedsASession(t *testing.T) {
+	p := New([]config.Agent{{Name: "assistant", URL: mustURL(t, "http://gateway")}}, nil, nil)
+	w := httptest.NewRecorder()
+	p.Voice(w, httptest.NewRequest("GET", "/api/agents/assistant/voice", nil), "assistant", "user-token")
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d", w.Code)
 	}
 }

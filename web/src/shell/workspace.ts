@@ -22,6 +22,8 @@ export type AppConfig = {
 	/** What the auth service says this person's business roles reach, for what to show. Absent when it didn't say. */
 	access?: { modules: string[]; module_admin: string[] };
 	voice: boolean;
+	/** Voice messages: dictation that the agent's gateway hears. */
+	voice_messages?: boolean;
 	account_url: string;
 	/** The platform console, sent only to a platform admin. */
 	console_url?: string;

@@ -406,6 +406,7 @@ web/src/modules/agents/  a tenant's agent settings, from t10-agent-control
 | `POST /auth/tenant` | Switch tenant through `tenant` on a token refresh |
 | `GET /api/me` | Account and tenants, from `GET /v1/me` |
 | `GET`, `POST`, `DELETE /api/agents/{agent}/agent` | Passes through to that agent's `/agent`, adding the bearer token and trace headers |
+| `GET /api/agents/{agent}/voice` | Relays a voice message's WebSocket to `ai-gateway-agent`'s `/agent/voice`, adding the bearer token |
 | `POST /api/voice/admission` | Calls room admission and returns only the room fields |
 | `/api/modules/{id}/*` | Passes through to the business module named in `MODULE_URLS`, mapping to its `/v1/*` routes |
 | `POST /runner/v1/*`, `/runner/mcp` | External agent teammates' runners, with no session: to `t10-automations`' `/v1/runner/*` and the tool gateway's `/mcp/collab` (`TOOLS_URL`), with their runner key or token passed through |

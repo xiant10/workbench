@@ -88,6 +88,11 @@ func (s *Server) Handler() http.Handler {
 		pattern := method + " /api/agents/{agent}/agent"
 		mux.Handle(pattern, telemetry.WrapTurn(pattern, agent))
 	}
+	// A WebSocket is a GET, so sameOrigin lets it through; the cookie would
+	// ride a cross-site handshake, so the origin is checked here.
+	handle("GET /api/agents/{agent}/voice", s.socketOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
+		s.Proxy.Voice(w, r, r.PathValue("agent"), id.Access)
+	})))
 	handle("/api/modules/{module}/{path...}", s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
 		s.Proxy.Module(w, r, r.PathValue("module"), r.PathValue("path"), id.Access)
 	})))
@@ -129,6 +134,17 @@ func (s *Server) user(next handler) http.Handler {
 			return
 		}
 		next(w, r, id)
+	})
+}
+
+// socketOrigin refuses a WebSocket handshake from any other site.
+func (s *Server) socketOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != s.Config.PublicURL {
+			proxy.WriteError(w, http.StatusForbidden, "origin_not_allowed", "this request didn't come from the workbench")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -249,6 +265,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request, id session
 		"modules":             modules,
 		"unavailable_modules": unavailable,
 		"voice":               s.Config.LiveKitURL != "",
+		"voice_messages":      s.Config.VoiceMessages,
 		"account_url":         s.Config.AuthPublicURL + "/v1/account",
 	}
 	if console := s.consoleURL(r, id); console != "" {
@@ -443,6 +460,10 @@ func (s *Server) secure(next http.Handler) http.Handler {
 
 func contentPolicy(cfg config.Config) string {
 	connect := "'self'"
+	if cfg.VoiceMessages {
+		// Older Safari doesn't count a WebSocket to this site as 'self'.
+		connect += " " + strings.Replace(strings.Replace(cfg.PublicURL, "https://", "wss://", 1), "http://", "ws://", 1)
+	}
 	if cfg.LiveKitURL != "" {
 		// The SDK also makes plain HTTP calls to the same host.
 		https := strings.Replace(strings.Replace(cfg.LiveKitURL, "wss://", "https://", 1), "ws://", "http://", 1)

@@ -15,6 +15,7 @@ import { useModules, useResultAction } from "../modules/index.tsx";
 import { type Output, outputsOf } from "../results/outputs.ts";
 import { ResultsPanel, type ResultsTab } from "../results/ResultsPanel.tsx";
 import { useRefreshSessions, useSessions, useWorkspace } from "../shell/workspace.ts";
+import { startDictation, type DictationEvents } from "../lib/dictation.ts";
 import { Composer } from "./Composer.tsx";
 import { composerMode } from "./reducer.ts";
 import { Transcript } from "./Transcript.tsx";
@@ -200,6 +201,7 @@ function Conversation({ sessionId }: { sessionId: string }) {
 						{...(stalled === undefined ? {} : { onRetry: () => void retry(stalled) })}
 						{...(config.voice && supports(session, "voice") ? { onVoice: () => void call.start(), voiceLabel: t("Switch to voice") } : {})}
 						onSignIn={() => signIn(path(`c/${sessionId}`), "ended")}
+						{...(config.voice_messages ? { onDictate: (events: DictationEvents) => startDictation(agent, sessionId, "", events) } : {})}
 					/>
 				)}
 			</div>
