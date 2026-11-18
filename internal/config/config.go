@@ -51,8 +51,8 @@ type Config struct {
 	// LiveKitURL is empty when calls are off. It goes in the content security
 	// policy, because the browser connects to it directly.
 	LiveKitURL string
-	// VoiceMessages is VOICE_MESSAGES=true: the composer offers dictation, which
-	// needs every agent URL to be ai-gateway-agent with speech configured.
+	// VoiceMessages is on unless VOICE_MESSAGES=false: the composer offers
+	// dictation, which needs every agent URL to be ai-gateway-agent with speech.
 	VoiceMessages bool
 	// ToolsURL is TOOLS_URL, the tool gateway, where external agent teammates'
 	// runners reach t10's tools through this service. Empty turns that off.
@@ -72,7 +72,7 @@ func Load(getenv func(string) string) (Config, error) {
 		ClientID:      getenv("AUTH_CLIENT_ID"),
 		ClientSecret:  getenv("AUTH_CLIENT_SECRET"),
 		LiveKitURL:    strings.TrimRight(getenv("LIVEKIT_URL"), "/"),
-		VoiceMessages: getenv("VOICE_MESSAGES") == "true",
+		VoiceMessages: getenv("VOICE_MESSAGES") != "false",
 		ModulesDir:    getenv("MODULES_DIR"),
 		OTLPEndpoint:  getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		ToolsURL:      strings.TrimRight(getenv("TOOLS_URL"), "/"),
