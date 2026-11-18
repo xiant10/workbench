@@ -16,7 +16,8 @@ COPY third_party/t10-modkit ./third_party/t10-modkit
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/workbench ./cmd/workbench
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /out/workbench ./cmd/workbench
 
 FROM alpine:3.21
 
