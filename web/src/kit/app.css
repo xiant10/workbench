@@ -435,6 +435,10 @@ button:disabled { opacity: 0.45; cursor: default; }
 .composer-actions { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.3rem; }
 .composer-hint { color: var(--muted); font-size: 0.74rem; }
 .composer-status { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.85rem; margin: 0 0 0.4rem 0.2rem; }
+.composer-status.listening { color: var(--text); }
+.listening-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--danger); animation: listening 1.2s ease-in-out infinite; }
+@keyframes listening { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .listening-dot { animation: none; } }
 .send { width: 34px; height: 34px; padding: 0; border-radius: 50%; }
 .stop { background: var(--text); color: var(--bg); }
 .attachments { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }

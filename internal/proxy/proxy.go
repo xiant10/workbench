@@ -151,6 +151,41 @@ func (p *Proxy) Agent(w http.ResponseWriter, r *http.Request, agent, token strin
 	p.forward(w, r.WithContext(ctx), target.JoinPath("agent"), headers, token)
 }
 
+// voiceHeaders carry a WebSocket handshake. The proxy keeps Connection and
+// Upgrade for it, and these must reach the gateway too.
+var voiceHeaders = []string{"Connection", "Upgrade", "Sec-WebSocket-Key", "Sec-WebSocket-Version"}
+
+// Voice relays a voice message's WebSocket to the agent's /agent/voice, which is
+// ai-gateway-agent's: it hears the audio and sends the text as the person's turn.
+// A browser can't set headers on a WebSocket, so the session comes as ?session=.
+// See ai-gateway's docs/voice-messages.md.
+func (p *Proxy) Voice(w http.ResponseWriter, r *http.Request, agent, token string) {
+	session := r.URL.Query().Get("session")
+	if session == "" {
+		WriteError(w, http.StatusBadRequest, "invalid_request", "name the session in ?session=")
+		return
+	}
+	target, ok := p.route(agent, session)
+	if !ok {
+		WriteError(w, http.StatusNotFound, "unknown_agent", "no such agent")
+		return
+	}
+	headers := http.Header{}
+	for _, name := range voiceHeaders {
+		if value := r.Header.Get(name); value != "" {
+			headers.Set(name, value)
+		}
+	}
+	headers.Set(sessionHeader, session)
+	telemetry.Inject(r.Context(), headers)
+	query := url.Values{}
+	if lang := r.URL.Query().Get("lang"); lang != "" {
+		query.Set("lang", lang)
+	}
+	r.URL.RawQuery = query.Encode()
+	p.forward(w, r, target.JoinPath("agent", "voice"), headers, token)
+}
+
 // usageGate is the context key for the check on a session.get answer.
 type usageGate struct{}
 

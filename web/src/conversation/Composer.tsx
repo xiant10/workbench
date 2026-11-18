@@ -1,7 +1,8 @@
-import { ArrowUp, AudioLines, CircleAlert, LoaderCircle, Paperclip, Square, X } from "lucide-react";
+import { ArrowUp, AudioLines, Check, CircleAlert, LoaderCircle, Mic, Paperclip, Square, X } from "lucide-react";
 import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useI18n } from "../lib/i18n.tsx";
 import type { PromptInput } from "../lib/agent.ts";
+import type { Dictation, DictationError, DictationEvents } from "../lib/dictation.ts";
 import { load, save } from "../lib/storage.ts";
 import type { ComposerMode } from "./reducer.ts";
 
@@ -31,7 +32,17 @@ export type ComposerProps = {
 	/** A call is being started, so the button waits. */
 	voiceStarting?: boolean;
 	onSignIn?(): void;
+	/** Starts a voice message: the words fill the box as they're heard. */
+	onDictate?(events: DictationEvents): Promise<Dictation>;
 };
+
+/** Joins dictated text to what was typed, with a space only between words of a spaced script. */
+function joinDictated(typed: string, heard: string): string {
+	if (typed === "" || heard === "") return typed + heard;
+	return /[\s\u3000-\u9fff\uff00-\uffef]$/.test(typed) ? typed + heard : `${typed} ${heard}`;
+}
+
+type Listening = { typed: string; heard: string; started: number; finishing: boolean };
 
 function readImage(file: File): Promise<Image> {
 	return new Promise((resolve, reject) => {
@@ -45,7 +56,7 @@ function readImage(file: File): Promise<Image> {
 	});
 }
 
-export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onVoice, voiceLabel, voiceStarting = false, onSignIn }: ComposerProps) {
+export function Composer({ draftKey, mode, canAddToRun = true, inCall, placeholder, autoFocus, suggestion, toolbar, onSend, onStop, onStopAndSend, onRetry, onVoice, voiceLabel, voiceStarting = false, onSignIn, onDictate }: ComposerProps) {
 	const { t } = useI18n();
 	const [text, setText] = useState(() => load(`draft:${draftKey}`) ?? "");
 	const [images, setImages] = useState<Image[]>([]);
@@ -54,6 +65,10 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 	const [submitting, setSubmitting] = useState(false);
 	const [failed, setFailed] = useState(false);
 	const sending = useRef(false);
+	const [listening, setListening] = useState<Listening>();
+	const [now, setNow] = useState(0);
+	const dictation = useRef<Dictation>();
+	const finishRef = useRef<(send: boolean) => void>(() => {});
 	const applied = useRef<number>();
 	const box = useRef<HTMLTextAreaElement>(null);
 	const file = useRef<HTMLInputElement>(null);
@@ -72,9 +87,9 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 		element.style.height = `${Math.min(element.scrollHeight, 240)}px`;
 	}, [text]);
 
-	const payload = (): { input: PromptInput; text: string; images: number } => ({
-		input: images.length === 0 ? text : [...(text === "" ? [] : [{ type: "text" as const, text }]), ...images.map(({ data, mimeType }) => ({ type: "image" as const, data, mimeType }))],
-		text,
+	const payload = (typed = text): { input: PromptInput; text: string; images: number } => ({
+		input: images.length === 0 ? typed : [...(typed === "" ? [] : [{ type: "text" as const, text: typed }]), ...images.map(({ data, mimeType }) => ({ type: "image" as const, data, mimeType }))],
+		text: typed,
 		images: images.length,
 	});
 	const clear = () => {
@@ -83,13 +98,16 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 		setImages([]);
 		setProblem("");
 	};
-	const canSend = !submitting && (text.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out" && (canAddToRun || (mode !== "running" && mode !== "stalled"));
-	const submit = async () => {
-		if (!canSend || sending.current) return;
+	const canSendNow = (typed: string) =>
+		!submitting && (typed.trim() !== "" || images.length > 0) && mode !== "reconnecting" && mode !== "signed-out" && (canAddToRun || (mode !== "running" && mode !== "stalled"));
+	const canSend = listening === undefined && canSendNow(text);
+	const submit = async (dictated?: string) => {
+		if (dictated === undefined ? !canSend : !canSendNow(dictated)) return;
+		if (sending.current) return;
 		sending.current = true;
 		setSubmitting(true);
 		setProblem("");
-		const { input, text: typed, images: count } = payload();
+		const { input, text: typed, images: count } = payload(dictated);
 		try {
 			await onSend(input, typed, count);
 			setFailed(false);
@@ -102,12 +120,81 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 			setSubmitting(false);
 		}
 	};
+	const dictationProblem = (reason: DictationError | string) =>
+		reason === "microphone"
+			? t("The microphone isn't available. Allow it in the browser to talk.")
+			: reason === "unavailable"
+				? t("Voice messages aren't available right now.")
+				: reason === "too_long"
+					? t("A voice message is at most a minute.")
+					: reason === "idle"
+						? t("Nothing was heard, so listening stopped.")
+						: t("The voice message couldn't be heard. What was heard is kept.");
+	const startListening = async () => {
+		if (onDictate === undefined || listening !== undefined || submitting) return;
+		setProblem("");
+		const typed = text;
+		setListening({ typed, heard: "", started: Date.now(), finishing: false });
+		setNow(Date.now());
+		try {
+			dictation.current = await onDictate({
+				onText: (heard) => setListening((current) => (current === undefined ? current : { ...current, heard })),
+				onError: (reason) => {
+					dictation.current = undefined;
+					setListening((current) => {
+						if (current !== undefined) setText(joinDictated(current.typed, current.heard));
+						return undefined;
+					});
+					setProblem(dictationProblem(reason));
+				},
+				onLimit: () => finishRef.current(false),
+			});
+		} catch (error) {
+			setListening(undefined);
+			setProblem(dictationProblem(error instanceof Error ? error.message : "failed"));
+		}
+	};
+	/** Ends listening. The final text replaces what was heard; with send, it goes at once. */
+	const finishListening = async (send: boolean) => {
+		const current = dictation.current;
+		if (current === undefined || listening === undefined || listening.finishing) return;
+		setListening({ ...listening, finishing: true });
+		let heard: string;
+		try {
+			heard = await current.finish();
+		} catch (error) {
+			heard = (error as { text?: string }).text || listening.heard;
+			setProblem(dictationProblem(error instanceof Error ? error.message : "failed"));
+			send = false;
+		}
+		dictation.current = undefined;
+		setListening(undefined);
+		const joined = joinDictated(listening.typed, heard);
+		setText(joined);
+		box.current?.focus();
+		if (send) await submit(joined);
+	};
+	finishRef.current = (send) => void finishListening(send);
+	const cancelListening = () => {
+		dictation.current?.cancel();
+		dictation.current = undefined;
+		setListening(undefined);
+	};
+	useEffect(() => {
+		if (listening === undefined || listening.finishing) return;
+		const timer = setInterval(() => setNow(Date.now()), 500);
+		return () => clearInterval(timer);
+	}, [listening]);
+	useEffect(() => () => dictation.current?.cancel(), []);
+
 	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		// Enter also confirms an IME's candidate, and most users will type Chinese.
 		if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
 			event.preventDefault();
-			submit();
+			if (listening !== undefined) void finishListening(true);
+			else void submit();
 		}
+		if (event.key === "Escape" && listening !== undefined) cancelListening();
 	};
 	const add = async (files: Iterable<File>) => {
 		if (sending.current) return;
@@ -140,13 +227,21 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 
 	const busy = mode === "running" || mode === "stalled";
 	// One button, the right one for what's in the box: send what was typed, or talk when nothing was.
-	const offersVoice = onVoice !== undefined && inCall !== true && mode === "idle" && !submitting && !failed && text.trim() === "" && images.length === 0;
+	const offersVoice = onVoice !== undefined && inCall !== true && mode === "idle" && !submitting && !failed && text.trim() === "" && images.length === 0 && listening === undefined;
+	const shown = listening === undefined ? text : joinDictated(listening.typed, listening.heard);
+	const seconds = listening === undefined ? 0 : Math.max(0, Math.floor((now - listening.started) / 1000));
 	const status =
 		mode === "reconnecting" ? t("Sending is paused until the connection returns.") : mode === "stalled" ? t("No reply yet. It may be stalled.") : mode === "signed-out" ? t("You've been signed out. What you typed is kept.") : problem;
 
 	return (
 		<div className="composer">
 			{submitting && <p className="composer-status" role="status">{t("Sending…")}</p>}
+			{listening !== undefined && (
+				<p className="composer-status listening" role="status">
+					<span className="listening-dot" aria-hidden="true" />
+					{listening.finishing ? t("Finishing…") : t("Listening {time} · Enter sends, Esc cancels", { time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` })}
+				</p>
+			)}
 			{status !== "" && (
 				<p className="composer-status" role="status">
 					<CircleAlert size={14} aria-hidden="true" />
@@ -177,8 +272,8 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 				<textarea
 					ref={box}
 					rows={1}
-					value={text}
-					readOnly={submitting}
+					value={shown}
+					readOnly={submitting || listening !== undefined}
 					placeholder={placeholder}
 					aria-label={placeholder}
 					autoFocus={autoFocus}
@@ -188,9 +283,14 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 				/>
 				<div className="composer-actions">
 					{toolbar}
-					<button type="button" className="icon-button" disabled={submitting} aria-label={t("Attach an image")} title={t("Attach an image")} onClick={() => file.current?.click()}>
+					<button type="button" className="icon-button" disabled={submitting || listening !== undefined} aria-label={t("Attach an image")} title={t("Attach an image")} onClick={() => file.current?.click()}>
 						<Paperclip size={17} aria-hidden="true" />
 					</button>
+					{onDictate !== undefined && listening === undefined && (
+						<button type="button" className="icon-button" disabled={submitting || mode === "signed-out"} aria-label={t("Talk instead of typing")} title={t("Talk instead of typing")} onClick={() => void startListening()}>
+							<Mic size={17} aria-hidden="true" />
+						</button>
+					)}
 					<input
 						ref={file}
 						type="file"
@@ -202,8 +302,22 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 							event.target.value = "";
 						}}
 					/>
-					<span className="composer-hint">{t("Enter to send, Shift+Enter for a new line")}</span>
+					{listening === undefined && <span className="composer-hint">{t("Enter to send, Shift+Enter for a new line")}</span>}
 					<span className="spacer" />
+					{listening !== undefined && (
+						<>
+							<button type="button" className="icon-button" disabled={listening.finishing} aria-label={t("Cancel")} title={t("Cancel")} onClick={cancelListening}>
+								<X size={17} aria-hidden="true" />
+							</button>
+							<button type="button" className="ghost" disabled={listening.finishing} onClick={() => void finishListening(false)}>
+								<Check size={15} aria-hidden="true" />
+								{t("Stop and edit")}
+							</button>
+							<button type="button" className="primary send" disabled={listening.finishing} aria-label={t("Send")} title={t("Send")} onClick={() => void finishListening(true)}>
+								{listening.finishing ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <ArrowUp size={17} aria-hidden="true" />}
+							</button>
+						</>
+					)}
 					{busy && canSend && onStopAndSend !== undefined && (
 						<button
 							type="button"
@@ -218,7 +332,7 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 						</button>
 					)}
 					{busy && canSend && (
-						<button type="button" className="primary send" aria-label={t("Send")} onClick={submit}>
+						<button type="button" className="primary send" aria-label={t("Send")} onClick={() => void submit()}>
 							<ArrowUp size={17} aria-hidden="true" />
 						</button>
 					)}
@@ -238,13 +352,13 @@ export function Composer({ draftKey, mode, canAddToRun = true, inCall, placehold
 							<Square size={13} fill="currentColor" aria-hidden="true" />
 						</button>
 					)}
-					{offersVoice ? (
+					{listening !== undefined ? null : offersVoice ? (
 						<button type="button" className="primary send" aria-label={voiceLabel ?? t("Start a call")} title={voiceLabel ?? t("Start a call")} disabled={voiceStarting} onClick={onVoice}>
 							{voiceStarting ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <AudioLines size={17} aria-hidden="true" />}
 						</button>
 					) : (
 						(mode === "idle" || mode === "reconnecting") && (
-							<button type="button" className="primary send" aria-label={t(failed ? "Retry" : "Send")} disabled={!canSend} onClick={submit}>
+							<button type="button" className="primary send" aria-label={t(failed ? "Retry" : "Send")} disabled={!canSend} onClick={() => void submit()}>
 								<ArrowUp size={17} aria-hidden="true" />
 							</button>
 						)

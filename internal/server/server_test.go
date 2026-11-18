@@ -105,6 +105,27 @@ func TestWritesNeedSameOrigin(t *testing.T) {
 	}
 }
 
+// A voice socket is a GET, and still needs this site's origin.
+func TestVoiceSocketsNeedSameOrigin(t *testing.T) {
+	var reached bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
+	defer upstream.Close()
+	h := newServer(t, &fakeSessions{}, upstream.URL)
+
+	for origin, want := range map[string]int{"": 403, "https://evil.example": 403, "http://127.0.0.1:8083": 200} {
+		reached = false
+		r := httptest.NewRequest("GET", "/api/agents/assistant/voice?session=assistant.a.1", nil)
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != want || reached != (want == 200) {
+			t.Errorf("origin %q: status %d, reached %v: %s", origin, w.Code, reached, w.Body)
+		}
+	}
+}
+
 func TestSignedOutGets401NotARedirect(t *testing.T) {
 	h := newServer(t, &fakeSessions{identify: session.ErrSignedOut}, "")
 	w := httptest.NewRecorder()
