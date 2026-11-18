@@ -43,6 +43,12 @@ func TestLoadDefaults(t *testing.T) {
 	if len(cfg.Profiles) != 1 || cfg.Profiles[0] != "chat" {
 		t.Errorf("Profiles = %v", cfg.Profiles)
 	}
+	if !cfg.VoiceMessages {
+		t.Error("voice messages off by default")
+	}
+	if off, _ := Load(env(map[string]string{"VOICE_MESSAGES": "false"})); off.VoiceMessages {
+		t.Error("VOICE_MESSAGES=false left voice messages on")
+	}
 }
 
 func TestLoadRefuses(t *testing.T) {
