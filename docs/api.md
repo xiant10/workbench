@@ -1,3 +1,11 @@
+---
+title: "workbench API"
+audience: contributor
+kind: reference
+status: current
+summary: "Routes of workbench's server, the backend for its own web app. Other clients call the services directly."
+---
+
 # workbench API
 
 The reference for the routes `workbench`'s server answers. It's a backend for its own web app: the browser holds a session cookie and never a token, and the server adds the signed-in person's token as it forwards to agents, modules and `auth-server`. Any other client should call those services directly. [`design.md`](design.md) explains the app, and [`module-visibility.md`](module-visibility.md) how modules join it.

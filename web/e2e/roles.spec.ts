@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 // Business roles through Administration: an admin makes a role from the demo module's template that scripts/e2e-stack.sh
-// gives auth-server, edits it, gives it to a member on People and takes it back. See auth-server/docs/service-api.md,
+// gives auth-server, edits it, gives it to a member on People and takes it back. See auth-server/docs/guides/service-api.md,
 // "Business roles".
 
 async function login(page: Page, user: string) {

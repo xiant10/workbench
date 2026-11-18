@@ -1,3 +1,11 @@
+---
+title: "Workbench and business apps as one system"
+audience: consumer
+kind: design
+status: current
+summary: "Workbench and business apps as one system: the shared frame every t10 web app draws, and one vocabulary."
+---
+
 # Workbench and business apps as one system
 
 Nov 7, 2026 · Status: steps 1 and 2 built and merged to `main` on Nov 8 (workbench, workspace, t10-property, t10-modkit), with one sign-out (`feat/one-sign-out`) merged in each app first. Steps 3 to 5 built on Nov 8. All of it runs on the local cluster's t10 namespace. Reviews the move between `workbench` and business apps such as `t10-property`, and proposes one frame that every t10 web app draws from shared data, with no business module named in `workbench`'s code.

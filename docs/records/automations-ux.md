@@ -1,3 +1,11 @@
+---
+title: "Automations UX review"
+audience: contributor
+kind: record
+status: record
+summary: "A UX review of the first automations screens."
+---
+
 # Automations UX review
 
 The first flexible-task UI made recurring setup possible but made existing tasks

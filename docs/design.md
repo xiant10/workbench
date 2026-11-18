@@ -1,3 +1,11 @@
+---
+title: "T10 Workbench Design"
+audience: contributor
+kind: design
+status: current
+summary: "The workbench web app: conversations, team collaboration, administration and architecture."
+---
+
 # T10 Workbench Design
 
 Oct 31, 2026 · @Felix Liang
@@ -184,7 +192,7 @@ Four principles follow:
 
 1. **A person carries work across the line.** The agent can draft, but a person sends and accepts.
 2. **Know the result before you press send.** A send may need acceptance or may take effect at once, so the screen says which.
-3. **Nothing waits in silence.** The rule from `TEXT-VOICE-UX.md` applies to people too. A handoff shows who holds the work and for how long.
+3. **Nothing waits in silence.** The rule from `text-voice-ux.md` applies to people too. A handoff shows who holds the work and for how long.
 4. **One attention list, two sources.** Home mixes agent and teammate signals. The data stays apart, as the collab design requires.
 
 ```text
@@ -435,6 +443,19 @@ The run continues on the server through all of this, so a closed tab costs nothi
 
 Session IDs are `<pool>.<replica>.<n>`. Through `ai-gateway-agent`, the gateway routes on the ID and the proxy only adds the token. With `AGENT_URLS` naming harnesses directly, the proxy routes on everything before the last dot itself.
 
+### Temporary agent progress
+
+The conversation stream accepts `progress` events and `snapshot.progress` from agent-pi.
+The reducer stores their text by submission ID in ephemeral `progress` state, separately from
+transcript lines, streamed answer text, and results. Repeated events replace the same status;
+shared wording is rendered once in an accessible status area marked `data-temporary="true"`.
+Progress has no transcript entry and is not saved as chat history or offered as a result.
+
+Terminal submissions and finished progress events remove their status. Run completion or an
+idle snapshot clears all status; a busy reconnect snapshot restores the server's latest progress.
+The existing working indicator remains the fallback for servers that do not emit progress.
+Progress is not spoken by the client and is hidden while a spoken reply is on screen.
+
 ### Alternatives considered
 
 | Option | Why not |
@@ -495,7 +516,7 @@ A 401 from a refresh returns the browser to sign-in. Suspension and membership r
 | `error` | Inline error with a retry action |
 | `speech` | Ignored in the web transcript. A call takes its audio from LiveKit |
 
-The composer also follows the rule in `TEXT-VOICE-UX.md`: a message gets an answer or a reason, and nothing else may look like broken. A send with no event after 60 seconds shows as stalled and offers a retry with the same `requestId`, matching the client fallback in the voice design.
+The composer also follows the rule in `text-voice-ux.md`: a message gets an answer or a reason, and nothing else may look like broken. A send with no event after 60 seconds shows as stalled and offers a retry with the same `requestId`, matching the client fallback in the voice design.
 
 ### Voice and live calls
 
@@ -606,7 +627,7 @@ No dates are set. M2 to M4 share no dependency beyond M1, so priority can follow
 
 A fourth stage adds the daily digest, once a first tenant's chat tool is known. It should be live before wide rollout, and can follow any stage after the first.
 
-The backend gets Go tests. The browser flows run in Playwright against Compose, using the mock model in `agent-pi/docs/mock-model.md`, so they need no real model. Voice still needs a person on a real microphone, as the Mac client's notes warn.
+The backend gets Go tests. The browser flows run in Playwright against Compose, using the mock model in `agent-pi/docs/guides/mock-model.md`, so they need no real model. Voice still needs a person on a real microphone, as the Mac client's notes warn.
 
 ## Risks
 
