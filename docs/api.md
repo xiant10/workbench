@@ -76,3 +76,7 @@ Every other path under `/api/` answers `404 not_found`, and any other path serve
 | 413 | `too_large` | A request to an agent over 16 MiB |
 | 502 | `account_unavailable` | `auth-server`'s answer couldn't be read |
 | 503 | `auth_unavailable` | The session can't be checked right now |
+
+## Docs for coding agents
+
+`POST /docs/mcp` serves this repo's docs for people building on t10, over MCP and with no token, as the workspace's [docs contract](../../contracts/docs/README.md) describes. `workbench docs <addr>` serves only that route, for the contract's suite.

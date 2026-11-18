@@ -29,6 +29,7 @@ const (
 )
 
 func main() {
+	loadDocs()
 	if err := run(); err != nil {
 		slog.Error("workbench stopped", "error", err)
 		os.Exit(1)
@@ -96,7 +97,7 @@ func run() error {
 		Proxy: upstream, Web: web.Dist(),
 	})
 	// No write timeout: the event stream stays open for as long as a tab does.
-	srv := &http.Server{Addr: cfg.ListenAddr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: cfg.ListenAddr, Handler: ownDocs.Wrap(api.Handler()), ReadHeaderTimeout: 5 * time.Second}
 	errs := make(chan error, 1)
 	go func() {
 		slog.Info("listening", "addr", cfg.ListenAddr)
