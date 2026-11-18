@@ -71,7 +71,7 @@ flowchart TB
   mac["t10-mac-client: voice test harness"] --> livekit
   backend["Workbench backend (new): holds tokens, proxies calls, adds trace headers"] -->|code flow, refresh| auth["auth-server"]
   backend -->|user token, /agent| gw["ai-gateway-agent"]
-  gw --> pi["Harnesses: agent-pi, agent-sales"]
+  gw --> pi["Harnesses: agent-pi, agent-ti"]
   backend -.->|user token, once built| collab["t10-collab: not built yet"]
   livekit --> lka["t10-livekit-agent"]
   lka -->|grant-scoped token, for voice turns| pi
