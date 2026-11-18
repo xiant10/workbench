@@ -1,3 +1,11 @@
+---
+title: "The first screen after sign-in"
+audience: contributor
+kind: design
+status: current
+summary: "The first screen after sign-in: Home for everyone."
+---
+
 # The first screen after sign-in
 
 Nov 6, 2026 · Status: steps 1, 2 and 4 built and deployed locally, uncommitted. The rest is proposed. Decided Nov 6: everyone lands on Home, including people who work mainly in one module. How a person reaches this screen is in [`sign-in-and-landing.md`](../../auth-server/docs/sign-in-and-landing.md). Which modules a person can see is in [`module-visibility.md`](module-visibility.md).

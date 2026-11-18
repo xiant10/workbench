@@ -1,3 +1,11 @@
+---
+title: "Skills: the tenant admin's editor"
+audience: contributor
+kind: design
+status: current
+summary: "The tenant admin's skills screens: library, skill page and history."
+---
+
 # Skills: the tenant admin's editor
 
 Status: steps 1 and 2 built, November 4, 2026; step 3 proposed. How tenant skills are stored, read by agents and kept per tenant is [`t10-agent-control/docs/tenant-skills.md`](../../t10-agent-control/docs/tenant-skills.md). This doc covers only the screens.

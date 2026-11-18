@@ -1,3 +1,11 @@
+---
+title: "Showing only the modules a person can use"
+audience: consumer
+kind: design
+status: current
+summary: "Which modules workbench shows a person, by deployment and business role, and how a module joins."
+---
+
 # Showing only the modules a person can use
 
 Nov 6, 2026 · Status: steps 1 to 3 built and deployed locally, uncommitted. The rest is proposed. Decided Nov 6: a listed module that's down keeps its menu, and business roles decide who sees a role-gated module. Companion to [`design.md`](design.md) and the [module contract](../../contracts/module/README.md).
