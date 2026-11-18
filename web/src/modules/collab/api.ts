@@ -36,7 +36,36 @@ export type Item = {
 	rounds?: number;
 	/** Where it stands on its list's workflow. Only a single read of an item on a list with one has it. */
 	workflow?: Place;
+	/** A module's item type, or collab.task. See t10-collab's docs/types.md. */
+	type?: string;
+	/** The type's values, including any an earlier version declared, which are read-only. */
+	fields?: Record<string, unknown>;
+	/** Where it is in its type's lifecycle, when the type has states. Status is then the state's phase. */
+	state?: string;
+	/** The record it's about, `<module>:<type>:<id>`. */
+	subject_ref?: string;
+	/** `participants`: only its creator, owners and whoever it's offered to read it. */
+	visibility?: "team" | "participants";
+	/** The type's transitions the reader may take now. Only a single read has it. */
+	moves?: Move[];
 };
+
+/** A field a type declares: a small part of JSON Schema, so any type can be drawn. */
+export type TypeField = { type: "string" | "integer" | "number" | "boolean"; title?: string; maxLength?: number; enum?: (string | number | boolean)[] };
+/** A module's item type, as collab resolves it for the tenant. Labels are the module's own words. */
+export type ItemType = {
+	id: string;
+	owner_module: string;
+	version: number;
+	label: string;
+	fields: { properties: Record<string, TypeField>; order: string[] };
+	visibility: "team" | "participants";
+	states?: Record<string, { phase: Status; label: string }>;
+	state_order?: string[];
+};
+/** A move the reader may take: what it asks for, and where it goes. */
+export type Move = { id: string; label?: string; to: string; requires?: string[]; payload?: ("reply" | "links")[]; note?: "required" };
+export type MoveResult = { reply?: string; links?: { url: string; title: string }[] };
 
 /**
  * A step of a list's workflow. The item goes to one of `holders` (`holder` is the first): the one that held it before, or else the least busy.
@@ -120,6 +149,9 @@ export const getItem = (id: string) => request<Item>(`${base}/work-items/${id}`)
 export const createItem = (body: Record<string, unknown>) => postJSON<Item>(`${base}/work-items`, body);
 export const updateItem = (id: string, body: Record<string, unknown>) => send<Item>("PATCH", `/work-items/${id}`, body);
 export const deleteItem = (id: string) => send<void>("DELETE", `/work-items/${id}`);
+export const listTypes = async () => (await request<{ types: ItemType[] }>(`${base}/types`)).types;
+/** Take one of a typed item's moves, with its note and result. */
+export const transitionItem = (id: string, body: { transition: string; note?: string; payload?: MoveResult; version?: number }) => postJSON<Item>(`${base}/work-items/${id}/transition`, body);
 /** Agree to hold stages of a list's workflow, or stop. */
 export const setHolding = (id: string, agree: boolean) => send<void>(agree ? "PUT" : "DELETE", `/lists/${id}/holding`);
 /** Put a task you own on a shared list you're on, or take it off with "". */

@@ -1,0 +1,13 @@
+/* A module's typed item on the task page: its state, fields, moves and their results. */
+.typed-state { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.typed-moves { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.fields label.check { flex-direction: row; align-items: center; gap: 0.5rem; }
+.kept-field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); }
+.move-links { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+.move-links .link { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.3rem; }
+.move-link { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 0.35rem; align-items: center; }
+.move-result { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.25rem 0 0 0.75rem; padding-left: 0.6rem; border-left: 2px solid var(--line); color: var(--text); }
+@media (max-width: 520px) {
+	.move-link { grid-template-columns: minmax(0, 1fr) auto; }
+	.move-link input + input { grid-column: 1; }
+}

@@ -38,6 +38,7 @@ const EVENTS: Record<string, string> = {
 	"workflow.left": "It left the workflow: its stage was removed",
 	"workflow.left.list_changed": "It left the workflow: it moved off the list",
 	"item.list_changed": "Moved it to another list",
+	"item.state_changed": "Moved it",
 	"list.holder_named": "Named you a holder on a list's workflow",
 	"list.holding_changed": "Changed whether they take a list's workflow tasks",
 	"list.workflow_changed": "Changed a list's workflow",
