@@ -506,11 +506,6 @@ export const ZH: Record<string, string> = {
 	// Settings
 	Language: "语言",
 	Theme: "主题",
-	System: "跟随系统",
-	Light: "浅色",
-	Dark: "深色",
-	"Switch to light theme": "切换到浅色主题",
-	"Switch to dark theme": "切换到深色主题",
 	Tenant: "租户",
 	Notifications: "通知",
 	"Browser notifications": "浏览器通知",

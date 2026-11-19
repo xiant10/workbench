@@ -248,15 +248,12 @@ func TestPreferencesPassThroughToTheAuthService(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"theme":"dark"`) {
 		t.Errorf("read: %d %s", w.Code, w.Body)
 	}
-	for origin, want := range map[string]int{"": 403, "http://127.0.0.1:8083": 200} {
-		r := httptest.NewRequest("PUT", "/api/preferences", strings.NewReader(`{"theme":"light"}`))
-		if origin != "" {
-			r.Header.Set("Origin", origin)
-		}
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		if w.Code != want {
-			t.Errorf("save from %q: %d %s", origin, w.Code, w.Body)
-		}
+	// They're chosen on the account page: Workbench saves neither.
+	r := httptest.NewRequest("PUT", "/api/preferences", strings.NewReader(`{"theme":"light"}`))
+	r.Header.Set("Origin", "http://127.0.0.1:8083")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("save: %d %s", w.Code, w.Body)
 	}
 }

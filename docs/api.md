@@ -39,7 +39,7 @@ The app's own origin, `http://127.0.0.1:8083` in Compose. Use `127.0.0.1`, not `
 | --- | --- |
 | `GET /api/config` | What to show: `agents`, `profiles`, `modules` (each manifest with `id`, `api_version`, `features`, `enabled`, and `app`, `attention` and `events` when it has them), `unavailable_modules`, `voice`, `account_url`, `console_url` for a platform admin, and `access` (`modules`, `module_admin`) when known |
 | `GET /api/me` | `user_id`, `display_name`, `active_tenant`, `tenants` and `sign_in_name` |
-| `GET`, `PUT /api/preferences` | The person's `language` and `theme`, saved at `auth-server` so every web app shares them |
+| `GET /api/preferences` | The person's `language` and `theme`, and the `languages` the deployment offers, from `auth-server`. They're chosen on the account page, so Workbench doesn't save them |
 | `POST /api/voice/admission` | Join a call: `{room, client?}`, answering `auth-server`'s room admission |
 
 `access` and `console_url` decide only what to show. Each module and the console check again themselves.

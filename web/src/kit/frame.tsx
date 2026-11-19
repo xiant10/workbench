@@ -3,8 +3,7 @@ import { type ComponentType, Fragment, type ReactNode, useEffect, useRef, useSta
 import { useI18n } from "./i18n.tsx";
 import { useMedia } from "./layout.ts";
 import { load, save } from "./storage.ts";
-import { setTheme, type Theme, useTheme } from "./theme.ts";
-import { Avatar, Dialog, LanguageSwitch, Menu, Segmented, useFeedback } from "./ui.tsx";
+import { Avatar, Dialog, Menu, useFeedback } from "./ui.tsx";
 
 /** Lucide's icons fit this, and so does an icon drawn from a module's manifest. */
 export type Icon = ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false" }>;
@@ -205,14 +204,13 @@ type AccountMenuProps = {
 };
 
 /**
- * The same account menu in every app, in the same order: workspaces, language, theme, Account, the app's own
- * settings, and one Sign out. Who a person is lives on the account page, never in an app. The platform console is a
+ * The same account menu in every app, in the same order: workspaces, Account, the app's own settings, and one Sign
+ * out. Who a person is, and their language and theme, live on the account page, never in an app. The platform console is a
  * place, so it's in the Apps list.
  */
 export function AccountMenu({ name, tenant, tenants, onSwitch, signOut, accountUrl, children }: AccountMenuProps) {
 	const { t, describe } = useI18n();
 	const { toast } = useFeedback();
-	const theme = useTheme();
 	const [busy, setBusy] = useState(false);
 	const tenantName = tenants.find((option) => option.id === tenant)?.name ?? tenant;
 	return (
@@ -244,24 +242,6 @@ export function AccountMenu({ name, tenant, tenants, onSwitch, signOut, accountU
 							<hr />
 						</>
 					)}
-					<div className="menu-field">
-						<span>{t("Language")}</span>
-						<LanguageSwitch />
-					</div>
-					<div className="menu-field">
-						<span>{t("Theme")}</span>
-						<Segmented<Theme>
-							label={t("Theme")}
-							value={theme}
-							options={[
-								{ value: "system", label: t("System") },
-								{ value: "light", label: t("Light") },
-								{ value: "dark", label: t("Dark") },
-							]}
-							onChange={setTheme}
-						/>
-					</div>
-					<hr />
 					{accountUrl !== undefined && (
 						<a href={accountHref(accountUrl)} onClick={close}>
 							<UserRound size={15} aria-hidden="true" />
