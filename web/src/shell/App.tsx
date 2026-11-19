@@ -12,7 +12,7 @@ import { useMedia } from "../lib/layout.ts";
 import { useI18n } from "../lib/i18n.tsx";
 import { load, save } from "../lib/storage.ts";
 import { focusMenuButton, Frame } from "../kit/frame.tsx";
-import { Empty, LanguageSwitch, Logo } from "../lib/ui.tsx";
+import { Empty, Logo } from "../lib/ui.tsx";
 import { ModuleRedirect, moduleRoutes } from "../modules/index.tsx";
 import { Home } from "./Home.tsx";
 import { Palette } from "./Palette.tsx";
@@ -34,7 +34,7 @@ function Splash() {
 	);
 }
 
-/** Pages shown outside a tenant, including to someone with no session, so language is chosen here too. */
+/** Pages shown outside a tenant, including to someone with no session. They show the browser's language, or the account's once known. */
 function CenterCard({ children }: { children: ReactNode }) {
 	const { t } = useI18n();
 	return (
@@ -46,7 +46,6 @@ function CenterCard({ children }: { children: ReactNode }) {
 				</div>
 				{children}
 			</div>
-			<LanguageSwitch />
 		</main>
 	);
 }

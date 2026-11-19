@@ -7,7 +7,7 @@ import { useModules } from "../modules/index.tsx";
 import { SHORTCUT } from "../kit/command.tsx";
 import { useWorkspace } from "./workspace.ts";
 
-/** Workbench's own preferences. Language, theme and the account are in the account menu, the same in every app. */
+/** Workbench's own preferences. Language, theme and the account are on the account page, the same for every app. */
 export function Settings() {
 	const { t } = useI18n();
 	const { agent, agents, setAgent } = useWorkspace();

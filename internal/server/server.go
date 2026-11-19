@@ -79,7 +79,6 @@ func (s *Server) Handler() http.Handler {
 	handle("GET /api/config", s.user(s.handleConfig))
 	handle("GET /api/me", s.user(s.handleMe))
 	handle("GET /api/preferences", s.user(s.handlePreferences))
-	handle("PUT /api/preferences", s.sameOrigin(s.user(s.handlePreferences)))
 	handle("POST /api/voice/admission", s.sameOrigin(s.user(s.handleAdmission)))
 	agent := s.sameOrigin(s.user(func(w http.ResponseWriter, r *http.Request, id session.Identity) {
 		s.Proxy.Agent(w, r, r.PathValue("agent"), id.Access, func() bool { return s.isTenantAdmin(r, id) })
@@ -337,19 +336,11 @@ func (s *Server) isTenantAdmin(r *http.Request, id session.Identity) bool {
 	return false
 }
 
-// handlePreferences reads and saves the person's language and theme in the auth
-// service, which keeps them for every app.
+// handlePreferences reads the person's language and theme, and the languages the
+// deployment offers, from the auth service. They're chosen on the account page, so
+// Workbench never saves them.
 func (s *Server) handlePreferences(w http.ResponseWriter, r *http.Request, id session.Identity) {
-	var change map[string]string
-	if r.Method == http.MethodPut && json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&change) != nil {
-		proxy.WriteError(w, http.StatusBadRequest, "invalid_request", "send a language or a theme")
-		return
-	}
-	var body any
-	if change != nil {
-		body = change
-	}
-	status, out, err := s.Auth.Call(r.Context(), r.Method, "/v1/me/preferences", id.Access, body)
+	status, out, err := s.Auth.Call(r.Context(), http.MethodGet, "/v1/me/preferences", id.Access, nil)
 	if err != nil {
 		writeSessionError(w, err)
 		return

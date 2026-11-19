@@ -4,11 +4,14 @@ import { load, save } from "./storage.ts";
 
 export type Language = "en" | "zh";
 
+/** Every language the apps are written in. A deployment may offer fewer, which the auth service says. */
+export const LANGUAGES: Language[] = ["en", "zh"];
+
 type Vars = Record<string, string | number>;
 
+/** The language comes from the account page, through the saved preferences: an app shows it and never changes it. */
 type Context = {
 	language: Language;
-	setLanguage(language: Language): void;
 	/** English is the key, so a missing entry still reads. i18n.test.ts fails on one. */
 	t(text: string, vars?: Vars): string;
 	date(value: string | number): string;
@@ -36,7 +39,12 @@ function failureText(error: Error): string {
 
 const I18n = createContext<Context | undefined>(undefined);
 
-/** A language chosen on the sign-in page arrives in a short-lived cookie, once. */
+/** What the saved preferences hand the provider: the person's choice, if any, and the languages offered. */
+type Apply = (chosen: Language | undefined, offered: Language[]) => void;
+
+const ApplyLanguage = createContext<Apply | undefined>(undefined);
+
+/** A language chosen on the account page arrives in a short-lived cookie after sign-in, once. */
 function languageFromSignIn(): Language | undefined {
 	const match = /(?:^|; )t10_lang=([^;]*)/.exec(document.cookie);
 	if (match === null) return undefined;
@@ -44,20 +52,38 @@ function languageFromSignIn(): Language | undefined {
 	return match[1] === "zh-Hans" ? "zh" : match[1] === "en" ? "en" : undefined;
 }
 
+/** The languages offered, as the auth service last said; all of them before it has. */
+function cachedOffered(): Language[] {
+	const cached = (load("languages") ?? "").split(",").filter((code): code is Language => LANGUAGES.includes(code as Language));
+	return cached.length > 0 ? cached : LANGUAGES;
+}
+
+/** For someone who hasn't chosen: the browser's language if it's offered, else the deployment's default. */
+function guess(offered: Language[]): Language {
+	for (const tag of navigator.languages ?? [navigator.language]) {
+		const lower = tag.toLowerCase();
+		const language: Language | undefined = lower.startsWith("zh") ? "zh" : lower.startsWith("en") ? "en" : undefined;
+		if (language !== undefined && offered.includes(language)) return language;
+	}
+	return offered[0] ?? "en";
+}
+
 function initialLanguage(): Language {
+	const offered = cachedOffered();
 	const signedIn = languageFromSignIn();
 	if (signedIn !== undefined) save("language", signedIn);
 	const saved = load("language");
-	if (saved === "en" || saved === "zh") return saved;
-	return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+	if ((saved === "en" || saved === "zh") && offered.includes(saved)) return saved;
+	return guess(offered);
 }
 
 /** `catalog` is each app's own Chinese, keyed by English. */
 export function I18nProvider({ catalog, children }: { catalog: Record<string, string>; children: ReactNode }) {
-	const [language, setLanguageState] = useState(initialLanguage);
-	const setLanguage = useCallback((next: Language) => {
-		save("language", next);
-		setLanguageState(next);
+	const [language, setLanguage] = useState(initialLanguage);
+	const apply = useCallback<Apply>((chosen, offered) => {
+		save("languages", offered.join(","));
+		save("language", chosen);
+		setLanguage(chosen !== undefined && offered.includes(chosen) ? chosen : guess(offered));
 	}, []);
 	const tag = language === "zh" ? "zh-CN" : "en";
 	// Also picks the right glyphs: without it, a browser may draw Chinese with a Japanese font.
@@ -78,7 +104,6 @@ export function I18nProvider({ catalog, children }: { catalog: Record<string, st
 		const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
 		return {
 			language,
-			setLanguage,
 			t,
 			date: (at) => dates.format(new Date(at)),
 			day: (at) => days.format(new Date(at)),
@@ -92,8 +117,19 @@ export function I18nProvider({ catalog, children }: { catalog: Record<string, st
 			},
 			describe: (error) => (language === "en" && error instanceof ApiError && error.status < 500 && error.status !== 0 ? error.message : t(failureText(error))),
 		};
-	}, [language, setLanguage, t, tag]);
-	return <I18n.Provider value={value}>{children}</I18n.Provider>;
+	}, [language, t, tag]);
+	return (
+		<ApplyLanguage.Provider value={apply}>
+			<I18n.Provider value={value}>{children}</I18n.Provider>
+		</ApplyLanguage.Provider>
+	);
+}
+
+/** Only the saved preferences call this: nothing in an app changes the language. */
+export function useApplyLanguage(): Apply {
+	const apply = useContext(ApplyLanguage);
+	if (apply === undefined) throw new Error("useApplyLanguage needs I18nProvider");
+	return apply;
 }
 
 export function useI18n(): Context {

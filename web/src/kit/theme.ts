@@ -12,13 +12,15 @@ export function applyTheme(theme: Theme = current()): void {
 	else document.documentElement.dataset.theme = theme;
 }
 
-export function setTheme(theme: Theme): void {
+/** Only the saved preferences call this: a person chooses the theme on the account page. */
+export function applySavedTheme(theme: Theme): void {
+	if (theme === current()) return;
 	save("theme", theme);
 	applyTheme(theme);
 	for (const listener of listeners) listener();
 }
 
-/** Every app's account menu and settings change it, so they read one value. */
+/** What the account page chose, for whatever draws in the theme. */
 export function useTheme(): Theme {
 	return useSyncExternalStore((listener) => {
 		listeners.add(listener);

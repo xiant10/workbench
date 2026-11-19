@@ -283,9 +283,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .menu > button:hover, .menu > a:hover { background: var(--hover); }
 .menu > .menu-danger { color: var(--danger); }
 .account-menu { width: 264px; }
-.account-menu label, .menu-field { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.3rem 0.55rem; font-size: 0.78rem; color: var(--muted); }
-.account-menu .segmented { width: 100%; }
-.account-menu .segmented button { flex: 1; }
+.account-menu label { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.3rem 0.55rem; font-size: 0.78rem; color: var(--muted); }
 
 .dialog-backdrop, .palette-backdrop { position: fixed; inset: 0; background: rgb(14 16 22 / 0.45); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 30; padding: 1rem; animation: fade 0.12s ease-out; }
 @keyframes fade { from { opacity: 0; } }

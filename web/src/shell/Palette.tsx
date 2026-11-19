@@ -1,6 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { useState } from "react";
-import { AudioLines, Home as HomeIcon, Languages, MessageSquare, MessageSquarePlus, Moon, Settings as SettingsIcon, Sun, UserRound } from "lucide-react";
+import { AudioLines, Home as HomeIcon, MessageSquare, MessageSquarePlus, Settings as SettingsIcon, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Palette as KitPalette, type PaletteEntry } from "../kit/command.tsx";
 import { MicrophoneRefused, useCalls } from "../call/CallProvider.tsx";
@@ -8,7 +8,6 @@ import { useI18n } from "../lib/i18n.tsx";
 import { useFeedback } from "../lib/ui.tsx";
 import { appHref, navQuery } from "../modules/fromManifest.tsx";
 import { useModuleNav, useModules } from "../modules/index.tsx";
-import { setTheme, useTheme } from "./theme.ts";
 import { useSessions, useWorkspace } from "./workspace.ts";
 
 const MAX_CONVERSATIONS = 8;
@@ -21,13 +20,12 @@ const MIN_RECORD_QUERY = 2;
 
 /** One place to jump anywhere, from the keyboard or a tap on Search: conversations, Workbench, and other apps' sections. */
 export function Palette({ onClose }: { onClose(): void }) {
-	const { t, ago, language, setLanguage, describe } = useI18n();
+	const { t, ago, language, describe } = useI18n();
 	const { toast } = useFeedback();
 	const calls = useCalls();
 	const { path, tenant, config } = useWorkspace();
 	const nav = useModuleNav();
 	const navigate = useNavigate();
-	const theme = useTheme();
 	const sessions = useSessions();
 	// The apps that list sections, read the same way as under their Apps entries.
 	const apps = nav.filter(({ entry, available }) => available && entry.href !== undefined && entry.Sections !== undefined);
@@ -47,7 +45,6 @@ export function Palette({ onClose }: { onClose(): void }) {
 
 	const search = (query: string): PaletteEntry[] => {
 		const go = (to: string) => () => navigate(path(to));
-		const dark = document.documentElement.dataset.theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
 		const actions: PaletteEntry[] = [
 			{ key: "new", label: t("New conversation"), icon: MessageSquarePlus, run: go("") },
 			...(config.voice
@@ -57,8 +54,6 @@ export function Palette({ onClose }: { onClose(): void }) {
 			...nav.map(({ entry }) => ({ key: entry.key, label: t(entry.label), icon: entry.icon, run: entry.href === undefined ? go(entry.to) : () => window.location.assign(appHref(entry.href ?? "", tenant)) })),
 			{ key: "account", label: t("Account"), icon: UserRound, run: () => window.location.assign(config.account_url) },
 			{ key: "settings", label: t("Workbench settings"), icon: SettingsIcon, run: go("settings") },
-			{ key: "theme", label: t(dark ? "Switch to light theme" : "Switch to dark theme"), icon: dark ? Sun : Moon, run: () => setTheme(dark ? "light" : "dark") },
-			{ key: "language", label: language === "zh" ? "Switch to English" : "切换到简体中文", icon: Languages, run: () => setLanguage(language === "zh" ? "en" : "zh") },
 		];
 		const conversations: PaletteEntry[] = [...(sessions.data ?? [])]
 			.sort((a, b) => b.lastActiveAt - a.lastActiveAt)

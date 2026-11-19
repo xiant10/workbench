@@ -1,37 +1,29 @@
-/** A person's language and theme, kept by the auth service for every t10 app. Browser
- * storage is only the cache that paints the first screen before it answers. */
-import { useEffect, useRef } from "react";
+/** A person's language and theme, chosen on the account page and kept by the auth service for every t10 app. An app
+ * only shows them: browser storage is just the cache that paints the first screen before the auth service answers. */
+import { useEffect } from "react";
 import { request } from "./api.ts";
-import { type Language, useI18n } from "./i18n.tsx";
-import { setTheme, type Theme, useTheme } from "./theme.ts";
+import { LANGUAGES, type Language, useApplyLanguage } from "./i18n.tsx";
+import { applySavedTheme, type Theme } from "./theme.ts";
 
-type Saved = { language?: "en" | "zh-Hans"; theme?: Theme };
+type Tag = "en" | "zh-Hans";
+type Saved = { language?: Tag; theme?: Theme; languages?: Tag[] };
 
-const fromSaved = (language: Saved["language"]): Language | undefined => (language === "zh-Hans" ? "zh" : language === "en" ? "en" : undefined);
-const toSaved = (language: Language): Saved["language"] => (language === "zh" ? "zh-Hans" : "en");
+const fromSaved = (language: Tag | undefined): Language | undefined => (language === "zh-Hans" ? "zh" : language === "en" ? "en" : undefined);
 
 /**
  * Call once in a signed-in app. It applies the saved choices when the page opens and whenever the person comes back to
- * it, so a change made in another app shows here too, and saves each change made here. Nothing is saved before the
- * first read, so a browser's guess never overwrites a choice.
+ * it, so a change made on the account page shows here too. A person who hasn't chosen a language sees the browser's, if
+ * the deployment offers it.
  */
 export function useSavedPreferences(): void {
-	const { language, setLanguage } = useI18n();
-	const theme = useTheme();
-	const now = useRef({ language, theme });
-	now.current = { language, theme };
-	// What the auth service holds, as far as this page knows; undefined until it has answered.
-	const known = useRef<{ language: Language; theme: Theme } | undefined>(undefined);
-
+	const applyLanguage = useApplyLanguage();
 	useEffect(() => {
 		const read = () =>
 			request<Saved>("/api/preferences").then(
 				(saved) => {
-					const nextLanguage = fromSaved(saved.language) ?? now.current.language;
-					const nextTheme = saved.theme ?? now.current.theme;
-					known.current = { language: nextLanguage, theme: nextTheme };
-					if (nextLanguage !== now.current.language) setLanguage(nextLanguage);
-					if (nextTheme !== now.current.theme) setTheme(nextTheme);
+					const offered = (saved.languages ?? []).map(fromSaved).filter((language) => language !== undefined);
+					applyLanguage(fromSaved(saved.language), offered.length > 0 ? offered : LANGUAGES);
+					applySavedTheme(saved.theme ?? "system");
 				},
 				() => undefined,
 			);
@@ -45,17 +37,5 @@ export function useSavedPreferences(): void {
 			document.removeEventListener("visibilitychange", onVisible);
 			window.removeEventListener("focus", onVisible);
 		};
-	}, [setLanguage]);
-
-	useEffect(() => {
-		const before = known.current;
-		if (before === undefined) return;
-		const change: Saved = {};
-		if (language !== before.language) change.language = toSaved(language);
-		if (theme !== before.theme) change.theme = theme;
-		if (Object.keys(change).length === 0) return;
-		known.current = { language, theme };
-		// Losing the save only means the next app shows the old choice; this page keeps the new one.
-		void request("/api/preferences", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(change) }).catch(() => undefined);
-	}, [language, theme]);
+	}, [applyLanguage]);
 }

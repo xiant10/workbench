@@ -62,21 +62,6 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
 	);
 }
 
-export function LanguageSwitch() {
-	const { t, language, setLanguage } = useI18n();
-	return (
-		<Segmented
-			label={t("Language")}
-			value={language}
-			options={[
-				{ value: "en", label: "English" },
-				{ value: "zh", label: "简体中文" },
-			]}
-			onChange={setLanguage}
-		/>
-	);
-}
-
 export function CopyButton({ text, label, className = "icon-button" }: { text: string | (() => string); label?: string; className?: string }) {
 	const { t } = useI18n();
 	const { toast } = useFeedback();
