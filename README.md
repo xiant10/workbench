@@ -103,6 +103,10 @@ A new interface string needs its Chinese in `web/src/lib/zh.ts`, or `npm test` f
 
 In a conversation, open **Results → Activity** and expand a tool call to inspect and copy its recorded request and response as JSON. Details load on demand and remain available after reload, including archived conversations. Running calls refresh while expanded. These are the recorded model tool-call block and tool-result message, not HTTP transport headers; tool middleware may have transformed arguments before execution. The sibling `agent-pi` must include `session.tool`, which checks session ownership before reading history.
 
+## Contact
+
+Questions, feedback or commercial enquiries: [hi@tacten.ai](mailto:hi@tacten.ai).
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
