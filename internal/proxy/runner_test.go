@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"t10-workbench/internal/config"
+	"workbench/internal/config"
 )
 
 // A runner's key or token passes through as it came, to automations' runner

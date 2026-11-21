@@ -16,11 +16,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xiant10/t10-modkit/httpjson"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/proxy"
-	"t10-workbench/internal/session"
-	"t10-workbench/internal/telemetry"
-	"t10-workbench/internal/voice"
+	"workbench/internal/config"
+	"workbench/internal/proxy"
+	"workbench/internal/session"
+	"workbench/internal/telemetry"
+	"workbench/internal/voice"
 )
 
 const maxJSONBody = 1 << 16

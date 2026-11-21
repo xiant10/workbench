@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"t10-workbench/internal/config"
+	"workbench/internal/config"
 )
 
 func mustURL(t *testing.T, raw string) *url.URL {

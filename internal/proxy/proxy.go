@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/telemetry"
+	"workbench/internal/config"
+	"workbench/internal/telemetry"
 )
 
 const (

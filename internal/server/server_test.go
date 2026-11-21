@@ -10,9 +10,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/proxy"
-	"t10-workbench/internal/session"
+	"workbench/internal/config"
+	"workbench/internal/proxy"
+	"workbench/internal/session"
 )
 
 type fakeSessions struct {

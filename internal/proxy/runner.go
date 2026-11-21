@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/telemetry"
+	"workbench/internal/config"
+	"workbench/internal/telemetry"
 )
 
 // External agent teammates' runners work outside t10 and call in, so they reach
