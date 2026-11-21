@@ -1,25 +1,20 @@
-// Package telemetry exports request traces over OTLP. Spans carry routes and
-// statuses only, never a query string or a body, because those hold people's
-// words. With no endpoint it does nothing.
+// Package telemetry exports request traces over OTLP, with t10-modkit's
+// telemetry, and adds what only Workbench does: a browser's turn starts its trace,
+// whose ID is the turn's ID.
 package telemetry
 
 import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"net/url"
-	"regexp"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+
+	shared "github.com/xiant10/t10-modkit/telemetry"
 )
 
 const (
@@ -27,37 +22,21 @@ const (
 	turnHeader  = "X-Turn-ID"
 )
 
-// spanValue is what may go on a span from a request: an identifier, never free text.
-var spanValue = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
-
-// Setup starts the exporter and returns a shutdown that flushes it.
+// Setup starts the exporter and returns a shutdown that flushes it. Root spans
+// that carry a turn take its ID as their trace ID.
 func Setup(ctx context.Context, endpoint string) (func(context.Context) error, error) {
-	otel.SetTextMapPropagator(propagation.TraceContext{})
-	if endpoint == "" {
-		return func(context.Context) error { return nil }, nil
-	}
-	target, err := url.Parse(endpoint)
-	if err != nil || (target.Scheme != "http" && target.Scheme != "https") || target.Host == "" {
-		// Tracing never stops a service, but this has to be visible.
-		slog.Error("traces are off: OTEL_EXPORTER_OTLP_ENDPOINT must be a URL such as http://collector:4318")
-		return func(context.Context) error { return nil }, nil
-	}
-	res, err := resource.New(ctx, resource.WithAttributes(attribute.String("service.name", serviceName)))
-	if err != nil {
-		return nil, fmt.Errorf("build otel resource: %w", err)
-	}
-	exporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(target.JoinPath("v1/traces").String()))
-	if err != nil {
-		return nil, fmt.Errorf("dial otlp exporter at %q: %w", endpoint, err)
-	}
-	provider := sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter), sdktrace.WithResource(res), sdktrace.WithIDGenerator(turnIDs{}))
-	otel.SetTracerProvider(provider)
-	return provider.Shutdown, nil
+	return shared.Setup(ctx, serviceName, endpoint, sdktrace.WithIDGenerator(turnIDs{}))
 }
 
-// Wrap traces one route, named by its pattern so that IDs stay out of the name.
+// Wrap traces one route, named by its pattern, and marks its chat session.
 func Wrap(pattern string, next http.Handler) http.Handler {
-	return otelhttp.NewHandler(next, pattern)
+	return shared.Wrap(pattern, next)
+}
+
+// Inject puts the trace on ctx into an outgoing request's headers as a W3C
+// traceparent, so a downstream service continues it. It adds nothing outside a span.
+func Inject(ctx context.Context, h http.Header) {
+	shared.Inject(ctx, h)
 }
 
 // WrapTurn traces the route a browser's turn comes in on. A POST naming a turn
@@ -85,13 +64,13 @@ func StartTurn(ctx context.Context, turnID, session, method string) (context.Con
 	if current := trace.SpanContextFromContext(ctx); current.IsValid() && current.TraceID() != traceID {
 		options = append(options, trace.WithNewRoot())
 	}
-	if spanValue.MatchString(session) {
-		options = append(options, trace.WithAttributes(attribute.String("t10.session.id", session)))
+	if shared.SpanValue(session) {
+		options = append(options, trace.WithAttributes(attribute.String(shared.SessionAttribute, session)))
 	}
-	if spanValue.MatchString(method) {
+	if shared.SpanValue(method) {
 		options = append(options, trace.WithAttributes(attribute.String("rpc.method", method)))
 	}
-	ctx, span := otel.Tracer(serviceName).Start(context.WithValue(ctx, turnKey{}, traceID), "workbench.send", options...)
+	ctx, span := shared.Tracer().Start(context.WithValue(ctx, turnKey{}, traceID), "workbench.send", options...)
 	sc := span.SpanContext()
 	if !sc.IsValid() {
 		// Nothing exports here, but the services after this one may still trace the turn.
@@ -120,10 +99,4 @@ func newSpanID() trace.SpanID {
 	var id trace.SpanID
 	_, _ = rand.Read(id[:])
 	return id
-}
-
-// Inject puts the trace on ctx into an outgoing request's headers as a W3C
-// traceparent, so a downstream service continues it. It adds nothing outside a span.
-func Inject(ctx context.Context, h http.Header) {
-	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(h))
 }

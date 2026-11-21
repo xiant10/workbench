@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"t10-workbench/internal/session"
+	"workbench/internal/session"
 )
 
 // Admission is what the browser needs. Admission's other fields stay here.

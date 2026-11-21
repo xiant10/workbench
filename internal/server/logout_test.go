@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"t10-workbench/internal/session"
+	"workbench/internal/session"
 )
 
 func TestLogoutEndsTheSessionAndPassesTheBrowserOn(t *testing.T) {

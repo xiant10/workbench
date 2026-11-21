@@ -6,7 +6,7 @@ import (
 
 	"github.com/xiant10/t10-modkit/docsmcp"
 
-	repodocs "t10-workbench/docs"
+	repodocs "workbench/docs"
 )
 
 // version is the commit the image was built from, set by the Dockerfile's VERSION.

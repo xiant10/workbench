@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/db"
-	"t10-workbench/internal/proxy"
-	"t10-workbench/internal/server"
-	"t10-workbench/internal/session"
-	"t10-workbench/internal/telemetry"
-	"t10-workbench/web"
+	"workbench/internal/config"
+	"workbench/internal/db"
+	"workbench/internal/proxy"
+	"workbench/internal/server"
+	"workbench/internal/session"
+	"workbench/internal/telemetry"
+	"workbench/web"
 )
 
 const (

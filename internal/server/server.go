@@ -14,12 +14,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/xiant10/t10-modkit/httpjson"
 
-	"t10-workbench/internal/config"
-	"t10-workbench/internal/proxy"
-	"t10-workbench/internal/session"
-	"t10-workbench/internal/telemetry"
-	"t10-workbench/internal/voice"
+	"workbench/internal/config"
+	"workbench/internal/proxy"
+	"workbench/internal/session"
+	"workbench/internal/telemetry"
+	"workbench/internal/voice"
 )
 
 const maxJSONBody = 1 << 16
@@ -489,11 +490,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
+func writeJSON(w http.ResponseWriter, status int, body any) { httpjson.Write(w, status, body) }
 
 // statusRecorder notes the status for the request log. Unwrap keeps Flush
 // reaching the real writer, which the event stream depends on.

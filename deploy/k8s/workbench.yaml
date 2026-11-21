@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: workbench
-          image: t10-workbench:latest
+          image: workbench:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 18060
